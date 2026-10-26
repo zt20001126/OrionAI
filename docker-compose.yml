@@ -1,4 +1,39 @@
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+psycopg://orionai:orionai@postgres:5432/orionai
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      AUTH_CODE_PEPPER: ${AUTH_CODE_PEPPER:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
   postgres:
     image: postgres:17-alpine
     environment:
@@ -28,51 +63,6 @@ services:
       timeout: 3s
       retries: 10
 
-  backend:
-    build:
-      context: .
-      dockerfile: deploy/docker/backend.Dockerfile
-    environment:
-      ENVIRONMENT: development
-      DATABASE_URL: postgresql+psycopg://orionai:orionai@postgres:5432/orionai
-      REDIS_URL: redis://redis:6379/0
-      CORS_ORIGINS: '["http://localhost:5173"]'
-      AUTH_CODE_PEPPER: ${AUTH_CODE_PEPPER:-}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
-    ports:
-      - "${BACKEND_PORT:-8000}:8000"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  frontend:
-    build:
-      context: .
-      dockerfile: deploy/docker/frontend.Dockerfile
-    environment:
-      API_PROXY_TARGET: http://backend:8000
-    ports:
-      - "${FRONTEND_PORT:-5173}:5173"
-    volumes:
-      - ./frontend:/workspace/frontend
-      - frontend_node_modules:/workspace/frontend/node_modules
-    depends_on:
-      backend:
-        condition: service_healthy
-
 volumes:
   postgres_data:
   redis_data:
-  frontend_node_modules:

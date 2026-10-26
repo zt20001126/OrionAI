@@ -16,7 +16,7 @@ from app.infrastructure.redis.auth_state import AuthSession
 from app.main import app
 from app.modules.auth import service as auth_service_module
 from app.modules.auth.router import get_auth_service
-from app.modules.auth.service import GENERIC_RESET_MESSAGE, AuthService
+from app.modules.auth.service import GENERIC_RESET_CODE_MESSAGE, AuthService
 
 
 class InMemoryAuthStateStore:
@@ -215,7 +215,7 @@ def test_unknown_password_reset_request_does_not_send_email(
     )
 
     assert response.status_code == 202
-    assert response.json() == {"message": GENERIC_RESET_MESSAGE}
+    assert response.json() == {"message": GENERIC_RESET_CODE_MESSAGE}
     assert sent_codes == {}
 
 

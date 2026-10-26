@@ -19,9 +19,15 @@ backend/tests/            后端测试
 deploy/docker/            前后端开发镜像
 deploy/nginx/             Nginx 配置预留目录
 docs/                     架构与开发文档
-docker-compose.yml        前端、后端、PostgreSQL、Redis
+docker-compose.yml        后端、PostgreSQL、Redis
 AGENTS.md                 Codex 项目开发约束
 ~~~
+
+## 项目文档
+
+- [API 接口文档](docs/api/api.md)
+- [数据库表结构](docs/database/database.md)
+- [架构概览](docs/architecture/overview.md)
 
 ## 本地开发环境要求
 
@@ -63,7 +69,16 @@ Copy-Item .env.example .env
 docker compose up --build
 ~~~
 
-打开 http://localhost:5173 查看前端，http://localhost:8000/api/health 检查后端，http://localhost:8000/docs 查看 FastAPI 自动生成的接口文档。停止服务：
+Compose 只启动后端、PostgreSQL 和 Redis。前端在另一个终端单独运行：
+
+~~~powershell
+Set-Location frontend
+npm run dev
+~~~
+
+Compose 文件中的服务按 `backend`、`postgres`、`redis` 顺序排列。后端依赖数据库和 Redis 的健康检查，实际启动时会等它们就绪；后端容器启动时会先执行 Alembic 迁移。
+
+打开 http://localhost:5173 查看前端，http://localhost:8000/api/health 检查后端，http://localhost:8000/docs 查看 FastAPI 自动生成的接口文档。停止 Compose 服务：
 
 ~~~powershell
 docker compose down
@@ -73,7 +88,7 @@ docker compose down
 
 ## 分别启动前后端
 
-Docker 后端容器会先执行 Alembic 迁移，再启动 API。分别启动时，先启动 PostgreSQL 和 Redis：
+若要在宿主机分别运行前后端，可只用 Docker 启动 PostgreSQL 和 Redis：
 
 ~~~powershell
 docker compose up -d postgres redis

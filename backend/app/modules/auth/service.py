@@ -34,7 +34,7 @@ DUMMY_PASSWORD_HASH = (
     "56a0e284436e6f5665db53e8a8487b13cba1220cedfbfc1c51f8955107336c4f"
     "6b4fd6cb9906894b6e487a8720b9d87af83868bcb1ce8f1eacd60a5e3486a302"
 )
-GENERIC_RESET_MESSAGE = "如果邮箱和验证码有效，密码已更新。"
+GENERIC_RESET_CODE_MESSAGE = "如果邮箱已注册，验证码将发送到邮箱。"
 
 
 class AuthStateStore(Protocol):
@@ -115,7 +115,7 @@ class AuthService:
         account = normalize_email(account)
         user = self._get_user(account)
         if purpose == "password_reset" and user is None:
-            return GENERIC_RESET_MESSAGE
+            return GENERIC_RESET_CODE_MESSAGE
         if purpose == "register" and user is not None:
             raise AccountExistsError
         if not self._settings.auth_code_pepper:
@@ -138,7 +138,7 @@ class AuthService:
             except RedisError as redis_error:
                 raise AuthUnavailableError from redis_error
             raise AuthUnavailableError from error
-        return "验证码已发送。" if purpose == "register" else GENERIC_RESET_MESSAGE
+        return "验证码已发送。" if purpose == "register" else GENERIC_RESET_CODE_MESSAGE
 
     def register(self, account: str, code: str, password: str) -> tuple[str, str]:
         account = normalize_email(account)
