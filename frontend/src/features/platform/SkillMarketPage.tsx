@@ -26,7 +26,7 @@ export function SkillMarketPage() {
     <div className="market-page">
       <section className="market-hero" aria-labelledby="market-title">
         <div className="market-hero__copy">
-          <p className="section-eyebrow">ORIONAI SKILL MARKET</p>
+          <p className="section-eyebrow">技能市场</p>
           <h1 id="market-title">探索 AI 技能，构建专属智能体</h1>
           <p>发现、使用和管理各类可复用的 AI 能力，快速搭建你的智能体应用。</p>
           <div className="market-hero__meta">
@@ -48,13 +48,12 @@ export function SkillMarketPage() {
           type="search"
           value={search}
         />
-        <span>⌘ K</span>
       </section>
 
       <section className="market-section" aria-labelledby="category-title">
         <div className="market-section__heading market-section__heading--compact">
           <div>
-            <p className="section-eyebrow">FIND YOUR FLOW</p>
+            <p className="section-eyebrow">探索技能</p>
             <h2 id="category-title">技能分类</h2>
           </div>
           <span className="market-section__hint">按场景探索可复用能力</span>
@@ -77,7 +76,7 @@ export function SkillMarketPage() {
       <section className="market-section" aria-labelledby="popular-skills-title">
         <div className="market-section__heading">
           <div>
-            <p className="section-eyebrow">POPULAR SKILLS</p>
+            <p className="section-eyebrow">精选技能</p>
             <h2 id="popular-skills-title">热门技能</h2>
           </div>
           <span className="skill-count">{visibleSkills.length} 项演示技能</span>
@@ -105,7 +104,7 @@ export function SkillMarketPage() {
           <PlatformIcon name="agents" size={24} />
         </div>
         <div>
-          <p className="section-eyebrow">MORE TO COME</p>
+          <p className="section-eyebrow">更多能力</p>
           <h2 id="coming-soon-title">技能市场正在建设中</h2>
           <p>更多实用技能即将上线，敬请期待</p>
         </div>

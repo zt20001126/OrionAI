@@ -38,11 +38,20 @@ describe("OrionAI platform", () => {
     expect(
       await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" }),
     ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/market");
     expect(screen.getByRole("link", { name: /技能市场/ })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "RAG 知识问答" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "工具调用" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文档分析" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "数据分析" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: "会话记录" }));
+    expect(await screen.findByRole("heading", { name: "会话记录" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "会话记录" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("link", { name: "技能市场" }));
+    expect(
+      await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" }),
+    ).toBeInTheDocument();
   });
 
   it("filters demo skills by search and category", async () => {
@@ -78,6 +87,15 @@ describe("OrionAI platform", () => {
 
     expect(await screen.findByRole("heading", { name: "我的智能体" })).toBeInTheDocument();
     expect(screen.getByText("该页面正在建设中，敬请期待。")).toBeInTheDocument();
+
+    for (const [label, title] of [
+      ["会话记录", "会话记录"],
+      ["知识库", "知识库"],
+      ["工具管理", "工具管理"],
+    ]) {
+      fireEvent.click(screen.getByRole("link", { name: label }));
+      expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
+    }
   });
 
   it("redirects protected routes to login when signed out", async () => {
@@ -85,6 +103,7 @@ describe("OrionAI platform", () => {
     vi.stubGlobal("fetch", mockSession(null));
     render(<App />);
     expect(await screen.findByRole("heading", { name: "登录 OrionAI" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/login");
   });
 
   it("returns to login after logout", async () => {
@@ -96,6 +115,7 @@ describe("OrionAI platform", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "退出登录" }));
 
     expect(await screen.findByRole("heading", { name: "登录 OrionAI" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/login");
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/logout"))).toBe(true);
   });
 });

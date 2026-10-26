@@ -37,6 +37,7 @@ describe("OrionAI authentication page", () => {
     expect(
       await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" }),
     ).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/market");
     const loginCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/login"));
     expect(loginCall?.[1]).toMatchObject({ credentials: "include" });
     expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({

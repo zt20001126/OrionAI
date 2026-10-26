@@ -1139,6 +1139,7 @@
 
   .market-hero {
     min-height: 222px;
+    grid-template-columns: minmax(0, 1fr);
     padding: 25px 22px;
   }
 

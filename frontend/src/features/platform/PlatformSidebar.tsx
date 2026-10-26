@@ -1,7 +1,7 @@
 import { BrandMark } from "../auth/ProductIntro";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformIcon } from "./PlatformIcon";
-import { navigationItems, platformPaths, type PlatformPath } from "./platformData";
+import { getDisplayName, navigationItems, platformPaths, type PlatformPath } from "./platformData";
 
 interface PlatformSidebarProps {
   account: string;
@@ -18,6 +18,8 @@ export function PlatformSidebar({
   onNavigate,
   pathname,
 }: PlatformSidebarProps) {
+  const displayName = getDisplayName(account);
+
   return (
     <aside className="platform-sidebar" aria-label="平台侧边栏">
       <a
@@ -67,10 +69,10 @@ export function PlatformSidebar({
         <div className="sidebar-account">
           <span className="sidebar-account__identity" title={account}>
             <span className="sidebar-account__avatar" aria-hidden="true">
-              {account.split("@")[0]?.charAt(0).toUpperCase() || "U"}
+              {displayName.charAt(0).toUpperCase()}
             </span>
             <span className="sidebar-account__copy">
-              <strong>{account.split("@")[0] || "个人用户"}</strong>
+              <strong>{displayName}</strong>
               <small>已登录</small>
             </span>
           </span>

@@ -7,9 +7,7 @@ const capabilities = [
 ] as const;
 
 export function BrandMark() {
-  return (
-    <img className="brand-mark" src="/logo/orionai-logo-512.png" alt="" aria-hidden="true" />
-  );
+  return <img className="brand-mark" src="/logo/orionai-logo-512.png" alt="" aria-hidden="true" />;
 }
 
 export function ProductIntro() {
@@ -22,7 +20,7 @@ export function ProductIntro() {
         </div>
 
         <div className="product-copy">
-          <p className="product-kicker">AI AGENT PLATFORM</p>
+          <p className="product-kicker">企业级 AI 智能体平台</p>
           <h1 id="product-title">
             一体化 <span>AI 智能体</span>
             <br />
@@ -93,7 +91,7 @@ function WorkflowShowcase() {
   return (
     <figure className="workflow-visual">
       <figcaption className="workflow-heading">
-        <span className="workflow-heading__eyebrow">WORKFLOW STUDIO</span>
+        <span className="workflow-heading__eyebrow">工作流工作台</span>
         <span className="workflow-heading__label">
           <span className="workflow-live-dot" aria-hidden="true" />
           工作流示意
@@ -106,7 +104,7 @@ function WorkflowShowcase() {
         aria-labelledby="workflow-title workflow-description"
       >
         <title id="workflow-title">AI 智能体工作流</title>
-        <desc id="workflow-description">Agent 节点连接到 LLM、Tools 和 Knowledge Base。</desc>
+        <desc id="workflow-description">智能体节点连接到语言模型、工具和知识库。</desc>
         <path className="workflow-connector" d="M330 81v28H105v30m225-30v30m0-30h225v30" />
         <circle className="workflow-connector-dot" cx="105" cy="139" r="3" />
         <circle className="workflow-connector-dot" cx="330" cy="139" r="3" />
@@ -117,7 +115,7 @@ function WorkflowShowcase() {
           <rect className="workflow-node__icon-bg" x="260" y="32" width="36" height="36" rx="11" />
           <path className="workflow-node__icon" d="M271 50h14m-7-7v14m-5-14 10 14m0-14-10 14" />
           <text className="workflow-node__title" x="307" y="47">
-            Agent
+            智能体
           </text>
           <text className="workflow-node__caption" x="307" y="64">
             智能体编排
@@ -129,7 +127,7 @@ function WorkflowShowcase() {
           <rect className="workflow-node__icon-bg" x="36" y="155" width="34" height="34" rx="10" />
           <path className="workflow-node__icon" d="M47 166h12m-12 5h12m-12 5h8" />
           <text className="workflow-node__title" x="79" y="168">
-            LLM
+            语言模型
           </text>
           <text className="workflow-node__caption" x="79" y="185">
             语言模型
@@ -141,7 +139,7 @@ function WorkflowShowcase() {
           <rect className="workflow-node__icon-bg" x="261" y="155" width="34" height="34" rx="10" />
           <path className="workflow-node__icon" d="m272 177 12-12m-9 0h9v9" />
           <text className="workflow-node__title" x="304" y="168">
-            Tools
+            工具
           </text>
           <text className="workflow-node__caption" x="304" y="185">
             工具调用
@@ -154,7 +152,7 @@ function WorkflowShowcase() {
           <ellipse className="workflow-node__icon" cx="503" cy="163" rx="9" ry="3.5" />
           <path className="workflow-node__icon" d="M494 163v11c0 2 4 3.5 9 3.5s9-1.5 9-3.5v-11" />
           <text className="workflow-node__title" x="529" y="168">
-            Knowledge Base
+            知识库
           </text>
           <text className="workflow-node__caption" x="529" y="185">
             知识检索

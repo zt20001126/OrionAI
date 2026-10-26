@@ -58,7 +58,7 @@ export function ProfileMenu({
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={triggerLabel}
-        aria-controls={menuId}
+        aria-controls={isOpen ? menuId : undefined}
         className="profile-menu__trigger"
         onClick={() => setIsOpen((open) => !open)}
         type="button"
