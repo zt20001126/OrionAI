@@ -162,7 +162,7 @@ def test_register_creates_one_user_and_uses_httponly_cookie(
         column["name"]
         for column in inspect(client.app.state.test_engine).get_columns("users")  # type: ignore[attr-defined]
     }
-    assert columns == {"account", "password_hash", "created_at", "last_login_at"}
+    assert columns == {"id", "account", "password_hash", "created_at", "last_login_at"}
 
     logout_response = client.post("/api/auth/logout")
     assert logout_response.status_code == 200
