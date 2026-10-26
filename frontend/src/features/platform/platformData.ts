@@ -6,15 +6,36 @@ export const platformPaths = {
   tools: "/tools",
   workspace: "/workspace",
   settings: "/settings",
+  chat: "/chat",
   login: "/login",
 } as const;
 
-export type PlatformPath = Exclude<(typeof platformPaths)[keyof typeof platformPaths], "/login">;
+export type PlatformPath = Exclude<
+  (typeof platformPaths)[keyof typeof platformPaths],
+  "/login" | "/chat"
+>;
+export type ConversationPath = typeof platformPaths.chat | `${typeof platformPaths.chat}/${string}`;
+export type PlatformRoute = PlatformPath | ConversationPath;
 
-export function isPlatformPath(pathname: string): pathname is PlatformPath {
+export function isPlatformPath(pathname: string): pathname is PlatformRoute {
+  if (pathname === platformPaths.chat) return true;
+
+  if (pathname.startsWith(`${platformPaths.chat}/`)) {
+    return /^\/chat\/\d+$/.test(pathname);
+  }
+
   return Object.values(platformPaths).some(
-    (path) => path !== platformPaths.login && path === pathname,
+    (path) => path !== platformPaths.login && path !== platformPaths.chat && path === pathname,
   );
+}
+
+export function getConversationId(pathname: PlatformRoute): string | null {
+  if (!pathname.startsWith(`${platformPaths.chat}/`)) return null;
+  return pathname.slice(`${platformPaths.chat}/`.length);
+}
+
+export function isConversationPath(pathname: PlatformRoute): pathname is ConversationPath {
+  return pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
 }
 
 export const navigationItems = [

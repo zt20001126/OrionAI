@@ -1,14 +1,14 @@
 import { BrandMark } from "../auth/ProductIntro";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformIcon } from "./PlatformIcon";
-import { getDisplayName, navigationItems, platformPaths, type PlatformPath } from "./platformData";
+import { getDisplayName, navigationItems, platformPaths, type PlatformRoute } from "./platformData";
 
 interface PlatformSidebarProps {
   account: string;
   isLoggingOut: boolean;
   onLogout: () => void;
-  onNavigate: (path: PlatformPath) => void;
-  pathname: PlatformPath;
+  onNavigate: (path: PlatformRoute) => void;
+  pathname: PlatformRoute;
 }
 
 export function PlatformSidebar({
@@ -19,6 +19,7 @@ export function PlatformSidebar({
   pathname,
 }: PlatformSidebarProps) {
   const displayName = getDisplayName(account);
+  const activePath = pathname.startsWith(`${platformPaths.chat}`) ? platformPaths.agents : pathname;
 
   return (
     <aside className="platform-sidebar" aria-label="平台侧边栏">
@@ -37,8 +38,8 @@ export function PlatformSidebar({
       <nav aria-label="主导航" className="platform-navigation">
         {navigationItems.map(({ path, label, icon }) => (
           <a
-            aria-current={pathname === path ? "page" : undefined}
-            className={`platform-navigation__item${pathname === path ? " is-active" : ""}`}
+            aria-current={activePath === path ? "page" : undefined}
+            className={`platform-navigation__item${activePath === path ? " is-active" : ""}`}
             href={path}
             key={path}
             onClick={(event) => {

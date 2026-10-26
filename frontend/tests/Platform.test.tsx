@@ -15,6 +15,12 @@ function mockSession(account: string | null = "person@example.com") {
     if (path.endsWith("/logout")) {
       return { ok: true, json: async () => ({ message: "已退出登录。" }) } as Response;
     }
+    if (path.startsWith("/api/conversations")) {
+      return {
+        ok: true,
+        json: async () => ({ items: [], limit: 50, offset: 0 }),
+      } as Response;
+    }
     return { ok: true, json: async () => ({ account: "person@example.com" }) } as Response;
   });
 }
@@ -80,22 +86,29 @@ describe("OrionAI platform", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("shows a placeholder route and protects it when signed out", async () => {
+  it("shows the agent entry and session history while preserving other placeholders", async () => {
     window.history.replaceState({}, "", "/agents");
     vi.stubGlobal("fetch", mockSession());
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "我的智能体" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /通用对话助手/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /添加智能体，暂未开放/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /通用对话助手/ }));
+    expect(await screen.findByText("有什么问题，尽管问我。")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/chat");
+
+    fireEvent.click(screen.getByRole("link", { name: "会话记录" }));
+    expect(await screen.findByRole("heading", { name: "会话记录" })).toBeInTheDocument();
+    expect(await screen.findByText("还没有历史会话。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: "知识库" }));
+    expect(await screen.findByRole("heading", { name: "知识库" })).toBeInTheDocument();
     expect(screen.getByText("该页面正在建设中，敬请期待。")).toBeInTheDocument();
 
-    for (const [label, title] of [
-      ["会话记录", "会话记录"],
-      ["知识库", "知识库"],
-      ["工具管理", "工具管理"],
-    ]) {
-      fireEvent.click(screen.getByRole("link", { name: label }));
-      expect(await screen.findByRole("heading", { name: title })).toBeInTheDocument();
-    }
+    fireEvent.click(screen.getByRole("link", { name: "工具管理" }));
+    expect(await screen.findByRole("heading", { name: "工具管理" })).toBeInTheDocument();
   });
 
   it("redirects protected routes to login when signed out", async () => {

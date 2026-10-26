@@ -13,6 +13,7 @@ export type PlatformIconName =
   | "chevron"
   | "arrow"
   | "close"
+  | "assistant"
   | "document"
   | "data";
 
@@ -103,6 +104,12 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
       {name === "chevron" && <path d="m7 10 5 5 5-5" />}
       {name === "arrow" && <path d="M5 12h14m-6-6 6 6-6 6" />}
       {name === "close" && <path d="m6 6 12 12M18 6 6 18" />}
+      {name === "assistant" && (
+        <>
+          <rect x="4" y="7" width="16" height="12" rx="3" />
+          <path d="M12 4v3M8 12h.01M16 12h.01M9 16h6" />
+        </>
+      )}
       {name === "document" && (
         <>
           <path d="M7 3.8h7l4 4v12.4H7a2 2 0 0 1-2-2V5.8a2 2 0 0 1 2-2Z" />

@@ -5,14 +5,19 @@ import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlaceholderPage } from "../features/platform/PlaceholderPage";
 import { SkillMarketPage } from "../features/platform/SkillMarketPage";
+import { AgentsPage } from "../features/agents/AgentsPage";
+import { ConversationPage } from "../features/conversations/ConversationPage";
+import { SessionsPage } from "../features/conversations/SessionsPage";
 import {
+  getConversationId,
+  isConversationPath,
   isPlatformPath,
   platformPaths,
-  type PlatformPath,
+  type PlatformRoute,
 } from "../features/platform/platformData";
 import { getSession, logout } from "../features/auth/authApi";
 
-type AppPath = PlatformPath | typeof platformPaths.login;
+type AppPath = PlatformRoute | typeof platformPaths.login;
 
 function getCurrentPath(): string {
   return window.location.pathname || "/";
@@ -123,13 +128,17 @@ export default function App() {
     return <AuthPage initialMessage={sessionError} onAuthenticated={handleAuthenticated} />;
   }
 
-  const safePathname = isPlatformPath(pathname) ? pathname : platformPaths.market;
-  const page =
-    safePathname === platformPaths.market ? (
-      <SkillMarketPage />
-    ) : (
-      <PlaceholderPage onNavigate={navigate} pathname={safePathname} />
-    );
+  const safePathname: PlatformRoute = isPlatformPath(pathname) ? pathname : platformPaths.market;
+  const conversationId = getConversationId(safePathname);
+  const page = (() => {
+    if (safePathname === platformPaths.market) return <SkillMarketPage />;
+    if (safePathname === platformPaths.agents) return <AgentsPage onNavigate={navigate} />;
+    if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
+    if (isConversationPath(safePathname)) {
+      return <ConversationPage conversationId={conversationId} onNavigate={navigate} />;
+    }
+    return <PlaceholderPage onNavigate={navigate} pathname={safePathname} />;
+  })();
 
   return (
     <PlatformLayout

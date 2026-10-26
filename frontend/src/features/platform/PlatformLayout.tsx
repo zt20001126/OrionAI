@@ -5,7 +5,7 @@ import "./platform.css";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
 import { PlatformIcon } from "./PlatformIcon";
-import type { PlatformPath } from "./platformData";
+import { platformPaths, type PlatformRoute } from "./platformData";
 
 interface PlatformLayoutProps {
   account: string;
@@ -13,8 +13,8 @@ interface PlatformLayoutProps {
   isLoggingOut: boolean;
   logoutError: string | null;
   onLogout: () => void;
-  onNavigate: (path: PlatformPath) => void;
-  pathname: PlatformPath;
+  onNavigate: (path: PlatformRoute) => void;
+  pathname: PlatformRoute;
 }
 
 export function PlatformLayout({
@@ -26,6 +26,17 @@ export function PlatformLayout({
   onNavigate,
   pathname,
 }: PlatformLayoutProps) {
+  const pageTitle =
+    pathname === platformPaths.market
+      ? "技能市场"
+      : pathname === platformPaths.agents
+        ? "我的智能体"
+        : pathname === platformPaths.sessions
+          ? "会话记录"
+          : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
+            ? "通用对话助手"
+            : "OrionAI";
+
   return (
     <div className="platform-shell">
       <PlatformSidebar
@@ -41,7 +52,7 @@ export function PlatformLayout({
           <div className="platform-topbar__context">
             <span>工作空间</span>
             <PlatformIcon name="chevron" size={14} />
-            <strong>{pathname === "/market" ? "技能市场" : "OrionAI"}</strong>
+            <strong>{pageTitle}</strong>
           </div>
           <div className="platform-topbar__actions">
             <button aria-label="通知" className="notification-button" type="button">

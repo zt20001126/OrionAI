@@ -1,11 +1,9 @@
 import { PlatformIcon, type PlatformIconName } from "./PlatformIcon";
-import { platformPaths, type PlatformPath } from "./platformData";
+import { platformPaths, type PlatformPath, type PlatformRoute } from "./platformData";
 
-type PlaceholderPath = Exclude<PlatformPath, "/market">;
+type PlaceholderPath = Exclude<PlatformPath, "/market" | "/agents" | "/sessions">;
 
 const pageContent: Record<PlaceholderPath, { title: string; icon: PlatformIconName }> = {
-  "/agents": { title: "我的智能体", icon: "agents" },
-  "/sessions": { title: "会话记录", icon: "sessions" },
   "/knowledge": { title: "知识库", icon: "knowledge" },
   "/tools": { title: "工具管理", icon: "tools" },
   "/workspace": { title: "个人空间", icon: "workspace" },
@@ -13,7 +11,7 @@ const pageContent: Record<PlaceholderPath, { title: string; icon: PlatformIconNa
 };
 
 interface PlaceholderPageProps {
-  onNavigate: (path: PlatformPath) => void;
+  onNavigate: (path: PlatformRoute) => void;
   pathname: PlaceholderPath;
 }
 
