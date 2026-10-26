@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
     database_url: str = (
-        "postgresql+psycopg://orionai:change-this-local-password@localhost:5432/orionai"
+        "postgresql+psycopg://orionai:orionai@localhost:5432/orionai"
     )
     redis_url: str = "redis://localhost:6379/0"
 

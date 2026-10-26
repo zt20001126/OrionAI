@@ -38,7 +38,7 @@ AGENTS.md                 Codex 项目开发约束
 Copy-Item .env.example .env
 ~~~
 
-.env.example 中的数据库密码仅为本地开发占位值。需要共享或部署时，请替换为本地专用值，不要提交 .env 或真实密钥。Compose 会通过服务名连接容器内的 PostgreSQL 和 Redis；直接在宿主机运行后端时，默认连接 localhost。
+.env.example 只保留 DATABASE_URL 和 REDIS_URL。宿主机后端使用 localhost，Compose 后端使用容器内的 postgres 和 redis 地址。数据库默认密码为 orionai，仅用于本地开发；若自定义账号或密码，请同步修改 docker-compose.yml。不要提交 .env 或真实密钥。其他配置均使用默认值。
 
 ## Docker Compose 启动
 
