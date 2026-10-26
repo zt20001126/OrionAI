@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { AuthPage } from "../features/auth/AuthPage";
+import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { getSession, logout } from "../features/auth/authApi";
 
 export default function App() {
@@ -50,13 +51,18 @@ export default function App() {
 
   if (isRestoringSession) {
     return (
-      <main className="auth-shell">
-        <section className="auth-card session-loading" aria-live="polite">
-          <div className="brand-mark" aria-hidden="true">
-            O
-          </div>
-          <p className="eyebrow">ORIONAI PLATFORM</p>
-          <h1>正在恢复登录状态</h1>
+      <main className="auth-layout">
+        <ProductIntro />
+        <section className="auth-panel">
+          <section className="auth-card status-card" aria-live="polite">
+            <div className="auth-card-brand">
+              <BrandMark />
+              <span>OrionAI</span>
+            </div>
+            <span className="status-spinner" aria-hidden="true" />
+            <h1>正在恢复登录状态</h1>
+            <p>请稍候，我们正在确认你的安全会话。</p>
+          </section>
         </section>
       </main>
     );
@@ -64,27 +70,39 @@ export default function App() {
 
   if (account) {
     return (
-      <main className="auth-shell">
-        <section className="auth-card signed-in-card" aria-labelledby="signed-in-title">
-          <div className="brand-mark" aria-hidden="true">
-            O
-          </div>
-          <p className="eyebrow">ORIONAI PLATFORM</p>
-          <h1 id="signed-in-title">欢迎回来</h1>
-          <p className="signed-in-account">{account}</p>
-          <p className="signed-in-note">你的登录状态已通过安全 Cookie 恢复。</p>
-          {logoutError && (
-            <p className="form-message error-message" role="alert">
-              {logoutError}
-            </p>
-          )}
-          <button
-            className="secondary-button logout-button"
-            disabled={isLoggingOut}
-            onClick={() => void handleLogout()}
+      <main className="auth-layout">
+        <ProductIntro />
+        <section className="auth-panel">
+          <section
+            className="auth-card status-card signed-in-card"
+            aria-labelledby="signed-in-title"
           >
-            {isLoggingOut ? "正在退出…" : "退出登录"}
-          </button>
+            <div className="auth-card-brand">
+              <BrandMark />
+              <span>OrionAI</span>
+            </div>
+            <div className="signed-in-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="m6 12.5 4 4L18 8" />
+              </svg>
+            </div>
+            <p className="status-eyebrow">ACCOUNT</p>
+            <h1 id="signed-in-title">欢迎回来</h1>
+            <p className="signed-in-account">{account}</p>
+            <p className="status-card-copy">你的登录状态已通过安全 Cookie 恢复。</p>
+            {logoutError && (
+              <p className="form-message error-message" role="alert">
+                {logoutError}
+              </p>
+            )}
+            <button
+              className="button button--secondary logout-button"
+              disabled={isLoggingOut}
+              onClick={() => void handleLogout()}
+            >
+              {isLoggingOut ? "正在退出…" : "退出登录"}
+            </button>
+          </section>
         </section>
       </main>
     );

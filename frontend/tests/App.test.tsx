@@ -29,6 +29,9 @@ describe("OrionAI authentication page", () => {
       target: { value: "person@example.com" },
     });
     fireEvent.change(screen.getByLabelText("密码"), { target: { value: "correct horse battery" } });
+    fireEvent.click(screen.getByRole("button", { name: "显示密码" }));
+    expect(screen.getByLabelText("密码")).toHaveAttribute("type", "text");
+    fireEvent.click(screen.getByRole("button", { name: "隐藏密码" }));
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
     expect(await screen.findByRole("heading", { name: "欢迎回来" })).toBeInTheDocument();
@@ -54,7 +57,7 @@ describe("OrionAI authentication page", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "创建账号" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "注册" }));
     fireEvent.change(screen.getByLabelText("邮箱"), {
       target: { value: "person@example.com" },
     });
