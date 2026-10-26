@@ -1,18 +1,69 @@
+"""创建 FastAPI 应用并管理 Agent 依赖的生命周期。"""
+
+import logging
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
+from app.agent import create_basic_conversation_agent
 from app.api.router import api_router
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
+from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModelProvider
 from app.modules.auth.errors import AuthError
+from app.modules.conversations.errors import ConversationError
+
+logger = logging.getLogger(__name__)
 
 
-def create_app() -> FastAPI:
+def create_agent_lifespan(
+    settings: Settings,
+) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
+    """构建生产 Agent；Checkpointer 自有 schema 由其 setup 管理。"""
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        try:
+            chat_model = OpenAICompatibleChatModelProvider(settings).create_chat_model()
+        except ModelProviderError:
+            logger.exception("conversation_agent_provider_configuration_failed")
+            raise
+        database_url = settings.database_url.replace("postgresql+psycopg://", "postgresql://", 1)
+        async with AsyncPostgresSaver.from_conn_string(database_url) as checkpointer:
+            await checkpointer.setup()
+            application.state.conversation_agent = create_basic_conversation_agent(
+                chat_model=chat_model,
+                checkpointer=checkpointer,
+            )
+            yield
+            del application.state.conversation_agent
+
+    return lifespan
+
+
+def create_app(
+    *,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+) -> FastAPI:
+    """创建应用；可注入测试 lifespan，生产默认启用 PostgreSQL Checkpointer。"""
+
     settings = get_settings()
-    application = FastAPI(title=settings.app_name)
+    application = FastAPI(
+        title=settings.app_name,
+        lifespan=lifespan or create_agent_lifespan(settings),
+    )
 
     @application.exception_handler(AuthError)
     async def handle_auth_error(_request: Request, error: AuthError) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+    @application.exception_handler(ConversationError)
+    async def handle_conversation_error(
+        _request: Request, error: ConversationError
+    ) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
     application.add_middleware(

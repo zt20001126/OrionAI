@@ -4,6 +4,7 @@
 
 - **默认前缀：** `/api`
 - **请求与响应：** JSON；请求体不接受未定义字段。
+- **Snowflake ID：** 会话和消息响应中的 `id`、`conversation_id` 以十进制字符串返回，避免 JavaScript 整数精度损失；路径参数仍使用该十进制 ID。
 - **邮箱：** 去除首尾空格并转为小写，最多 254 个字符。
 - **密码：** 注册和重置为 8–128 个字符；登录为 1–128 个字符。
 - **认证：** 登录或注册成功后，服务端设置 `orionai_session` Cookie。Cookie 为 `HttpOnly`、`SameSite=Lax`、`Path=/`，默认有效 7 天；production 环境默认启用 `Secure`。客户端请求需携带 Cookie。
@@ -21,6 +22,11 @@
 | `GET`  | `/api/auth/session`        | 检查并恢复当前会话       | Cookie                         |
 | `POST` | `/api/auth/logout`         | 撤销当前会话             | Cookie（无 Cookie 时也可调用） |
 | `POST` | `/api/auth/password-reset` | 验证邮箱并更新密码       | 否                             |
+| `POST` | `/api/conversations` | 创建当前用户的空会话 | Cookie |
+| `GET` | `/api/conversations` | 列出当前用户会话 | Cookie |
+| `GET` | `/api/conversations/{id}/messages` | 分页读取会话消息 | Cookie |
+| `POST` | `/api/conversations/{id}/messages` | 发送文本并获取回答或题卡 | Cookie |
+| `POST` | `/api/conversations/{id}/answers` | 提交题卡选项并恢复对话 | Cookie |
 
 ## 接口详情
 
@@ -139,8 +145,31 @@
 
 密码更新后，先前签发的会话失效。错误：`400` 验证码无效或过期；`422` 请求字段无效；`503` 数据库或认证状态服务不可用。
 
+### 会话与消息 API
+
+以下接口均要求有效的 `orionai_session` Cookie。写入接口沿用 `Origin` 与 `Host` 同源校验。会话查询始终限制在当前用户范围；不存在或不属于当前用户的会话统一返回 `404`。列表接口支持 `limit`（默认 50，范围 1–100）和 `offset`（默认 0）。
+
+`POST /api/conversations` 创建空会话，成功返回 `201`，字段包含字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`；首版 `title` 为 `null`。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
+
+`GET /api/conversations/{id}/messages` 按消息 `id` 升序返回 `items`。消息内容使用 JSON `parts` 数组，例如：
+
+```json
+{"parts":[{"type":"text","text":"你好"}]}
+```
+
+发送消息时请求 `POST /api/conversations/{id}/messages`，JSON 请求体为 `{"message":"请帮我写一份说明"}`。返回 `status` 为 `completed` 或 `waiting`，以及本轮助手 `message`。普通回答的内容部分为 `type: "text"`；等待选择时为 `type: "question"` 并包含结构化 `questions`。如果当前会话正在等待题卡答案，发送新消息返回 `409`。
+
+通过 `POST /api/conversations/{id}/answers` 提交选择并恢复同一对话线程，请求示例：
+
+```json
+{"answers":{"style":"简洁"}}
+```
+
+答案题目 ID 集合必须与当前题卡完全相同，选项值必须为该题的有效标签；无待答题卡返回 `409`，答案不匹配返回 `422`。模型或 Checkpointer 暂不可用时返回 `503`，错误文本不会包含底层服务异常。
+
 ## 实现位置
 
 - 路由与 Cookie：[`backend/app/modules/auth/router.py`](../../backend/app/modules/auth/router.py)
 - 请求与响应模型：[`backend/app/modules/auth/schemas.py`](../../backend/app/modules/auth/schemas.py)
 - 认证业务：[`backend/app/modules/auth/service.py`](../../backend/app/modules/auth/service.py)
+- 会话路由与业务：[`backend/app/modules/conversations/router.py`](../../backend/app/modules/conversations/router.py)、[`backend/app/modules/conversations/service.py`](../../backend/app/modules/conversations/service.py)

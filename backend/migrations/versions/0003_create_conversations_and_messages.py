@@ -1,6 +1,6 @@
 """创建会话与消息表。
 
-Revision ID: 0003_create_conversations_and_messages
+Revision ID: 0003_conversations_messages
 Revises: 0002_add_users_identity_id
 Create Date: 2026-10-26
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0003_create_conversations_and_messages"
+revision: str = "0003_conversations_messages"
 down_revision: str | None = "0002_add_users_identity_id"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

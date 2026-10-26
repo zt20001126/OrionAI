@@ -15,11 +15,13 @@ def _postgres_table_ddl(table: Table) -> str:
     return str(CreateTable(table).compile(dialect=postgresql.dialect()))
 
 
-def test_user_identity_primary_key_preserves_unique_account() -> None:
+def test_user_snowflake_primary_key_preserves_unique_account() -> None:
     table = User.__table__
 
     assert isinstance(table.c.id.type, BigInteger)
-    assert table.c.id.identity is not None
+    assert table.c.id.identity is None
+    assert table.c.id.default is not None
+    assert callable(table.c.id.default.arg)
     assert table.c.id.primary_key
     assert table.c.account.unique
 
@@ -36,7 +38,9 @@ def test_conversation_schema_matches_postgresql_requirements() -> None:
         "updated_at",
     }
     assert isinstance(table.c.id.type, BigInteger)
-    assert table.c.id.identity is not None
+    assert table.c.id.identity is None
+    assert table.c.id.default is not None
+    assert callable(table.c.id.default.arg)
     assert table.c.title.nullable
     assert table.c.created_at.server_default is not None
     assert table.c.updated_at.server_default is not None
@@ -65,7 +69,9 @@ def test_message_schema_matches_postgresql_requirements() -> None:
         "created_at",
     }
     assert isinstance(table.c.id.type, BigInteger)
-    assert table.c.id.identity is not None
+    assert table.c.id.identity is None
+    assert table.c.id.default is not None
+    assert callable(table.c.id.default.arg)
     assert isinstance(table.c.content.type, JSONB)
     assert table.c.created_at.server_default is not None
     assert "content JSONB NOT NULL" in ddl

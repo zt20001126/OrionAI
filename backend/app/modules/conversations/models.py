@@ -6,7 +6,6 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
-    Identity,
     Index,
     Integer,
     String,
@@ -17,13 +16,19 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
 from app.infrastructure.database.base import Base
+from app.infrastructure.database.snowflake import generate_snowflake_id
 
 
 class Conversation(Base):
+    """对话模块的会话持久化模型。"""
+
     __tablename__ = "conversations"
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer(), "sqlite"), Identity(), primary_key=True
+        BigInteger().with_variant(Integer(), "sqlite"),
+        primary_key=True,
+        default=generate_snowflake_id,
+        comment="会话 Snowflake ID",
     )
     user_id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer(), "sqlite"),
@@ -42,6 +47,8 @@ class Conversation(Base):
 
 
 class Message(Base):
+    """对话模块的消息持久化模型，内容以 JSONB parts 结构保存。"""
+
     __tablename__ = "messages"
     __table_args__ = (
         CheckConstraint("role IN ('user', 'assistant')", name="ck_messages_role"),
@@ -49,7 +56,10 @@ class Message(Base):
     )
 
     id: Mapped[int] = mapped_column(
-        BigInteger().with_variant(Integer(), "sqlite"), Identity(), primary_key=True
+        BigInteger().with_variant(Integer(), "sqlite"),
+        primary_key=True,
+        default=generate_snowflake_id,
+        comment="消息 Snowflake ID",
     )
     conversation_id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer(), "sqlite"),

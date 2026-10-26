@@ -1,19 +1,20 @@
 from collections.abc import Iterator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 import pytest
-from fastapi import Depends
+from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.application import create_app
 from app.core.config import Settings
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.email_sender import EmailDeliveryError
 from app.infrastructure.redis.auth_state import AuthSession
-from app.main import app
 from app.modules.auth import service as auth_service_module
 from app.modules.auth.router import get_auth_service
 from app.modules.auth.service import GENERIC_RESET_CODE_MESSAGE, AuthService
@@ -74,6 +75,7 @@ def auth_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestClient, d
     test_session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     state_store = InMemoryAuthStateStore()
     sent_codes: dict[str, str] = {}
+    test_app = create_app(lifespan=_test_lifespan)
     settings = Settings(
         environment="test",
         auth_code_pepper="test-only-pepper",
@@ -97,16 +99,16 @@ def auth_client(monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestClient, d
         sent_codes[account] = code
 
     monkeypatch.setattr(auth_service_module, "send_auth_code_email", capture_email)
-    app.dependency_overrides[get_db_session] = override_db_session
-    app.dependency_overrides[get_auth_service] = override_auth_service
-    app.state.test_engine = engine
+    test_app.dependency_overrides[get_db_session] = override_db_session
+    test_app.dependency_overrides[get_auth_service] = override_auth_service
+    test_app.state.test_engine = engine
 
     try:
-        with TestClient(app) as client:
+        with TestClient(test_app) as client:
             yield client, sent_codes
     finally:
-        app.dependency_overrides.clear()
-        del app.state.test_engine
+        test_app.dependency_overrides.clear()
+        del test_app.state.test_engine
         Base.metadata.drop_all(engine)
         engine.dispose()
 
@@ -118,6 +120,13 @@ def request_code(client: TestClient, account: str, purpose: str = "register") ->
     )
     assert response.status_code == 202
     return response.json()["message"]
+
+
+@asynccontextmanager
+async def _test_lifespan(_application: FastAPI):
+    """在认证 API 测试中跳过生产 PostgreSQL Checkpointer 生命周期。"""
+
+    yield
 
 
 def create_account(

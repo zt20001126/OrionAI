@@ -1,14 +1,9 @@
 from typing import Annotated
-from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from redis import Redis
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.core.config import Settings, get_settings
-from app.infrastructure.database.session import get_db_session
-from app.infrastructure.redis.auth_state import RedisAuthStateStore
-from app.infrastructure.redis.client import get_redis_client
+from app.modules.auth.dependencies import get_auth_service, validate_origin
 from app.modules.auth.schemas import (
     AccountResponse,
     EmailCodeRequest,
@@ -21,28 +16,6 @@ from app.modules.auth.schemas import (
 from app.modules.auth.service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def get_auth_service(
-    session: Annotated[Session, Depends(get_db_session)],
-    redis_client: Annotated[Redis, Depends(get_redis_client)],
-    settings: Annotated[Settings, Depends(get_settings)],
-) -> AuthService:
-    return AuthService(session, RedisAuthStateStore(redis_client), settings)
-
-
-def validate_origin(request: Request) -> None:
-    origin = request.headers.get("origin")
-    if not origin:
-        return
-    parsed_origin = urlsplit(origin)
-    request_host = request.headers.get("host", "")
-    if (
-        parsed_origin.scheme not in {"http", "https"}
-        or not parsed_origin.netloc
-        or parsed_origin.netloc.lower() != request_host.lower()
-    ):
-        raise HTTPException(status_code=403, detail="请求来源无效。")
 
 
 def _cookie_is_secure(settings: Settings) -> bool:

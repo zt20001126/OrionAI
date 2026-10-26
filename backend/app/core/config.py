@@ -1,13 +1,15 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
+    """应用运行配置，影响 API、认证、对话模型及 Agent 执行边界。"""
+
     app_name: str = "OrionAI"
     environment: str = "development"
     api_prefix: str = "/api"
@@ -25,6 +27,24 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     smtp_from_name: str = "OrionAI"
     smtp_use_ssl: bool = True
+    deepseek_api_key: SecretStr = Field(
+        default=SecretStr(""), description="DeepSeek API 密钥，不得写入日志。"
+    )
+    deepseek_base_url: str = Field(
+        default="https://api.deepseek.com", description="DeepSeek OpenAI-compatible API 地址。"
+    )
+    deepseek_model: str = Field(default="", description="DeepSeek 对话模型名称。")
+    deepseek_timeout_seconds: float = Field(
+        default=60.0, gt=0, description="单次模型请求超时时间，单位为秒。"
+    )
+    deepseek_temperature: float = Field(default=0.7, ge=0, le=2, description="对话模型生成温度。")
+    deepseek_max_retries: int = Field(default=2, ge=0, le=5, description="模型请求的最大重试次数。")
+    snowflake_worker_id: int = Field(
+        default=1,
+        ge=0,
+        le=1022,
+        description="Snowflake 节点 ID；同一时刻运行的 backend 实例必须唯一。",
+    )
 
     @field_validator("auth_cookie_secure", mode="before")
     @classmethod
