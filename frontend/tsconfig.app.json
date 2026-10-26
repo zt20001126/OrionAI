@@ -20,5 +20,6 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests"],
+  "exclude": ["tests/vite-config.test.ts"]
 }

@@ -34,7 +34,9 @@ describe("OrionAI authentication page", () => {
     fireEvent.click(screen.getByRole("button", { name: "隐藏密码" }));
     fireEvent.click(screen.getByRole("button", { name: "登录" }));
 
-    expect(await screen.findByRole("heading", { name: "欢迎回来" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" }),
+    ).toBeInTheDocument();
     const loginCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/login"));
     expect(loginCall?.[1]).toMatchObject({ credentials: "include" });
     expect(JSON.parse(String(loginCall?.[1]?.body))).toEqual({
