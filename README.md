@@ -1,6 +1,6 @@
 # OrionAI
 
-OrionAI 是一个面向企业级 AI 智能体应用的平台基础骨架。仓库采用 Monorepo 管理前后端，当前仅包含可启动的前端基础页、FastAPI 健康检查、数据库与 Redis 连接配置及开发环境；登录、对话、知识库、智能体和工作流业务尚未实现。
+OrionAI 是一个面向企业级 AI 智能体应用的平台基础骨架。仓库采用 Monorepo 管理前后端，当前包含邮箱注册、邮箱密码登录、忘记密码和 Cookie 会话；对话、知识库、智能体和工作流业务尚未实现。
 
 ## 技术栈
 
@@ -14,7 +14,7 @@ OrionAI 是一个面向企业级 AI 智能体应用的平台基础骨架。仓�
 ~~~text
 frontend/                 React + TypeScript 前端
 backend/app/              FastAPI 模块化单体应用
-backend/migrations/       Alembic 迁移环境（无业务迁移）
+backend/migrations/       Alembic 迁移环境
 backend/tests/            后端测试
 deploy/docker/            前后端开发镜像
 deploy/nginx/             Nginx 配置预留目录
@@ -38,7 +38,22 @@ AGENTS.md                 Codex 项目开发约束
 Copy-Item .env.example .env
 ~~~
 
-.env.example 只保留 DATABASE_URL 和 REDIS_URL。宿主机后端使用 localhost，Compose 后端使用容器内的 postgres 和 redis 地址。数据库默认密码为 orionai，仅用于本地开发；若自定义账号或密码，请同步修改 docker-compose.yml。不要提交 .env 或真实密钥。其他配置均使用默认值。
+.env.example 也包含认证和 SMTP 配置项。宿主机后端使用 localhost，Compose 后端使用容器内的 postgres 和 redis 地址。数据库默认密码为 orionai，仅用于本地开发；若自定义账号或密码，请同步修改 docker-compose.yml。不要提交 .env 或真实密钥。
+
+认证需要配置随机的 `AUTH_CODE_PEPPER` 以及 SMTP 主机、端口、账号、授权凭据和发件人邮箱。验证码和会话保存在 Redis；账号、scrypt 密码哈希、创建时间和最后登录时间保存在唯一的 `users` 表。Cookie 默认有效 7 天，production 环境自动启用 `Secure`；可用 `AUTH_COOKIE_SECURE` 显式覆盖。邮件配置不完整时，请求验证码会返回 503。
+
+### 认证接口
+
+| 接口 | 用途 |
+| --- | --- |
+| `POST /api/auth/email-codes` | 请求注册或重置密码验证码（`email`、`purpose`） |
+| `POST /api/auth/register` | 验证邮箱并创建账号（`email`、`code`、`password`、`password_confirmation`） |
+| `POST /api/auth/login` | 邮箱密码登录（`email`、`password`） |
+| `GET /api/auth/session` | 恢复当前 Cookie 会话 |
+| `POST /api/auth/logout` | 撤销当前会话 |
+| `POST /api/auth/password-reset` | 验证邮箱并重置密码 |
+
+验证码有效 10 分钟、同一邮箱用途 60 秒内不能重发，最多输错 5 次；注册和密码重置用途独立。重置密码请求对未知邮箱返回通用成功响应且不发送邮件。成功登录/注册只返回账号信息，会话令牌仅出现在 HttpOnly Cookie 中。
 
 ## Docker Compose 启动
 
@@ -58,7 +73,7 @@ docker compose down
 
 ## 分别启动前后端
 
-先启动 PostgreSQL 和 Redis：
+Docker 后端容器会先执行 Alembic 迁移，再启动 API。分别启动时，先启动 PostgreSQL 和 Redis：
 
 ~~~powershell
 docker compose up -d postgres redis
@@ -79,10 +94,11 @@ Set-Location backend
 conda run -n agent python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
+python -m alembic upgrade head
 python -m uvicorn app.main:app --reload
 ~~~
 
-此命令使用名为 agent 的 Python 3.12 Conda 环境创建项目虚拟环境；若环境名称不同，请替换 agent，或使用已安装的 py -3.12。前端 Vite 将 /api 请求代理到本机的 http://localhost:8000。数据库迁移环境已经初始化，当前没有业务表或迁移版本。
+此命令使用名为 agent 的 Python 3.12 Conda 环境创建项目虚拟环境；若环境名称不同，请替换 agent，或使用已安装的 py -3.12。前端 Vite 将 /api 请求代理到本机的 http://localhost:8000。
 
 ## 测试、格式化与静态检查
 

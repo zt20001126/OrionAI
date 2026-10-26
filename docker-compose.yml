@@ -37,6 +37,17 @@ services:
       DATABASE_URL: postgresql+psycopg://orionai:orionai@postgres:5432/orionai
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: '["http://localhost:5173"]'
+      AUTH_CODE_PEPPER: ${AUTH_CODE_PEPPER:-}
+      AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-orionai_session}
+      AUTH_SESSION_TTL_SECONDS: ${AUTH_SESSION_TTL_SECONDS:-604800}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-OrionAI}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-true}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     volumes:
