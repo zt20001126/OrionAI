@@ -1,0 +1,121 @@
+:root {
+  font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif;
+  color: #e7edf6;
+  background: #101827;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 400;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.page-shell {
+  display: grid;
+  min-height: 100vh;
+  padding: 32px 20px;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 0%, rgb(56 95 153 / 22%), transparent 48%), #101827;
+}
+
+.welcome-card {
+  width: min(100%, 620px);
+  padding: 64px 48px;
+  border: 1px solid rgb(154 178 213 / 16%);
+  border-radius: 24px;
+  background: rgb(20 31 49 / 88%);
+  box-shadow: 0 28px 90px rgb(0 0 0 / 24%);
+  text-align: center;
+}
+
+.brand-mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 24px;
+  border: 1px solid rgb(123 169 240 / 45%);
+  border-radius: 16px;
+  color: #a9caff;
+  background: rgb(73 121 190 / 15%);
+  font-size: 26px;
+  font-weight: 700;
+  place-items: center;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #91acd2;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+}
+
+h1 {
+  margin: 0;
+  color: #f4f7fc;
+  font-size: clamp(40px, 8vw, 56px);
+  letter-spacing: -0.045em;
+}
+
+.intro {
+  margin: 16px 0 32px;
+  color: #aebbd0;
+  font-size: 16px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid rgb(154 178 213 / 16%);
+  border-radius: 999px;
+  color: #bdc9da;
+  background: rgb(255 255 255 / 3%);
+  font-size: 13px;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e4b45d;
+}
+
+.status[data-state="online"] .status-indicator {
+  background: #59c58a;
+}
+
+.status[data-state="offline"] .status-indicator {
+  background: #e16e78;
+}
+
+.footnote {
+  margin: 24px 0 0;
+  color: #7f8da3;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+@media (max-width: 520px) {
+  .welcome-card {
+    padding: 48px 24px;
+  }
+}
