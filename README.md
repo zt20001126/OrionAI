@@ -40,7 +40,7 @@ Copy-Item .env.example .env
 
 .env.example 也包含认证和 SMTP 配置项。宿主机后端使用 localhost，Compose 后端使用容器内的 postgres 和 redis 地址。数据库默认密码为 orionai，仅用于本地开发；若自定义账号或密码，请同步修改 docker-compose.yml。不要提交 .env 或真实密钥。
 
-认证需要配置随机的 `AUTH_CODE_PEPPER` 以及 SMTP 主机、端口、账号、授权凭据和发件人邮箱。验证码和会话保存在 Redis；账号、scrypt 密码哈希、创建时间和最后登录时间保存在唯一的 `users` 表。Cookie 默认有效 7 天，production 环境自动启用 `Secure`；可用 `AUTH_COOKIE_SECURE` 显式覆盖。邮件配置不完整时，请求验证码会返回 503。
+认证只需配置随机的 `AUTH_CODE_PEPPER`，以及 SMTP 主机、账号、密码和发件人邮箱。SMTP 默认使用 SSL 端口 465，发件人名称默认为 `OrionAI`；会话 Cookie 默认有效 7 天，并在 production 环境启用 `Secure`。验证码和会话保存在 Redis；账号、scrypt 密码哈希、创建时间和最后登录时间保存在唯一的 `users` 表。邮件配置不完整时，请求验证码会返回 503。
 
 ### 认证接口
 
