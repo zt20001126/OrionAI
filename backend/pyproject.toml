@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "orionai-backend"
 version = "0.1.0"
 description = "OrionAI FastAPI backend foundation"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "alembic==1.20.1",
     "fastapi==0.158.1",
@@ -37,7 +37,7 @@ addopts = "-ra"
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

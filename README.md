@@ -5,7 +5,7 @@ OrionAI 是一个面向企业级 AI 智能体应用的平台基础骨架。仓�
 ## 技术栈
 
 - 前端：React 19.3、TypeScript 6、Vite 8
-- 后端：Python 3.11+、FastAPI、LangGraph
+- 后端：Python 3.12+、FastAPI、LangGraph
 - 数据：PostgreSQL 17、Redis 7.4、SQLAlchemy 2、Alembic
 - 本地部署：Docker Compose
 
@@ -27,7 +27,7 @@ AGENTS.md                 Codex 项目开发约束
 
 - Windows 10/11
 - Node.js 24 LTS 与 npm
-- Python 3.11 或更高版本（Docker 后端镜像使用 Python 3.12）
+- Python 3.12 或更高版本（Docker 后端镜像使用 Python 3.12）
 - Docker Desktop（启用 Linux 容器）及 Docker Compose
 
 ## 环境变量
@@ -76,13 +76,13 @@ npm run dev
 
 ~~~powershell
 Set-Location backend
-py -3.12 -m venv .venv
+conda run -n agent python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 python -m uvicorn app.main:app --reload
 ~~~
 
-如果本机只有 Python 3.11，可将 py -3.12 改为 py -3.11。前端 Vite 将 /api 请求代理到本机的 http://localhost:8000。数据库迁移环境已经初始化，当前没有业务表或迁移版本。
+此命令使用名为 agent 的 Python 3.12 Conda 环境创建项目虚拟环境；若环境名称不同，请替换 agent，或使用已安装的 py -3.12。前端 Vite 将 /api 请求代理到本机的 http://localhost:8000。数据库迁移环境已经初始化，当前没有业务表或迁移版本。
 
 ## 测试、格式化与静态检查
 
