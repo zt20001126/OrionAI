@@ -37,7 +37,7 @@ export function SkillDetailsDialog({ onClose, skill }: SkillDetailsDialogProps) 
         <div className={`skill-card__icon skill-card__icon--${skill.icon}`}>
           <PlatformIcon name={skill.icon} size={26} />
         </div>
-        <p className="section-eyebrow">{skill.category} · 演示技能</p>
+        <p className="skill-detail-dialog__category">{skill.category} · 演示技能</p>
         <h2 id="skill-detail-title">{skill.name}</h2>
         <p className="skill-detail-dialog__description">{skill.description}</p>
         <div className="skill-detail-dialog__note">

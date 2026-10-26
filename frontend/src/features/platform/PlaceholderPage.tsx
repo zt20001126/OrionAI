@@ -22,10 +22,9 @@ export function PlaceholderPage({ onNavigate, pathname }: PlaceholderPageProps) 
 
   return (
     <section aria-labelledby="placeholder-title" className="placeholder-page">
-      <div className="placeholder-page__icon">
+      <span aria-hidden="true" className="placeholder-page__icon">
         <PlatformIcon name={content.icon} size={28} />
-      </div>
-      <p className="section-eyebrow">平台工作空间</p>
+      </span>
       <h1 id="placeholder-title">{content.title}</h1>
       <p>该页面正在建设中，敬请期待。</p>
       <button

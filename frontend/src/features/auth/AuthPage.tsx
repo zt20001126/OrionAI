@@ -141,7 +141,6 @@ export function AuthPage({ initialMessage, onAuthenticated }: AuthPageProps) {
           )}
 
           <div className="auth-heading">
-            <p className="status-eyebrow">安全工作空间登录</p>
             <h2 id="auth-title">{content.title}</h2>
             <p className="auth-subtitle">{content.subtitle}</p>
           </div>
