@@ -3,7 +3,7 @@
   min-height: 100vh;
   min-height: 100svh;
   grid-template-columns: 252px minmax(0, 1fr);
-  background: #f7f9fd;
+  background: var(--color-platform-page);
 }
 
 .platform-sidebar {
@@ -36,7 +36,7 @@
 .platform-brand .brand-mark {
   width: 33px;
   height: 33px;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
 }
 
 .platform-navigation {
@@ -54,7 +54,7 @@
   gap: 13px;
   padding: 0 13px;
   border-radius: 11px;
-  color: #65748b;
+  color: var(--color-platform-navigation-text);
   font-size: 13px;
   font-weight: 530;
   text-decoration: none;
@@ -66,7 +66,7 @@
 
 .platform-navigation__item:hover {
   color: var(--color-brand);
-  background: #f3f7ff;
+  background: var(--color-platform-interaction-soft);
 }
 
 .platform-navigation__item:active {
@@ -75,7 +75,7 @@
 
 .platform-navigation__item.is-active {
   color: var(--color-brand);
-  background: #edf4ff;
+  background: var(--color-platform-active-soft);
   font-weight: 650;
 }
 
@@ -111,9 +111,9 @@
   align-items: center;
   gap: 11px;
   padding: 11px 10px;
-  border: 1px solid #edf1f8;
+  border: 1px solid var(--color-platform-border-soft);
   border-radius: 13px;
-  background: #fbfcff;
+  background: var(--color-platform-surface-soft);
   cursor: pointer;
   text-align: left;
   transition:
@@ -131,7 +131,7 @@
   width: 34px;
   height: 34px;
   flex: 0 0 auto;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: #4c76c7;
   background: #eaf1ff;
   place-items: center;
@@ -192,7 +192,7 @@
 }
 
 .sidebar-account__copy {
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .profile-menu {
@@ -207,7 +207,7 @@
   min-height: 38px;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--space-1);
   padding: 2px;
   border: 0;
   border-radius: 12px;
@@ -222,7 +222,7 @@
 .profile-menu__trigger:hover,
 .profile-menu__trigger[aria-expanded="true"] {
   color: var(--color-brand);
-  background: #f1f6ff;
+  background: var(--color-platform-control-hover);
 }
 
 .profile-menu__trigger > .user-avatar {
@@ -302,7 +302,7 @@
 
 .profile-menu__item:hover:not(:disabled) {
   color: var(--color-brand);
-  background: #f3f7ff;
+  background: var(--color-platform-interaction-soft);
 }
 
 .profile-menu__item--danger {
@@ -349,7 +349,7 @@
 }
 
 .platform-topbar__context {
-  gap: 8px;
+  gap: var(--space-2);
   color: #9aa6b8;
   font-size: 11px;
 }
@@ -381,7 +381,7 @@
 
 .notification-button:hover {
   color: var(--color-brand);
-  background: #f1f6ff;
+  background: var(--color-platform-control-hover);
 }
 
 .notification-button > span {
@@ -479,7 +479,7 @@
 .market-hero__copy > p:not(.section-eyebrow) {
   max-width: 570px;
   margin: 0;
-  color: #718096;
+  color: var(--color-platform-text-body);
   font-size: 13px;
   line-height: 1.8;
 }
@@ -487,7 +487,7 @@
 .market-hero__meta {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin-top: 21px;
   color: #7186a8;
   font-size: 10px;
@@ -544,7 +544,7 @@
 
 .market-section__hint,
 .skill-count {
-  color: #99a6b8;
+  color: var(--color-platform-text-faint);
   font-size: 10px;
 }
 
@@ -592,14 +592,14 @@
 .category-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .category-chip {
   min-height: 33px;
   padding: 0 14px;
   border: 1px solid #e5ebf4;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: #738198;
   background: #fff;
   cursor: pointer;
@@ -620,7 +620,7 @@
 .category-chip.is-active {
   border-color: #d3e2ff;
   color: #3269cd;
-  background: #edf4ff;
+  background: var(--color-platform-active-soft);
   box-shadow: inset 0 0 0 1px rgb(37 99 235 / 2%);
   font-weight: 630;
 }
@@ -689,13 +689,13 @@
 
 .skill-card__category {
   margin-top: 15px;
-  color: #94a2b6;
+  color: var(--color-platform-text-muted);
   font-size: 9px;
 }
 
 .skill-card h3 {
   margin: 5px 0 0;
-  color: #26364d;
+  color: var(--color-platform-text-strong);
   font-size: 14px;
   font-weight: 660;
   letter-spacing: -0.015em;
@@ -735,7 +735,7 @@
   min-height: 176px;
   align-content: center;
   justify-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   border: 1px dashed #dbe4f2;
   border-radius: 16px;
   color: #8c9ab0;
@@ -781,7 +781,7 @@
   border: 1px solid #dce8fb;
   border-radius: 15px;
   color: #5c88dc;
-  background: #edf4ff;
+  background: var(--color-platform-active-soft);
   place-items: center;
 }
 
@@ -884,7 +884,7 @@
   width: 34px;
   height: 34px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-control);
   color: #8e9caf;
   background: #f5f7fb;
   cursor: pointer;
@@ -902,7 +902,7 @@
 
 .skill-detail-dialog h2 {
   margin: 7px 0 0;
-  color: #26364d;
+  color: var(--color-platform-text-strong);
   font-size: 22px;
   font-weight: 690;
   letter-spacing: -0.03em;
@@ -939,7 +939,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-3);
   margin-top: 21px;
 }
 
@@ -1050,7 +1050,7 @@
   .platform-navigation__item {
     min-height: 38px;
     flex: 0 0 auto;
-    gap: 8px;
+    gap: var(--space-2);
     padding: 0 11px;
     font-size: 11px;
   }

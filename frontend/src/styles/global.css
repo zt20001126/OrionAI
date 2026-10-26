@@ -41,6 +41,19 @@
   --color-spinner-track: rgb(255 255 255 / 45%);
   --shadow-node-svg: 0 4px 7px rgb(15 23 42 / 5%);
 
+  /* 平台页面现有视觉值的语义别名，保持与 platform.css 原值一致。 */
+  --color-platform-page: #f7f9fd;
+  --color-platform-navigation-text: #65748b;
+  --color-platform-interaction-soft: #f3f7ff;
+  --color-platform-active-soft: #edf4ff;
+  --color-platform-control-hover: #f1f6ff;
+  --color-platform-surface-soft: #fbfcff;
+  --color-platform-border-soft: #edf1f8;
+  --color-platform-text-strong: #26364d;
+  --color-platform-text-body: #718096;
+  --color-platform-text-muted: #94a2b6;
+  --color-platform-text-faint: #99a6b8;
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
