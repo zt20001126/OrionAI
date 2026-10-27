@@ -9,6 +9,7 @@ from sqlalchemy.schema import CreateIndex, CreateTable, Table
 from app.infrastructure.database.base import Base
 from app.modules.auth.models import User
 from app.modules.conversations.models import Conversation, Message
+from app.modules.skills.models import Skill
 
 
 def _postgres_table_ddl(table: Table) -> str:
@@ -33,6 +34,7 @@ def test_conversation_schema_matches_postgresql_requirements() -> None:
     assert set(table.columns.keys()) == {
         "id",
         "user_id",
+        "skill_code",
         "title",
         "created_at",
         "updated_at",
@@ -49,6 +51,8 @@ def test_conversation_schema_matches_postgresql_requirements() -> None:
     user_foreign_key = next(iter(table.c.user_id.foreign_keys))
     assert user_foreign_key.target_fullname == "users.id"
     assert user_foreign_key.ondelete == "CASCADE"
+    skill_foreign_key = next(iter(table.c.skill_code.foreign_keys))
+    assert skill_foreign_key.target_fullname == "skills.code"
 
     index = next(
         index for index in table.indexes if index.name == "ix_conversations_user_id_updated_at"
@@ -100,6 +104,15 @@ def test_sqlite_enforces_message_role_and_cascade_delete() -> None:
         with Session(engine) as session:
             user = User(account="owner@example.com", password_hash="hash")
             session.add(user)
+            session.flush()
+            session.add(
+                Skill(
+                    code="general_chat",
+                    name="通用对话助手",
+                    type="agent",
+                    status="published",
+                )
+            )
             session.flush()
             conversation = Conversation(user_id=user.id)
             session.add(conversation)

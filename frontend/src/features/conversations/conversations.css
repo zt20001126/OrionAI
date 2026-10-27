@@ -336,6 +336,30 @@
   overflow-wrap: anywhere;
 }
 
+.conversation-image-result {
+  width: fit-content;
+  max-width: 100%;
+  margin: var(--space-2) 0 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.conversation-image-result img {
+  display: block;
+  width: auto;
+  max-width: min(100%, 720px);
+  max-height: 720px;
+  object-fit: contain;
+}
+
+.conversation-image-result__status {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
 .conversation-message__markdown > :first-child {
   margin-top: 0;
 }

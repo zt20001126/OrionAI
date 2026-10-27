@@ -24,6 +24,7 @@ from app.agent.errors import (
 from app.agent.graph import build_conversation_graph
 from app.agent.nodes.tool import ASK_USER_QUESTIONS_TOOL_NAME
 from app.agent.prompts.loader import load_default_chat_system_prompt
+from app.agent.runtime.protocol import AgentRuntime
 from app.agent.schemas import (
     AgentRequest,
     AgentResponse,
@@ -226,7 +227,7 @@ def create_basic_conversation_agent(
 
 
 def invoke_agent_from_worker_thread(
-    agent: BaseAgent,
+    agent: AgentRuntime,
     request: AgentRequest,
     *,
     runnable_config: RunnableConfig,

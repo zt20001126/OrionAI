@@ -16,6 +16,7 @@ class ConversationCreateResponse(BaseModel):
     """新建会话后的公开字段。"""
 
     id: str = Field(description="Snowflake 会话 ID，以十进制字符串传输。")
+    skill_code: str = Field(description="此会话绑定的技能代码。")
     title: str | None = Field(description="会话标题；新会话根据首条用户消息自动生成。")
     created_at: datetime = Field(description="创建时间。")
     updated_at: datetime = Field(description="最近更新时间。")
@@ -27,6 +28,14 @@ class ConversationListResponse(BaseModel):
     items: list[ConversationCreateResponse] = Field(description="按更新时间倒序排列的会话。")
     limit: int = Field(description="本页条数上限。")
     offset: int = Field(description="当前偏移量。")
+
+
+class ConversationCreateRequest(BaseModel):
+    """创建会话时可选指定已添加的技能。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    skill_code: str = Field(default="general_chat", min_length=1, max_length=100)
 
 
 class MessageCreateRequest(BaseModel):
@@ -80,7 +89,21 @@ class QuestionContentPart(BaseModel):
         return cls(type="question", questions=payload.model_dump(mode="json")["questions"])
 
 
-MessageContentPart = Annotated[TextContentPart | QuestionContentPart, Field(discriminator="type")]
+class ImageResultContentPart(BaseModel):
+    """消息中指向当前用户私有图片结果接口的稳定引用。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["image_result"] = Field(description="生图结果内容类型。")
+    task_result_id: str = Field(pattern=r"^[0-9]{1,20}$", description="图片任务结果 ID。")
+    generation_status: Literal["succeeded"] = Field(description="图片生成状态。")
+    image_url: str = Field(description="需要登录后访问的图片接口相对路径。")
+
+
+MessageContentPart = Annotated[
+    TextContentPart | QuestionContentPart | ImageResultContentPart,
+    Field(discriminator="type"),
+]
 
 
 class MessageContent(BaseModel):
@@ -105,6 +128,7 @@ class MessageListResponse(BaseModel):
     """按消息 ID 升序返回的分页消息。"""
 
     items: list[MessageResponse] = Field(description="消息列表。")
+    skill_code: str = Field(description="该会话绑定的技能代码。")
     limit: int = Field(description="本页条数上限。")
     offset: int = Field(description="当前偏移量。")
 

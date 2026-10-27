@@ -9,6 +9,7 @@ from app.modules.auth.dependencies import validate_origin
 from app.modules.conversations.dependencies import ConversationServiceDependency, CurrentUser
 from app.modules.conversations.schemas import (
     AgentTurnResponse,
+    ConversationCreateRequest,
     ConversationCreateResponse,
     ConversationListResponse,
     MessageCreateRequest,
@@ -31,10 +32,13 @@ PageOffset = Annotated[int, Query(ge=0, description="分页偏移量。")]
 def create_conversation(
     user: CurrentUser,
     service: ConversationServiceDependency,
+    payload: ConversationCreateRequest | None = None,
 ) -> ConversationCreateResponse:
     """为当前用户创建空会话。"""
 
-    return service.create_conversation(user)
+    return service.create_conversation(
+        user, skill_code=payload.skill_code if payload else "general_chat"
+    )
 
 
 @router.get("", response_model=ConversationListResponse)

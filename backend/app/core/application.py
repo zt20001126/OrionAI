@@ -15,11 +15,16 @@ from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.infrastructure.database.session import SessionLocal
 from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModelProvider
+from app.modules.agents.image_agent.providers.result_downloader import ImageResultDownloader
+from app.modules.agents.image_agent.providers.tokenhub_client import TokenHubImageClient
+from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
+from app.modules.agents.image_agent.service import ImageTaskResultStore
+from app.modules.agents.registry import AgentRegistry
 from app.modules.auth.errors import AuthError
 from app.modules.conversations.errors import ConversationError
 from app.modules.conversations.title import ModelConversationTitleGenerator
 from app.modules.skills.errors import SkillsError
-from app.modules.skills.repository import ensure_general_chat_skill
+from app.modules.skills.repository import ensure_general_chat_skill, ensure_image_agent_skill
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +49,29 @@ def create_agent_lifespan(
             with SessionLocal() as session:
                 try:
                     ensure_general_chat_skill(session)
+                    ensure_image_agent_skill(session)
                 except SQLAlchemyError:
                     session.rollback()
                     logger.exception("general_chat_skill_initialization_failed")
                     raise
-            application.state.conversation_agent = create_basic_conversation_agent(
+            conversation_agent = create_basic_conversation_agent(
                 chat_model=chat_model,
                 checkpointer=checkpointer,
+            )
+            image_agent = ImageAgent(
+                settings=settings,
+                chat_model=chat_model,
+                checkpointer=checkpointer,
+                task_store=ImageTaskResultStore(),
+                tokenhub_client=TokenHubImageClient(settings),
+                result_downloader=ImageResultDownloader(
+                    timeout_seconds=settings.tokenhub_timeout_seconds,
+                    max_bytes=settings.image_result_max_bytes,
+                ),
+            )
+            application.state.conversation_agent = conversation_agent
+            application.state.agent_registry = AgentRegistry(
+                {"general_chat": conversation_agent, "image_agent": image_agent}
             )
             application.state.conversation_title_generator = ModelConversationTitleGenerator(
                 model=title_model,
@@ -58,6 +79,7 @@ def create_agent_lifespan(
             )
             yield
             del application.state.conversation_agent
+            del application.state.agent_registry
             del application.state.conversation_title_generator
 
     return lifespan

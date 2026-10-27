@@ -34,6 +34,7 @@
 | `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加技能 | Cookie |
 | `POST` | `/api/v1/users/me/skills` | 添加已发布技能 | Cookie |
 | `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户的技能 | Cookie |
+| `GET` | `/api/v1/task-results/{task_result_id}/image` | 读取本人已完成的私有图片结果 | Cookie |
 
 ## 接口详情
 
@@ -156,17 +157,19 @@
 
 以下接口均要求有效的 `orionai_session` Cookie。写入接口沿用 `Origin` 与 `Host` 同源校验。会话查询始终限制在当前用户范围；不存在或不属于当前用户的会话统一返回 `404`。列表接口支持 `limit`（默认 50，范围 1–100）和 `offset`（默认 0）。
 
-发送消息和恢复题卡前，当前用户必须已将 `general_chat` 添加到“我的技能”；未添加时返回 `409`。
+发送消息和恢复题卡前，当前用户必须已添加会话绑定的技能，且技能仍处于已发布状态；否则返回 `409`。旧客户端不传技能代码时，新会话仍绑定 `general_chat`。
 
-`POST /api/conversations` 创建空会话，成功返回 `201`，字段包含字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`；首条用户消息发送前标题为空；首条用户消息提交后，根据其内容自动生成标题；模型失败或超时时使用首条消息的简短摘要。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
+`POST /api/conversations` 创建空会话，可选请求体 `{"skill_code":"image_agent"}`；不传时默认为 `general_chat`。请求的技能必须已添加到当前用户技能，且有已注册运行入口。成功响应及会话列表项包含 `skill_code`、字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`。首条用户消息发送前标题为空；首条用户消息提交后，根据其内容自动生成标题；模型失败或超时时使用首条消息的简短摘要。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
 
-`GET /api/conversations/{id}/messages` 按消息 `id` 升序返回 `items`。消息内容使用 JSON `parts` 数组，例如：
+`GET /api/conversations/{id}/messages` 按消息 `id` 升序返回 `items`，并返回会话的 `skill_code`。消息内容使用 JSON `parts` 数组，例如：
 
 ```json
 {"parts":[{"type":"text","text":"你好"}]}
 ```
 
-发送消息时请求 `POST /api/conversations/{id}/messages`，JSON 请求体为 `{"message":"请帮我写一份说明"}`。返回 `status` 为 `completed` 或 `waiting`，以及本轮助手 `message`。普通回答的内容部分为 `type: "text"`；等待选择时为 `type: "question"` 并包含结构化 `questions`。如果当前会话正在等待题卡答案，发送新消息返回 `409`。
+发送消息时请求 `POST /api/conversations/{id}/messages`，JSON 请求体为 `{"message":"请帮我写一份说明"}`。返回 `status` 为 `completed` 或 `waiting`，以及本轮助手 `message`。普通回答的内容部分为 `type: "text"`；等待选择时为 `type: "question"` 并包含结构化 `questions`。图片助手完成生图时，还会包含 `image_result` 内容块，其中提供 `task_result_id`、`generation_status` 和登录后可访问的 `image_url`；不包含 OSS 对象键或上游图片地址。如果当前会话正在等待题卡答案，发送新消息返回 `409`。
+
+图片助手技能代码为 `image_agent`，市场名称为“图片助手”。本期支持文本生成商品主图和详情页图片，不支持参考图上传、图像编辑或图像分析。用户未在文本中给出尺寸/画幅时，助手会发送现有单选题卡询问画幅；提交答案后在同一会话线程继续生图。
 
 标题生成是消息发送流程的内部行为，不改变请求或响应结构；只有首条用户消息用于命名，后续消息和题卡答案不会覆盖标题。
 
@@ -200,11 +203,19 @@ Agent 需要用户选择时，发送完整且已保存的题卡消息：
 
 用户消息在模型调用前提交；只有 Agent 完成后，完整文本或题卡才写入消息表。中途断连或生成失败时不会保存部分助手回答，已提交的用户消息可能仍在历史中。浏览器客户端使用带 Cookie 的 Fetch POST 和 `ReadableStream` 读取事件，不自动重发失败消息。
 
+图片生成通过 TokenHub 执行，图片下载后保存到私有 OSS。缺少 TokenHub 或 OSS 配置时，对应调用会返回受控失败提示；对象存储凭据不会在应用启动时用于创建 Bucket。`image_url` 的图片读取接口要求会话 Cookie，且只返回当前用户拥有、状态为 `succeeded` 的结果。
+
 ### 技能市场 API
 
 以下接口要求有效的 `orionai_session` Cookie。`GET /api/v1/skills` 支持 `type`、`keyword`、`page`、`page_size` 和 `include_disabled`；默认只返回已发布技能，传 `include_disabled=true` 时也返回已停用技能。停用技能可查看列表说明，但详情接口仍返回 `404`，且不能添加到用户技能列表。技能响应中的 Snowflake `id` 使用十进制字符串。
 
 `GET /api/v1/users/me/skills` 只返回当前用户已添加且仍发布的技能。添加技能时，`POST /api/v1/users/me/skills` 的请求体使用 `{"skill_id":"十进制 Snowflake ID"}`；重复添加返回 `409`，不存在或已停用的技能返回 `404`。删除当前用户自己的关联使用 `DELETE /api/v1/users/me/skills/{skill_id}`。
+
+### 私有图片结果 API
+
+`GET /api/v1/task-results/{task_result_id}/image` 返回 `image/png` 或 `image/jpeg` 图片字节，仅当任务结果属于当前登录用户且状态为 `succeeded` 时可读取。其他用户的 ID、不存在的 ID、失败或尚未完成的任务统一返回 `404`。响应设置 `Cache-Control: private, no-store`，图片保存在私有 OSS，不向客户端公开 OSS Key 或签名 URL。
+
+运行图片助手需配置 `TOKENHUB_API_KEY`；可选配置项 `TOKENHUB_BASE_URL`、`TENCENT_HY_IMAGE_MODEL`、`TENCENT_HY_IMAGE_ENDPOINT`、`TOKENHUB_TIMEOUT_SECONDS` 和 `IMAGE_RESULT_MAX_BYTES` 控制服务地址、模型、超时与下载上限。结果持久化还需配置 `ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_BUCKET` 和可选 `ALIYUN_OSS_OBJECT_PREFIX`。
 
 ## 实现位置
 

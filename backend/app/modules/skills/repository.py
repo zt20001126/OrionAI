@@ -17,6 +17,13 @@ GENERAL_CHAT = {
     "type": "agent",
     "status": "published",
 }
+IMAGE_AGENT = {
+    "code": "image_agent",
+    "name": "图片助手",
+    "description": "根据文字生成电商商品主图和详情页图片",
+    "type": "agent",
+    "status": "published",
+}
 
 
 def list_market_skills(
@@ -160,6 +167,31 @@ def ensure_general_chat_skill(session: Session) -> None:
         )
     else:
         if session.scalar(select(Skill.id).where(Skill.code == GENERAL_CHAT["code"])) is None:
+            session.add(Skill(**values))
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()
+
+
+def ensure_image_agent_skill(session: Session) -> None:
+    """幂等发布图片助手市场条目，不覆盖管理员后续修改。"""
+    values = IMAGE_AGENT.copy()
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    else:
+        if session.scalar(select(Skill.id).where(Skill.code == IMAGE_AGENT["code"])) is None:
             session.add(Skill(**values))
         session.commit()
         return

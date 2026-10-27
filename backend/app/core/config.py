@@ -52,6 +52,24 @@ class Settings(BaseSettings):
     )
     deepseek_temperature: float = Field(default=0.7, ge=0, le=2, description="对话模型生成温度。")
     deepseek_max_retries: int = Field(default=2, ge=0, le=5, description="模型请求的最大重试次数。")
+    tokenhub_api_key: SecretStr = Field(
+        default=SecretStr(""), description="TokenHub 生图 API 密钥，不得写入日志。"
+    )
+    tokenhub_base_url: str = Field(
+        default="https://tokenhub.tencentmaas.com", description="TokenHub API 根地址。"
+    )
+    tencent_hy_image_model: str = Field(
+        default="hy-image-v3.5-preview", description="TokenHub 图片生成模型名称。"
+    )
+    tencent_hy_image_endpoint: str = Field(
+        default="/v1/wand/hunyuan-image/v35-generation", description="TokenHub 图片生成路径。"
+    )
+    tokenhub_timeout_seconds: float = Field(
+        default=180.0, gt=0, le=600, description="TokenHub 请求超时时间，单位为秒。"
+    )
+    image_result_max_bytes: int = Field(
+        default=52_428_800, gt=0, description="单张生成图片最大下载字节数。"
+    )
     conversation_title_timeout_seconds: float = Field(
         default=8.0, gt=0, le=60, description="会话标题模型调用时限，单位为秒。"
     )
@@ -80,6 +98,11 @@ class Settings(BaseSettings):
                 self.aliyun_oss_bucket.strip(),
             )
         )
+
+    @property
+    def tokenhub_configured(self) -> bool:
+        """判断图片生成服务是否配置了 API 密钥。"""
+        return bool(self.tokenhub_api_key.get_secret_value().strip())
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",

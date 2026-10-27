@@ -3,7 +3,7 @@
 ## 概览
 
 - **关系型数据库：** PostgreSQL 17。
-- **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`。
+- **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`、`task_results`。
 - **验证码和登录状态：** 保存在 Redis；聊天会话和消息保存在 PostgreSQL。
 - **迁移：** Alembic。Docker 后端启动时自动执行迁移；本地可在 `backend/` 目录运行 `python -m alembic upgrade head`。
 
@@ -29,11 +29,12 @@
 |---|---|---|---|---|---|
 | `id` | `BIGINT` | 否 | 应用侧 Snowflake | 主键 | 会话 Snowflake ID |
 | `user_id` | `BIGINT` | 否 | — | 外键 `users.id`，删除级联 | 所属用户 |
+| `skill_code` | `VARCHAR(100)` | 否 | `general_chat` | 外键 `skills.code`，删除限制 | 固定本会话使用的 Agent 技能；旧会话迁移为 `general_chat` |
 | `title` | `VARCHAR(255)` | 是 | `NULL` | — | 根据首条用户消息自动生成的会话标题；功能上线前已有消息的会话可能仍为空 |
 | `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 创建时间 |
 | `updated_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 最近更新时间，由业务层在交互时更新 |
 
-索引：`(user_id, updated_at DESC)`。
+索引：`(user_id, updated_at DESC)`。新会话只允许绑定当前用户已添加且仍发布的技能。Agent Checkpointer 线程 ID 包含技能代码，避免不同 Agent 共用状态。
 
 ## `messages` — 消息
 
@@ -45,9 +46,9 @@
 | `content` | `JSONB` | 否 | — | — | `{"parts":[...]}` 结构化消息内容 |
 | `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 创建时间 |
 
-索引：`(conversation_id, id)`。文本使用 `{"type":"text","text":"..."}` part；等待用户选择的助手消息使用 `{"type":"question","questions":[...]}` part。数据库不增加 JSON Schema 校验或额外内容表。
+索引：`(conversation_id, id)`。文本使用 `{"type":"text","text":"..."}` part；等待用户选择的助手消息使用 `{"type":"question","questions":[...]}` part；生成图片的助手消息使用 `image_result` part 保存结果 ID、状态和受登录保护的 API 路径。数据库不增加消息内容列或二进制图片列。
 
-会话与消息迁移：[`0003_create_conversations_and_messages.py`](../../backend/migrations/versions/0003_create_conversations_and_messages.py)。`0004_snowflake_primary_ids.py` 将现有用户、会话和消息主键重新编号为 Snowflake ID，并同步更新业务外键；如果 LangGraph Checkpointer 表已存在，也会同步更新本项目格式的会话 `thread_id`。升级或回滚都会改变这些表中的 ID，客户端应在迁移后重新获取 ID；执行迁移前应备份数据库。
+会话与消息迁移：[`0003_create_conversations_and_messages.py`](../../backend/migrations/versions/0003_create_conversations_and_messages.py)。`0004_snowflake_primary_ids.py` 将现有用户、会话和消息主键重新编号为 Snowflake ID，并同步更新业务外键；如果 LangGraph Checkpointer 表已存在，也会同步更新本项目格式的会话 `thread_id`。[`0008_add_image_agent.py`](../../backend/migrations/versions/0008_add_image_agent.py) 为已有会话回填 `general_chat` 并增加技能外键。升级或回滚 `0004` 都会改变这些表中的 ID，客户端应在迁移后重新获取 ID；执行迁移前应备份数据库。
 
 Snowflake 生成器由 `SNOWFLAKE_WORKER_ID` 区分并发 backend 实例，范围为 `0`–`1022`，默认值为 `1`。同一时刻运行多个实例时必须为每个实例设置不同值，否则可能生成重复 ID。运行迁移使用独立保留的 worker ID `1023`。
 
@@ -63,7 +64,7 @@ Snowflake 生成器由 `SNOWFLAKE_WORKER_ID` 区分并发 backend 实例，范�
 | `status` | `VARCHAR(20)` | 否 | `published` | CHECK：`published` 或 `disabled` | 技能发布状态 |
 | `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 创建时间 |
 
-索引：`(status, type, created_at)`。技能 ID 由应用侧 Snowflake 生成；手工执行 SQL 插入时需要显式提供 Snowflake `id`。
+索引：`(status, type, created_at)`。技能 ID 由应用侧 Snowflake 生成；手工执行 SQL 插入时需要显式提供 Snowflake `id`。应用启动时幂等注册 `general_chat` 和已发布的 `image_agent`（名称“图片助手”）；技能记录是技能市场数据源。
 
 ## `user_skills` — 用户技能关联
 
@@ -72,11 +73,28 @@ Snowflake 生成器由 `SNOWFLAKE_WORKER_ID` 区分并发 backend 实例，范�
 | `id` | `BIGINT` | 否 | 应用侧 Snowflake | 主键 | 关联记录 Snowflake ID |
 | `user_id` | `BIGINT` | 否 | — | 外键 `users.id`，删除级联 | 用户 ID |
 | `skill_id` | `BIGINT` | 否 | — | 外键 `skills.id`，删除级联 | 技能 Snowflake ID |
+| `skill_name` | `VARCHAR(100)` | 否 | — | — | 添加时保存的技能名称快照 |
 | `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 添加时间 |
 
 唯一约束：`(user_id, skill_id)`；索引：`(user_id, created_at)`。所有业务表主键及引用主键的外键统一使用 Snowflake `BIGINT`。`0006_snowflake_skill_ids.py` 将技能及关联表中已有 UUID 重映射为 Snowflake ID，并幂等注册 `resume_assistant` 和 `literature_assistant`；升级后客户端应重新获取技能 ID。
 
 LangGraph PostgreSQL Checkpointer 使用其依赖管理的内部表保存图执行状态；这些表不属于业务表，也不通过业务 Alembic 迁移维护。应用首次启动会调用 Checkpointer `setup()`，数据库账号需要具备相应建表/升级权限。
+
+## `task_results` — 图片任务结果
+
+| 字段 | PostgreSQL 类型 | 可空 | 默认值 | 键/约束 | 说明 |
+|---|---|---|---|---|---|
+| `task_result_id` | `BIGINT` | 否 | 应用侧 Snowflake | 主键 | 图片任务结果 ID |
+| `user_id` | `BIGINT` | 否 | — | 外键 `users.id`，删除级联 | 结果所有者 |
+| `conversation_id` | `BIGINT` | 否 | — | 外键 `conversations.id`，删除级联 | 所属会话 |
+| `message_id` | `BIGINT` | 是 | `NULL` | 外键 `messages.id`，删除时设为 NULL | 对应的助手结果消息 |
+| `agent_code` | `VARCHAR(100)` | 否 | `image_agent` | — | 生成结果的 Agent 代码 |
+| `generation_status` | `VARCHAR(20)` | 否 | — | CHECK：`running`、`succeeded`、`failed` | 图片生成状态 |
+| `input_data` | `JSONB` | 否 | — | — | 提示词和生成参数 |
+| `result_data` | `JSONB` | 是 | `NULL` | — | OSS 对象键、MIME、大小、图片尺寸及上游 request ID |
+| `created_at` / `updated_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 任务创建和最近更新时刻 |
+
+索引：`(user_id, created_at)`、`(conversation_id)`。图片字节只保存在私有 OSS，不存入 PostgreSQL；对话消息只保留结果 ID 和授权接口路径。图片读取需校验当前用户与结果所有权。
 
 ## Redis 认证状态
 

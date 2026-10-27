@@ -154,7 +154,14 @@ def conversation_client() -> Iterator[
             type="agent",
             status="published",
         )
-        session.add(general_chat)
+        image_agent = Skill(
+            code="image_agent",
+            name="图片助手",
+            description="根据文字生成商品图片",
+            type="agent",
+            status="published",
+        )
+        session.add_all([general_chat, image_agent])
         session.flush()
         session.add_all(
             [
@@ -167,6 +174,11 @@ def conversation_client() -> Iterator[
                     user_id=other_user.id,
                     skill_id=general_chat.id,
                     skill_name=general_chat.name,
+                ),
+                UserSkill(
+                    user_id=owner.id,
+                    skill_id=image_agent.id,
+                    skill_name=image_agent.name,
                 ),
             ]
         )
@@ -223,6 +235,7 @@ def conversation_client() -> Iterator[
     test_app.dependency_overrides[get_db_session] = override_db_session
     test_app.dependency_overrides[get_current_user] = override_current_user
     test_app.state.conversation_agent = agent
+    test_app.state.agent_registry = {"general_chat": agent, "image_agent": agent}
     test_app.state.conversation_title_generator = title_generator
     try:
         with TestClient(test_app) as client:
@@ -290,7 +303,7 @@ def test_streaming_question_answer_resumes_the_same_conversation(
         sessionmaker[Session],
     ],
 ) -> None:
-    client, _users, agent, _title_generator, _session_factory = conversation_client
+    client, users, agent, _title_generator, _session_factory = conversation_client
     conversation_id = client.post("/api/conversations").json()["id"]
     client.post(f"/api/conversations/{conversation_id}/messages", json={"message": "你好"})
     waiting_turn = client.post(
@@ -332,7 +345,7 @@ def test_streaming_agent_failure_sends_sanitized_end_without_saving_partial_answ
         sessionmaker[Session],
     ],
 ) -> None:
-    client, _users, agent, _title_generator, _session_factory = conversation_client
+    client, users, agent, _title_generator, _session_factory = conversation_client
     conversation_id = client.post("/api/conversations").json()["id"]
     agent.responses.insert(0, RuntimeError("sensitive model output"))
 
@@ -443,22 +456,39 @@ def test_chat_requires_general_chat_to_be_added_before_use(
         )
         session.commit()
 
-    conversation_id = client.post("/api/conversations").json()["id"]
-    response = client.post(
-        f"/api/conversations/{conversation_id}/messages",
-        json={"message": "你好"},
-    )
-    stream_response = client.post(
-        f"/api/conversations/{conversation_id}/messages/stream",
-        json={"message": "你好"},
-    )
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "请先将通用对话助手添加到我的技能后再使用。"
-    assert stream_response.status_code == 409
-    assert stream_response.json()["detail"] == response.json()["detail"]
+    create_response = client.post("/api/conversations")
+    assert create_response.status_code == 409
+    assert create_response.json()["detail"] == "请先将此助手添加到我的技能后再使用。"
     assert agent.calls == []
     assert title_generator.messages == []
+
+
+def test_image_skill_binds_conversation_and_uses_its_runtime(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, users, agent, _title_generator, _session_factory = conversation_client
+    created = client.post("/api/conversations", json={"skill_code": "image_agent"})
+
+    assert created.status_code == 201
+    assert created.json()["skill_code"] == "image_agent"
+    conversation_id = created.json()["id"]
+    turn = client.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"message": "生成一张白色陶瓷杯的商品主图"},
+    )
+
+    assert turn.status_code == 200
+    assert agent.calls[0]["runnable_config"]["configurable"]["thread_id"].startswith(
+        f"orionai:{users['current'].id}:image_agent:"
+    )
+    messages = client.get(f"/api/conversations/{conversation_id}/messages")
+    assert messages.json()["skill_code"] == "image_agent"
 
 
 def test_chat_persists_messages_and_resumes_waiting_questions(

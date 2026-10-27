@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
-from app.agent.runtime.base_agent import BaseAgent
+from app.agent.runtime.protocol import AgentRuntime
 from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
@@ -19,7 +19,8 @@ def get_conversation_service(
 ) -> ConversationService:
     """从应用组合根取 Agent，并构造每请求的对话 Service。"""
 
-    agent: BaseAgent | None = getattr(request.app.state, "conversation_agent", None)
+    agent_registry = dict(getattr(request.app.state, "agent_registry", {}))
+    agent: AgentRuntime | None = getattr(request.app.state, "conversation_agent", None)
     title_generator: ConversationTitleGenerator | None = getattr(
         request.app.state,
         "conversation_title_generator",
@@ -28,6 +29,7 @@ def get_conversation_service(
     return ConversationService(
         session=session,
         agent=agent,
+        agent_registry=agent_registry,
         title_generator=title_generator,
     )
 

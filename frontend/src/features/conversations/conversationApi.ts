@@ -1,5 +1,6 @@
 export interface ConversationSummary {
   id: string;
+  skill_code: string;
   title: string | null;
   created_at: string;
   updated_at: string;
@@ -34,7 +35,17 @@ export interface QuestionContentPart {
   questions: SingleChoiceQuestion[];
 }
 
-export type MessageContentPart = TextContentPart | QuestionContentPart;
+export interface ImageResultContentPart {
+  type: "image_result";
+  task_result_id: string;
+  generation_status: "succeeded";
+  image_url: string;
+}
+
+export type MessageContentPart =
+  | TextContentPart
+  | QuestionContentPart
+  | ImageResultContentPart;
 
 export interface ConversationMessage {
   id: string;
@@ -46,6 +57,7 @@ export interface ConversationMessage {
 
 export interface MessageListResponse {
   items: ConversationMessage[];
+  skill_code: string;
   limit: number;
   offset: number;
 }
@@ -121,8 +133,12 @@ function getResponseError(response: Response, payload: unknown): ConversationApi
   return new ConversationApiError(message, response.status);
 }
 
-export function createConversation(): Promise<ConversationSummary> {
-  return request<ConversationSummary>("", undefined, "POST");
+export function createConversation(skillCode?: string): Promise<ConversationSummary> {
+  return request<ConversationSummary>(
+    "",
+    skillCode ? { skill_code: skillCode } : undefined,
+    "POST",
+  );
 }
 
 export function listConversations(offset = 0): Promise<ConversationListResponse> {
@@ -275,14 +291,16 @@ async function streamConversationTurn(
   return questionMessage;
 }
 
-export async function listAllMessages(conversationId: string): Promise<ConversationMessage[]> {
+export async function listAllMessages(conversationId: string): Promise<MessageListResponse> {
   const items: ConversationMessage[] = [];
   let offset = 0;
 
   while (true) {
     const page = await listMessages(conversationId, offset);
     items.push(...page.items);
-    if (page.items.length < page.limit) return items;
+    if (page.items.length < page.limit) {
+      return { items, skill_code: page.skill_code, limit: page.limit, offset: 0 };
+    }
     offset += page.items.length;
   }
 }

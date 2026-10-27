@@ -68,13 +68,20 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         "app.core.application.ensure_general_chat_skill",
         lambda session: seed_sessions.append(session),
     )
+    monkeypatch.setattr(
+        "app.core.application.ensure_image_agent_skill",
+        lambda session: seed_sessions.append(session),
+    )
+    image_agent = object()
+    monkeypatch.setattr("app.core.application.ImageAgent", lambda **_kwargs: image_agent)
 
     application = FakeApplication()
     lifespan = create_agent_lifespan(settings)
     async with lifespan(application):
         assert checkpointer.setup_called
-        assert len(seed_sessions) == 1
+        assert len(seed_sessions) == 2
         assert application.state.conversation_agent is agent
+        assert application.state.agent_registry.get("image_agent") is image_agent
         assert isinstance(
             application.state.conversation_title_generator,
             ModelConversationTitleGenerator,
@@ -83,4 +90,5 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
 
     assert observed_urls == ["postgresql://test:test@localhost/test"]
     assert not hasattr(application.state, "conversation_agent")
+    assert not hasattr(application.state, "agent_registry")
     assert not hasattr(application.state, "conversation_title_generator")

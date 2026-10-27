@@ -26,6 +26,26 @@ function textMessage(
   };
 }
 
+function imageResultMessage(id: string, conversationId: string): ConversationMessage {
+  return {
+    id,
+    conversation_id: conversationId,
+    role: "assistant",
+    content: {
+      parts: [
+        { type: "text", text: "图片已生成并保存到本次会话。" },
+        {
+          type: "image_result",
+          task_result_id: "9007199254740994",
+          generation_status: "succeeded",
+          image_url: "/api/v1/task-results/9007199254740994/image",
+        },
+      ],
+    },
+    created_at: createdAt,
+  };
+}
+
 function createSseResponse(
   events: Array<{ event_type: "start" | "message" | "heartbeat" | "end"; data: unknown }>,
   endGate?: Promise<void>,
@@ -188,6 +208,17 @@ function createBackend(options?: {
                 added_at: createdAt,
                 is_added: true,
               },
+              {
+                id: "373284764594991101",
+                code: "image_agent",
+                name: "图片助手",
+                description: "根据文字生成商品图片",
+                type: "agent",
+                status: "published",
+                created_at: createdAt,
+                added_at: createdAt,
+                is_added: true,
+              },
             ],
           }),
         } as Response;
@@ -196,6 +227,7 @@ function createBackend(options?: {
       if (url.pathname === "/api/conversations" && method === "POST") {
         const conversation: ConversationSummary = {
           id: createdConversationId,
+          skill_code: typeof body?.skill_code === "string" ? body.skill_code : "general_chat",
           title: null,
           created_at: createdAt,
           updated_at: createdAt,
@@ -222,12 +254,19 @@ function createBackend(options?: {
       if (messageRoute && method === "GET" && !isMessageStream) {
         const conversationId = messageRoute[1];
         const items = messages.get(conversationId) ?? [];
+        const skill_code =
+          conversations.find((item) => item.id === conversationId)?.skill_code ?? "general_chat";
         const limit = Number(url.searchParams.get("limit") ?? 50);
         const offset = Number(url.searchParams.get("offset") ?? 0);
         return {
           ok: true,
           status: 200,
-          json: async () => ({ items: items.slice(offset, offset + limit), limit, offset }),
+          json: async () => ({
+            items: items.slice(offset, offset + limit),
+            skill_code,
+            limit,
+            offset,
+          }),
         } as Response;
       }
 
@@ -436,12 +475,14 @@ describe("OrionAI conversations", () => {
       conversations: [
         {
           id: activeConversationId,
+          skill_code: "general_chat",
           title: "当前会话",
           created_at: createdAt,
           updated_at: createdAt,
         },
         {
           id: otherConversationId,
+          skill_code: "general_chat",
           title: "另一个会话",
           created_at: createdAt,
           updated_at: createdAt,
@@ -488,12 +529,14 @@ describe("OrionAI conversations", () => {
       conversations: [
         {
           id: activeConversationId,
+          skill_code: "general_chat",
           title: "当前会话",
           created_at: createdAt,
           updated_at: createdAt,
         },
         {
           id: otherConversationId,
+          skill_code: "general_chat",
           title: "另一个会话",
           created_at: createdAt,
           updated_at: createdAt,
@@ -537,7 +580,7 @@ describe("OrionAI conversations", () => {
     vi.stubGlobal("fetch", backend.fetchMock);
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "使用" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "使用" }))[0]!);
     expect(await screen.findByText("有什么问题，尽管问我。")).toBeInTheDocument();
 
     const messageInput = screen.getByRole("textbox", { name: "发送消息" });
@@ -571,6 +614,62 @@ describe("OrionAI conversations", () => {
     expect(await screen.findByText("已回答：再问一个问题")).toBeInTheDocument();
     expect(messageInput).toHaveFocus();
     expect(window.location.pathname).toBe(`/chat/${createdConversationId}`);
+  });
+
+  it("starts a conversation bound to the image assistant from My Skills", async () => {
+    window.history.replaceState({}, "", "/agents");
+    const backend = createBackend();
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "使用" }))[1]!);
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/chat/${createdConversationId}`));
+    expect(
+      backend.calls.some(
+        ({ url, method, body }) =>
+          url.pathname === "/api/conversations" &&
+          method === "POST" &&
+          body?.skill_code === "image_agent",
+      ),
+    ).toBe(true);
+    await waitFor(() => {
+      expect(document.querySelector(".conversation-panel__header h1")?.textContent).toBe("图片助手");
+    });
+  });
+
+  it("restores image assistant identity and shows a private image result", async () => {
+    const conversationId = "9100000000000020";
+    window.history.replaceState({}, "", `/chat/${conversationId}`);
+    const backend = createBackend({
+      conversations: [
+        {
+          id: conversationId,
+          skill_code: "image_agent",
+          title: "白色陶瓷杯主图",
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+      ],
+      messages: {
+        [conversationId]: [
+          textMessage("220", conversationId, "user", "生成一张白色陶瓷杯主图"),
+          imageResultMessage("221", conversationId),
+        ],
+      },
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    expect(await screen.findByText("图片已生成并保存到本次会话。")).toBeInTheDocument();
+    expect(document.querySelector(".conversation-panel__header h1")?.textContent).toBe("图片助手");
+    const image = screen.getByRole("img", { name: "图片助手生成的商品图片" });
+    expect(image).toHaveAttribute(
+      "src",
+      "/api/v1/task-results/9007199254740994/image",
+    );
+    fireEvent.error(image);
+    expect(screen.getByText("生成图片暂时无法显示。")).toHaveAttribute("role", "status");
   });
 
   it("submits every required question answer and resumes the same conversation", async () => {
@@ -846,6 +945,7 @@ describe("OrionAI conversations", () => {
     const historyId = "9100000000000001";
     const existingConversation: ConversationSummary = {
       id: historyId,
+      skill_code: "general_chat",
       title: "季度规划讨论",
       created_at: createdAt,
       updated_at: createdAt,

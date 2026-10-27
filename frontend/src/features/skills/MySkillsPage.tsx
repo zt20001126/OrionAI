@@ -4,6 +4,10 @@ import { SkillCard } from "../platform/SkillCard";
 import { SkillDetailsDialog } from "../platform/SkillDetailsDialog";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import {
+  createConversation,
+  getConversationErrorMessage,
+} from "../conversations/conversationApi";
+import {
   listMySkills,
   removeSkillFromMySkills,
   type MarketSkill,
@@ -21,11 +25,13 @@ type MySkillsLoadState =
 
 const EMPTY_MY_SKILLS: MySkill[] = [];
 const GENERAL_CHAT_SKILL_CODE = "general_chat";
+const IMAGE_AGENT_SKILL_CODE = "image_agent";
 
 /** 当前用户的技能页，只展示已添加且仍可用的技能。 */
 export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
   const [reloadVersion, setReloadVersion] = useState(0);
   const [removingSkillIds, setRemovingSkillIds] = useState<Set<string>>(() => new Set());
+  const [startingSkillIds, setStartingSkillIds] = useState<Set<string>>(() => new Set());
   const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<MarketSkill | null>(null);
   const [loadState, setLoadState] = useState<MySkillsLoadState>({
@@ -79,13 +85,28 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
     }
   }
 
-  function handleUseSkill(skill: MySkill) {
-    if (skill.code === GENERAL_CHAT_SKILL_CODE) {
+  async function handleUseSkill(skill: MySkill) {
+    setActionError(null);
+    setStartingSkillIds((current) => new Set(current).add(skill.id));
+    try {
+      if (skill.code === GENERAL_CHAT_SKILL_CODE) {
       onNavigate(platformPaths.chat);
       return;
-    }
+      }
 
-    setActionError("该技能当前还没有接入可执行的运行流程。");
+      const conversation = await createConversation(skill.code);
+      onNavigate(`${platformPaths.chat}/${conversation.id}`);
+    } catch (error) {
+      setActionError(
+        error instanceof Error ? getConversationErrorMessage(error) : "无法启动此技能，请稍后重试。",
+      );
+    } finally {
+      setStartingSkillIds((current) => {
+        const next = new Set(current);
+        next.delete(skill.id);
+        return next;
+      });
+    }
   }
 
   return (
@@ -136,16 +157,19 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
                 actions={
                   <>
                     <button
-                      className={
-                        skill.code === GENERAL_CHAT_SKILL_CODE
-                          ? "button button--primary"
-                          : "button button--secondary"
+                      className="button button--primary"
+                      disabled={
+                        startingSkillIds.has(skill.id) ||
+                        ![GENERAL_CHAT_SKILL_CODE, IMAGE_AGENT_SKILL_CODE].includes(skill.code)
                       }
-                      disabled={skill.code !== GENERAL_CHAT_SKILL_CODE}
-                      onClick={() => handleUseSkill(skill)}
+                      onClick={() => void handleUseSkill(skill)}
                       type="button"
                     >
-                      {skill.code === GENERAL_CHAT_SKILL_CODE ? "使用" : "运行入口未接入"}
+                      {startingSkillIds.has(skill.id)
+                        ? "正在启动…"
+                        : [GENERAL_CHAT_SKILL_CODE, IMAGE_AGENT_SKILL_CODE].includes(skill.code)
+                          ? "使用"
+                          : "运行入口未接入"}
                     </button>
                     <button
                       className="button button--outline"

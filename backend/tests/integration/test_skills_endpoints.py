@@ -188,10 +188,7 @@ def test_add_skill_and_reject_duplicate_missing_or_disabled(
     assert (
         client.post("/api/v1/users/me/skills", json={"skill_id": str(skill_id)}).status_code == 409
     )
-    assert (
-        client.post("/api/v1/users/me/skills", json={"skill_id": "1"}).status_code
-        == 404
-    )
+    assert client.post("/api/v1/users/me/skills", json={"skill_id": "1"}).status_code == 404
     assert (
         client.post("/api/v1/users/me/skills", json={"skill_id": str(disabled_id)}).status_code
         == 404

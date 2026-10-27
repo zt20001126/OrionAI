@@ -20,6 +20,7 @@ import {
   streamConversationMessage,
   streamQuestionAnswers,
   type ConversationMessage,
+  type ImageResultContentPart,
   type QuestionContentPart,
 } from "./conversationApi";
 import "./conversations.css";
@@ -47,6 +48,26 @@ function messageText(message: ConversationMessage): string {
     .filter((part) => part.type === "text")
     .map((part) => part.text)
     .join("\n");
+}
+
+function ImageResult({ part }: { part: ImageResultContentPart }) {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) {
+    return (
+      <p className="conversation-image-result__status" role="status">
+        生成图片暂时无法显示。
+      </p>
+    );
+  }
+  return (
+    <figure className="conversation-image-result">
+      <img
+        alt="图片助手生成的商品图片"
+        onError={() => setHasError(true)}
+        src={part.image_url}
+      />
+    </figure>
+  );
 }
 
 interface QuestionAnswerSummaryItem {
@@ -260,6 +281,7 @@ const markdownComponents: Components = {
 
 export function ConversationPage({ conversationId, onNavigate }: ConversationPageProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
+  const [skillCode, setSkillCode] = useState("general_chat");
   const [draft, setDraft] = useState("");
   const [answerSelection, setAnswerSelection] = useState<{
     conversationId: string | null;
@@ -317,10 +339,12 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     }
 
     let isActive = true;
+    setSkillCode("general_chat");
     void listAllMessages(conversationId)
-      .then((loadedMessages) => {
+      .then((history) => {
         if (isActive) {
-          setMessages(loadedMessages);
+          setMessages(history.items);
+          setSkillCode(history.skill_code);
           setLoadedConversationId(conversationId);
           setErrorState((current) => (current?.conversationId === conversationId ? null : current));
         }
@@ -402,8 +426,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     pendingQuestion.part.questions.every((question) => Boolean(selectedAnswers[question.id]));
 
   async function refreshMessages(activeConversationId: string): Promise<void> {
-    const refreshedMessages = await listAllMessages(activeConversationId);
-    setMessages(refreshedMessages);
+    const history = await listAllMessages(activeConversationId);
+    setMessages(history.items);
+    setSkillCode(history.skill_code);
     setLoadedConversationId(activeConversationId);
   }
 
@@ -436,7 +461,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
 
     let refreshedMessages: ConversationMessage[];
     try {
-      refreshedMessages = await listAllMessages(targetConversationId);
+      refreshedMessages = (await listAllMessages(targetConversationId)).items;
     } catch {
       setStreamedOutput((current) =>
         current?.conversationId === targetConversationId
@@ -657,6 +682,8 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     shouldFollowMessagesRef.current = distanceFromBottom <= 96;
   }
 
+  const agentName = skillCode === "image_agent" ? "图片助手" : "通用对话助手";
+
   return (
     <div className="conversation-page">
       <aside aria-label="历史会话导航" className="conversation-page__history">
@@ -678,9 +705,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
         />
       </aside>
 
-      <section aria-label="通用对话助手" className="conversation-panel">
+      <section aria-label={agentName} className="conversation-panel">
         <header className="conversation-panel__header">
-          <h1>通用对话助手</h1>
+          <h1>{agentName}</h1>
           <span>多轮对话</span>
         </header>
 
@@ -697,8 +724,8 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
               <span aria-hidden="true" className="conversation-empty__icon">
                 <PlatformIcon name="assistant" size={24} />
               </span>
-              <h1>通用对话助手</h1>
-              <p>有什么问题，尽管问我。</p>
+              <h1>{agentName}</h1>
+              <p>{skillCode === "image_agent" ? "描述商品和画面效果，开始生成图片。" : "有什么问题，尽管问我。"}</p>
             </div>
           )}
 
@@ -735,6 +762,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
             const questionPart = getQuestionPart(message);
             const isCurrentQuestion = pendingQuestion?.messageId === message.id;
             const text = messageText(message);
+            const imageResults = message.content.parts.filter(
+              (part): part is ImageResultContentPart => part.type === "image_result",
+            );
             const previousQuestionPart = getQuestionPart(visibleMessages[index - 1]);
             const answerSummary =
               message.role === "user" ? getQuestionAnswerSummary(text, previousQuestionPart) : null;
@@ -758,6 +788,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
                     </div>
                   </div>
                 )}
+                {message.role === "assistant" && imageResults.map((part) => (
+                  <ImageResult key={part.task_result_id} part={part} />
+                ))}
                 {message.role === "user" &&
                   text &&
                   (answerSummary ? (

@@ -13,7 +13,7 @@ from sqlalchemy.schema import CreateTable
 from app.infrastructure.database.base import Base
 from app.modules.auth.models import User
 from app.modules.skills.models import Skill, UserSkill
-from app.modules.skills.repository import ensure_general_chat_skill
+from app.modules.skills.repository import ensure_general_chat_skill, ensure_image_agent_skill
 
 
 def test_skills_models_match_postgresql_schema() -> None:
@@ -129,9 +129,7 @@ def test_competing_adds_are_guarded_by_the_database_unique_constraint(tmp_path: 
 
             barrier.wait(timeout=5)
             with Session(engine) as session:
-                session.add(
-                    UserSkill(user_id=user_id, skill_id=skill_id, skill_name=skill_name)
-                )
+                session.add(UserSkill(user_id=user_id, skill_id=skill_id, skill_name=skill_name))
                 try:
                     session.commit()
                     return True
@@ -173,6 +171,29 @@ def test_general_chat_seed_is_idempotent_and_preserves_admin_changes() -> None:
             assert (
                 session.scalar(
                     select(func.count()).select_from(Skill).where(Skill.code == "general_chat")
+                )
+                == 1
+            )
+    finally:
+        engine.dispose()
+
+
+def test_image_agent_seed_adds_the_published_market_skill_idempotently() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as session:
+            ensure_image_agent_skill(session)
+            ensure_image_agent_skill(session)
+            skill = session.scalar(select(Skill).where(Skill.code == "image_agent"))
+
+            assert skill is not None
+            assert skill.name == "图片助手"
+            assert skill.type == "agent"
+            assert skill.status == "published"
+            assert (
+                session.scalar(
+                    select(func.count()).select_from(Skill).where(Skill.code == "image_agent")
                 )
                 == 1
             )

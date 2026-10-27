@@ -8,10 +8,12 @@ from sqlalchemy.orm import Session
 from app.modules.conversations.models import Conversation, Message
 
 
-def create_conversation(session: Session, user_id: int) -> Conversation:
+def create_conversation(
+    session: Session, user_id: int, skill_code: str = "general_chat"
+) -> Conversation:
     """创建属于指定用户的空会话。"""
 
-    conversation = Conversation(user_id=user_id)
+    conversation = Conversation(user_id=user_id, skill_code=skill_code)
     session.add(conversation)
     session.flush()
     return conversation

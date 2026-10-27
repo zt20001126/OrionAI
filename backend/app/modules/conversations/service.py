@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.agent.errors import AgentError, AgentInputError
 from app.agent.memory.thread import build_conversation_thread_id
-from app.agent.runtime.base_agent import BaseAgent, invoke_agent_from_worker_thread
+from app.agent.runtime.base_agent import invoke_agent_from_worker_thread
+from app.agent.runtime.protocol import AgentRuntime
 from app.agent.schemas import (
     AgentRequest,
     AgentResponse,
@@ -23,6 +24,8 @@ from app.agent.schemas import (
     AgentTextDelta,
     QuestionPayload,
 )
+from app.modules.agents.image_agent.constants import IMAGE_RESULT_URL_PREFIX
+from app.modules.agents.image_agent.service import link_image_result_message
 from app.modules.auth.models import User
 from app.modules.conversations import repository
 from app.modules.conversations.errors import (
@@ -65,6 +68,7 @@ class PreparedConversationTurn:
     message_text: str
     message_id: int
     should_generate_title: bool
+    resume_answers: dict[str, str] | None = None
 
 
 class ConversationService:
@@ -74,18 +78,29 @@ class ConversationService:
         self,
         *,
         session: Session,
-        agent: BaseAgent | None,
+        agent: AgentRuntime | None,
         title_generator: ConversationTitleGenerator | None = None,
+        agent_registry: dict[str, AgentRuntime] | None = None,
     ) -> None:
         self._session = session
-        self._agent = agent
+        self._agents = dict(agent_registry or {})
+        if agent is not None:
+            self._agents.setdefault(skills_repository.GENERAL_CHAT_SKILL_CODE, agent)
         self._title_generator = title_generator
 
-    def create_conversation(self, user: User) -> ConversationCreateResponse:
+    def create_conversation(
+        self,
+        user: User,
+        *,
+        skill_code: str = skills_repository.GENERAL_CHAT_SKILL_CODE,
+    ) -> ConversationCreateResponse:
         """创建一个无标题的新会话。"""
 
         try:
-            conversation = repository.create_conversation(self._session, user.id)
+            self._require_skill(user.id, skill_code)
+            if skill_code not in self._agents:
+                raise ConversationConflictError("该技能当前没有可用的智能体运行入口。")
+            conversation = repository.create_conversation(self._session, user.id, skill_code)
             self._session.commit()
             self._session.refresh(conversation)
             return self._conversation_response(conversation)
@@ -143,6 +158,7 @@ class ConversationService:
             raise ConversationUnavailableError from None
         return MessageListResponse(
             items=[self._message_response(message) for message in messages],
+            skill_code=conversation.skill_code,
             limit=limit,
             offset=offset,
         )
@@ -162,6 +178,7 @@ class ConversationService:
                 conversation=prepared.conversation,
                 message_text=prepared.message_text,
                 message_id=prepared.message_id,
+                resume_answers=prepared.resume_answers,
             )
         else:
             agent_response = self._invoke_agent(
@@ -169,6 +186,8 @@ class ConversationService:
                 conversation_id=prepared.conversation.id,
                 message_text=prepared.message_text,
                 message_id=prepared.message_id,
+                skill_code=prepared.conversation.skill_code,
+                resume_answers=prepared.resume_answers,
             )
         return self._save_agent_response(prepared.conversation, agent_response)
 
@@ -186,6 +205,8 @@ class ConversationService:
             conversation_id=prepared.conversation.id,
             message_text=prepared.message_text,
             message_id=prepared.message_id,
+            skill_code=prepared.conversation.skill_code,
+            resume_answers=prepared.resume_answers,
         )
         return self._save_agent_response(prepared.conversation, agent_response)
 
@@ -215,7 +236,8 @@ class ConversationService:
     ) -> AsyncIterator[StreamEvent]:
         """将 Agent 文本增量转为 SSE 消息，并在成功后保存正式结果。"""
 
-        if self._agent is None:
+        agent = self._runtime_for(prepared.conversation)
+        if agent is None:
             raise ConversationUnavailableError
 
         title_task = (
@@ -224,11 +246,13 @@ class ConversationService:
             else None
         )
         agent_response: AgentResponse | None = None
-        thread_id = build_conversation_thread_id(prepared.user_id, prepared.conversation.id)
+        thread_id = build_conversation_thread_id(
+            prepared.user_id, prepared.conversation.id, prepared.conversation.skill_code
+        )
         try:
-            async for event in self._agent.astream(
+            async for event in agent.astream(
                 AgentRequest(message=prepared.message_text),
-                runnable_config={"configurable": {"thread_id": thread_id}},
+                runnable_config=self._runnable_config(prepared, thread_id),
                 message_id=str(prepared.message_id),
             ):
                 if isinstance(event, AgentTextDelta):
@@ -288,7 +312,7 @@ class ConversationService:
             conversation_id,
             for_update=True,
         )
-        self._require_general_chat_skill(user.id)
+        self._require_skill(user.id, conversation.skill_code)
         self._ensure_not_waiting(conversation.id)
         try:
             should_generate_title = (
@@ -315,7 +339,7 @@ class ConversationService:
         """校验题卡答案并按现有顺序先提交用户选择。"""
 
         conversation = self._get_conversation_safely(user.id, conversation_id)
-        self._require_general_chat_skill(user.id)
+        self._require_skill(user.id, conversation.skill_code)
         latest_message = self._get_latest_message_safely(conversation.id)
         question_payload = self._pending_questions(latest_message)
         try:
@@ -331,6 +355,7 @@ class ConversationService:
             message_text=answer_text,
             message_id=user_message.id,
             should_generate_title=False,
+            resume_answers=request.answers,
         )
 
     async def _finish_stream_title(
@@ -395,17 +420,31 @@ class ConversationService:
         conversation_id: int,
         message_text: str,
         message_id: int,
+        skill_code: str,
+        resume_answers: dict[str, str] | None,
     ) -> AgentResponse:
-        """通过 BaseAgent 门面调度 LangGraph，并映射运行错误。"""
+        """通过技能对应的 Runtime 调度 LangGraph，并映射运行错误。"""
 
-        if self._agent is None:
+        agent = self._agents.get(skill_code)
+        if agent is None:
             raise ConversationUnavailableError
-        thread_id = build_conversation_thread_id(user_id, conversation_id)
+        thread_id = build_conversation_thread_id(user_id, conversation_id, skill_code)
+        configurable: dict[str, object] = {"thread_id": thread_id}
+        if skill_code == "image_agent":
+            configurable.update(
+                {
+                    "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "run_id": str(message_id),
+                }
+            )
+            if resume_answers is not None:
+                configurable["resume_answers"] = resume_answers
         try:
             return invoke_agent_from_worker_thread(
-                self._agent,
+                agent,
                 AgentRequest(message=message_text),
-                runnable_config={"configurable": {"thread_id": thread_id}},
+                runnable_config={"configurable": configurable},
                 message_id=str(message_id),
             )
         except AgentInputError as error:
@@ -424,14 +463,29 @@ class ConversationService:
         conversation: Conversation,
         message_text: str,
         message_id: int,
+        resume_answers: dict[str, str] | None = None,
     ) -> AgentResponse:
         """并行运行首轮标题与 Agent；标题失败不改变对话结果。"""
 
-        if self._agent is None:
+        agent = self._runtime_for(conversation)
+        if agent is None:
             raise ConversationUnavailableError
-        thread_id = build_conversation_thread_id(user_id, conversation.id)
+        thread_id = build_conversation_thread_id(user_id, conversation.id, conversation.skill_code)
         request = AgentRequest(message=message_text)
-        runnable_config = {"configurable": {"thread_id": thread_id}}
+        configurable: dict[str, object] = {
+            "thread_id": thread_id,
+        }
+        if conversation.skill_code == "image_agent":
+            configurable.update(
+                {
+                    "user_id": user_id,
+                    "conversation_id": conversation.id,
+                    "run_id": str(message_id),
+                }
+            )
+            if resume_answers is not None:
+                configurable["resume_answers"] = resume_answers
+        runnable_config = {"configurable": configurable}
 
         async def invoke_concurrently() -> tuple[
             AgentResponse | None,
@@ -444,7 +498,7 @@ class ConversationService:
                 else None
             )
             try:
-                response = await self._agent.ainvoke(
+                response = await agent.ainvoke(
                     request,
                     runnable_config=runnable_config,
                     message_id=str(message_id),
@@ -530,7 +584,19 @@ class ConversationService:
         if response.status == "completed":
             if response.answer is None or not response.answer.strip():
                 raise ConversationUnavailableError
-            content: dict[str, object] = {"parts": [{"type": "text", "text": response.answer}]}
+            parts: list[dict[str, object]] = [{"type": "text", "text": response.answer}]
+            if response.image_result_id is not None:
+                parts.append(
+                    {
+                        "type": "image_result",
+                        "task_result_id": response.image_result_id,
+                        "generation_status": "succeeded",
+                        "image_url": (
+                            f"{IMAGE_RESULT_URL_PREFIX}/{response.image_result_id}/image"
+                        ),
+                    }
+                )
+            content: dict[str, object] = {"parts": parts}
         else:
             if response.questions is None:
                 raise ConversationUnavailableError
@@ -544,6 +610,12 @@ class ConversationService:
                 role="assistant",
                 content=content,
             )
+            if response.image_result_id is not None:
+                link_image_result_message(
+                    self._session,
+                    int(response.image_result_id),
+                    assistant_message.id,
+                )
             repository.update_conversation_timestamp(conversation, datetime.now(UTC))
             self._session.commit()
             self._session.refresh(assistant_message)
@@ -612,21 +684,21 @@ class ConversationService:
             self._session.rollback()
             raise ConversationUnavailableError from None
 
-    def _require_general_chat_skill(self, user_id: int) -> None:
-        """只有已添加且仍发布通用对话助手的用户可以运行对话 Agent。"""
+    def _require_skill(self, user_id: int, skill_code: str) -> None:
+        """只有已添加且仍发布的会话技能才可运行。"""
 
         try:
             is_added = skills_repository.user_has_skill_code(
                 self._session,
                 user_id,
-                skills_repository.GENERAL_CHAT_SKILL_CODE,
+                skill_code,
             )
         except SQLAlchemyError:
             self._session.rollback()
             raise ConversationUnavailableError from None
         if not is_added:
             self._session.rollback()
-            raise ConversationConflictError("请先将通用对话助手添加到我的技能后再使用。")
+            raise ConversationConflictError("请先将此助手添加到我的技能后再使用。")
 
     def _ensure_not_waiting(self, conversation_id: int) -> None:
         latest_message = self._get_latest_message_safely(conversation_id)
@@ -683,6 +755,7 @@ class ConversationService:
     def _conversation_response(conversation: Conversation) -> ConversationCreateResponse:
         return ConversationCreateResponse(
             id=str(conversation.id),
+            skill_code=conversation.skill_code,
             title=conversation.title,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
@@ -697,3 +770,24 @@ class ConversationService:
             content=MessageContent.model_validate(message.content),
             created_at=message.created_at,
         )
+
+    def _runtime_for(self, conversation: Conversation) -> AgentRuntime | None:
+        return self._agents.get(conversation.skill_code)
+
+    @staticmethod
+    def _runnable_config(
+        prepared: PreparedConversationTurn,
+        thread_id: str,
+    ) -> dict[str, object]:
+        configurable: dict[str, object] = {"thread_id": thread_id}
+        if prepared.conversation.skill_code == "image_agent":
+            configurable.update(
+                {
+                    "user_id": prepared.user_id,
+                    "conversation_id": prepared.conversation.id,
+                    "run_id": str(prepared.message_id),
+                }
+            )
+            if prepared.resume_answers is not None:
+                configurable["resume_answers"] = prepared.resume_answers
+        return {"configurable": configurable}

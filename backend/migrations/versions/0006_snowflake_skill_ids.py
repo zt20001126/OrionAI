@@ -170,9 +170,7 @@ def upgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.create_unique_constraint(
-        "uq_user_skills_user_skill", "user_skills", ["user_id", "skill_id"]
-    )
+    op.create_unique_constraint("uq_user_skills_user_skill", "user_skills", ["user_id", "skill_id"])
     op.alter_column("skills", "id", comment="技能 Snowflake ID")
     op.alter_column("user_skills", "id", comment="用户技能关联 Snowflake ID")
 
@@ -247,8 +245,6 @@ def downgrade() -> None:
         ["id"],
         ondelete="CASCADE",
     )
-    op.create_unique_constraint(
-        "uq_user_skills_user_skill", "user_skills", ["user_id", "skill_id"]
-    )
+    op.create_unique_constraint("uq_user_skills_user_skill", "user_skills", ["user_id", "skill_id"])
     op.alter_column("skills", "id", comment=None)
     op.alter_column("user_skills", "id", comment=None)
