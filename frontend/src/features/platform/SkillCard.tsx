@@ -19,15 +19,17 @@ export function SkillCard({ actions, onView, skill }: SkillCardProps) {
 
   return (
     <article className="skill-card">
-      <div className={`skill-card__icon skill-card__icon--${icon}`}>
-        <PlatformIcon name={icon} size={25} />
-      </div>
-      <span className="skill-card__category">
-        {category}
+      <div className="skill-card__header">
+        <div className={`skill-card__icon skill-card__icon--${icon}`}>
+          <PlatformIcon name={icon} size={25} />
+        </div>
         <span className={`skill-card__status skill-card__status--${statusClass}`}>{status}</span>
-      </span>
-      <h3>{skill.name}</h3>
-      <p>{skill.description}</p>
+      </div>
+      <div className="skill-card__content">
+        <h3>{skill.name}</h3>
+        <span className="skill-card__type">{category}</span>
+        <p>{skill.description}</p>
+      </div>
       <div className="skill-card__actions">
         <button
           aria-label={`查看 ${skill.name} 详情`}
@@ -38,7 +40,7 @@ export function SkillCard({ actions, onView, skill }: SkillCardProps) {
           查看详情
           <PlatformIcon name="arrow" size={16} />
         </button>
-        {actions}
+        <div className="skill-card__action-group">{actions}</div>
       </div>
     </article>
   );

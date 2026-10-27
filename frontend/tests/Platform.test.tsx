@@ -192,6 +192,20 @@ describe("OrionAI platform", () => {
     expect(screen.getByRole("heading", { name: "文档处理工具" })).toBeInTheDocument();
   });
 
+  it("removes a skill from my skills", async () => {
+    window.history.replaceState({}, "", "/agents");
+    vi.stubGlobal("fetch", mockSession());
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "通用对话助手" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "移除" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "通用对话助手" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("0 项技能")).toBeInTheDocument();
+  });
+
   it("shows only added skills on my skills page and preserves other placeholders", async () => {
     window.history.replaceState({}, "", "/agents");
     vi.stubGlobal("fetch", mockSession());
