@@ -85,21 +85,18 @@ Snowflake 生成器由 `SNOWFLAKE_WORKER_ID` 区分并发 backend 实例，范�
 
 LangGraph PostgreSQL Checkpointer 使用其依赖管理的内部表保存图执行状态；这些表不属于业务表，也不通过业务 Alembic 迁移维护。应用首次启动会调用 Checkpointer `setup()`，数据库账号需要具备相应建表/升级权限。
 
-## `task_results` — 图片任务结果
+## `task_results` — 技能任务结果
 
 | 字段 | PostgreSQL 类型 | 可空 | 默认值 | 键/约束 | 说明 |
 |---|---|---|---|---|---|
-| `task_result_id` | `BIGINT` | 否 | 应用侧 Snowflake | 主键 | 图片任务结果 ID |
-| `user_id` | `BIGINT` | 否 | — | 外键 `users.id`，删除级联 | 结果所有者 |
-| `conversation_id` | `BIGINT` | 否 | — | 外键 `conversations.id`，删除级联 | 所属会话 |
-| `message_id` | `BIGINT` | 是 | `NULL` | 外键 `messages.id`，删除时设为 NULL | 对应的助手结果消息 |
-| `agent_code` | `VARCHAR(100)` | 否 | `image_agent` | — | 生成结果的 Agent 代码 |
-| `generation_status` | `VARCHAR(20)` | 否 | — | CHECK：`running`、`succeeded`、`failed` | 图片生成状态 |
-| `input_data` | `JSONB` | 否 | — | — | 提示词和生成参数 |
-| `result_data` | `JSONB` | 是 | `NULL` | — | OSS 对象键、MIME、大小、图片尺寸及上游 request ID |
-| `created_at` / `updated_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 任务创建和最近更新时刻 |
+| `id` | `BIGINT` | 否 | 应用侧 Snowflake | 主键 | 任务结果唯一标识 |
+| `user_id` | `BIGINT` | 否 | — | 外键 `users.id`，删除级联 | 所属用户 ID |
+| `conversation_id` | `BIGINT` | 是 | `NULL` | 外键 `conversations.id`，删除时设为 NULL | 关联会话 ID |
+| `skill_code` | `VARCHAR(100)` | 否 | — | 外键 `skills.code`，删除限制 | 对应技能代码 |
+| `result` | `JSONB` | 否 | — | — | 技能执行产生的结果；图片助手在其中保存运行状态及 OSS 结果元数据 |
+| `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 创建时间 |
 
-索引：`(user_id, created_at)`、`(conversation_id)`。图片字节只保存在私有 OSS，不存入 PostgreSQL；对话消息只保留结果 ID 和授权接口路径。图片读取需校验当前用户与结果所有权。
+索引：`(user_id, created_at)`、`(conversation_id)`、`(skill_code)`。所有主键和用户/会话外键沿用项目 BIGINT Snowflake ID。图片字节只保存在私有 OSS，不存入 PostgreSQL；对话消息只保留结果 ID 和授权接口路径。图片读取需校验当前用户与结果所有权。
 
 ## Redis 认证状态
 

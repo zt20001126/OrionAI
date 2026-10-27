@@ -3,7 +3,7 @@
 import re
 from typing import Any
 
-from app.modules.agents.image_agent.schemas import ImageGenerationOptions
+from app.modules.image_generation.schemas import ImageGenerationOptions
 
 SIZE_CHOICES = {
     "1:1 方图（1024×1024）": {"size": "1024x1024"},

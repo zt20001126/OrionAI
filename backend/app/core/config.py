@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -53,10 +53,14 @@ class Settings(BaseSettings):
     deepseek_temperature: float = Field(default=0.7, ge=0, le=2, description="对话模型生成温度。")
     deepseek_max_retries: int = Field(default=2, ge=0, le=5, description="模型请求的最大重试次数。")
     tokenhub_api_key: SecretStr = Field(
-        default=SecretStr(""), description="TokenHub 生图 API 密钥，不得写入日志。"
+        default=SecretStr(""),
+        validation_alias=AliasChoices("TOKENHUB_API_KEY", "TENCENT_TOKENHUB_API_KEY"),
+        description="TokenHub 生图 API 密钥，不得写入日志。",
     )
     tokenhub_base_url: str = Field(
-        default="https://tokenhub.tencentmaas.com", description="TokenHub API 根地址。"
+        default="https://tokenhub.tencentmaas.com",
+        validation_alias=AliasChoices("TOKENHUB_BASE_URL", "TENCENT_TOKENHUB_BASE_URL"),
+        description="TokenHub API 根地址。",
     )
     tencent_hy_image_model: str = Field(
         default="hy-image-v3.5-preview", description="TokenHub 图片生成模型名称。"
@@ -108,6 +112,7 @@ class Settings(BaseSettings):
         env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
+        populate_by_name=True,
     )
 
 

@@ -15,14 +15,14 @@ from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.infrastructure.database.session import SessionLocal
 from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModelProvider
-from app.modules.agents.image_agent.providers.result_downloader import ImageResultDownloader
-from app.modules.agents.image_agent.providers.tokenhub_client import TokenHubImageClient
 from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
-from app.modules.agents.image_agent.service import ImageTaskResultStore
 from app.modules.agents.registry import AgentRegistry
 from app.modules.auth.errors import AuthError
 from app.modules.conversations.errors import ConversationError
 from app.modules.conversations.title import ModelConversationTitleGenerator
+from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
+from app.modules.image_generation.providers.tokenhub_client import TokenHubImageClient
+from app.modules.image_generation.service import TaskResultStore
 from app.modules.skills.errors import SkillsError
 from app.modules.skills.repository import ensure_general_chat_skill, ensure_image_agent_skill
 from app.modules.users.errors import UsersError
@@ -63,7 +63,7 @@ def create_agent_lifespan(
                 settings=settings,
                 chat_model=chat_model,
                 checkpointer=checkpointer,
-                task_store=ImageTaskResultStore(),
+                task_store=TaskResultStore(),
                 tokenhub_client=TokenHubImageClient(settings),
                 result_downloader=ImageResultDownloader(
                     timeout_seconds=settings.tokenhub_timeout_seconds,

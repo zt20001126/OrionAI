@@ -36,7 +36,7 @@ where = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-"app.modules.agents.image_agent.prompts" = ["system.md"]
+"app.modules.agents.image_agent.prompts" = ["templates/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

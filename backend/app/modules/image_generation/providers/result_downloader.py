@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from app.modules.agents.image_agent.providers.tokenhub_client import TokenHubImageError
+from app.modules.image_generation.providers.tokenhub_client import TokenHubImageError
 
 _ALLOWED_DOMAIN_SUFFIX = ".myqcloud.com"
 _DOWNLOAD_CHUNK_BYTES = 64 * 1024

@@ -5,9 +5,9 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import get_settings
 from app.infrastructure.database.base import Base
-from app.modules.agents.image_agent import models as image_agent_models  # noqa: F401
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.conversations import models as conversation_models  # noqa: F401
+from app.modules.image_generation import models as image_generation_models  # noqa: F401
 from app.modules.skills import models as skills_models  # noqa: F401
 
 config = context.config

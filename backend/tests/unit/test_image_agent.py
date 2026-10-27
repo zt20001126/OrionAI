@@ -15,24 +15,53 @@ from app.agent.schemas import AgentRequest
 from app.core.config import Settings
 from app.infrastructure.database.base import Base
 from app.infrastructure.storage.object_storage import ObjectMetadata, StoredObject
-from app.modules.agents.image_agent.models import ImageTaskResult
 from app.modules.agents.image_agent.parameter_policy import extract_image_options
-from app.modules.agents.image_agent.providers.result_downloader import ImageResultDownloader
-from app.modules.agents.image_agent.providers.tokenhub_client import (
+from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
+from app.modules.agents.image_agent.schemas import ImageRequestAnalysis
+from app.modules.auth.models import User
+from app.modules.conversations.models import Conversation
+from app.modules.image_generation.models import TaskResult
+from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
+from app.modules.image_generation.providers.tokenhub_client import (
     TokenHubImageClient,
     TokenHubImageError,
 )
-from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
-from app.modules.agents.image_agent.schemas import ImageGenerationOptions, ImageRequestAnalysis
-from app.modules.agents.image_agent.service import (
+from app.modules.image_generation.schemas import ImageGenerationOptions, TokenHubImageResult
+from app.modules.image_generation.service import (
     ImageResultUnavailableError,
     ImageTaskResultService,
 )
-from app.modules.auth.models import User
-from app.modules.conversations.models import Conversation
 from app.modules.skills.models import Skill
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\nimage"
+
+
+def test_task_result_model_matches_generic_schema() -> None:
+    columns = TaskResult.__table__.columns
+
+    assert set(columns.keys()) == {
+        "id",
+        "user_id",
+        "conversation_id",
+        "skill_code",
+        "result",
+        "created_at",
+    }
+    assert columns.id.primary_key
+    assert columns.id.type.python_type is int
+    assert columns.user_id.nullable is False
+    assert columns.conversation_id.nullable is True
+    assert columns.skill_code.nullable is False
+    assert columns.result.nullable is False
+    assert {foreign_key.target_fullname for foreign_key in columns.user_id.foreign_keys} == {
+        "users.id"
+    }
+    assert {
+        foreign_key.target_fullname for foreign_key in columns.conversation_id.foreign_keys
+    } == {"conversations.id"}
+    assert {foreign_key.target_fullname for foreign_key in columns.skill_code.foreign_keys} == {
+        "skills.code"
+    }
 
 
 class FakeStructuredModel:
@@ -69,8 +98,6 @@ class FakeImageClient:
         self.calls: list[dict[str, Any]] = []
 
     async def generate(self, **kwargs: Any) -> Any:
-        from app.modules.agents.image_agent.schemas import TokenHubImageResult
-
         self.calls.append(kwargs)
         return TokenHubImageResult(
             image_url="https://result-1.myqcloud.com/image.png",
@@ -162,7 +189,14 @@ async def test_image_agent_asks_for_size_then_resumes_and_saves_result() -> None
 
 @pytest.mark.anyio
 async def test_non_generation_question_does_not_call_image_provider() -> None:
-    structured_model = FakeStructuredModel([ImageRequestAnalysis(intent="other")])
+    structured_model = FakeStructuredModel(
+        [
+            ImageRequestAnalysis(
+                intent="other",
+                reply="我可以根据文字帮你生成商品主图或详情页图片。",
+            )
+        ]
+    )
     image_client = FakeImageClient()
     agent = ImageAgent(
         settings=Settings(),
@@ -180,7 +214,7 @@ async def test_non_generation_question_does_not_call_image_provider() -> None:
 
     assert response.status == "completed"
     assert response.image_result_id is None
-    assert "商品主图" in (response.answer or "")
+    assert response.answer == "我可以根据文字帮你生成商品主图或详情页图片。"
     assert image_client.calls == []
 
 
@@ -294,22 +328,27 @@ def test_image_result_service_checks_owner_and_generation_status() -> None:
             session.add(conversation)
             session.flush()
             session.add(
-                ImageTaskResult(
-                    task_result_id=1001,
+                TaskResult(
+                    id=1001,
                     user_id=user.id,
                     conversation_id=conversation.id,
-                    generation_status="succeeded",
-                    input_data={},
-                    result_data={"object_key": "images/private.png", "mime_type": "image/png"},
+                    skill_code=skill.code,
+                    result={
+                        "generation_status": "succeeded",
+                        "result_data": {
+                            "object_key": "images/private.png",
+                            "mime_type": "image/png",
+                        },
+                    },
                 )
             )
             session.add(
-                ImageTaskResult(
-                    task_result_id=1002,
+                TaskResult(
+                    id=1002,
                     user_id=user.id,
                     conversation_id=conversation.id,
-                    generation_status="failed",
-                    input_data={},
+                    skill_code=skill.code,
+                    result={"generation_status": "failed"},
                 )
             )
             session.commit()

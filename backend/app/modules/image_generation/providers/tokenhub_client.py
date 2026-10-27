@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 
 from app.core.config import Settings
-from app.modules.agents.image_agent.schemas import ImageGenerationOptions, TokenHubImageResult
+from app.modules.image_generation.schemas import ImageGenerationOptions, TokenHubImageResult
 
 logger = logging.getLogger(__name__)
 

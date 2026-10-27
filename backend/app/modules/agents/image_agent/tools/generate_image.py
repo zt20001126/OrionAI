@@ -12,13 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import Settings
 from app.infrastructure.storage.object_storage import ObjectStorageError
-from app.modules.agents.image_agent.providers.result_downloader import ImageResultDownloader
-from app.modules.agents.image_agent.providers.tokenhub_client import (
+from app.modules.agents.image_agent.constants import IMAGE_AGENT_CODE
+from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
+from app.modules.image_generation.providers.tokenhub_client import (
     TokenHubImageClient,
     TokenHubImageError,
 )
-from app.modules.agents.image_agent.schemas import ImageGenerationOptions
-from app.modules.agents.image_agent.service import ImageTaskResultStore
+from app.modules.image_generation.schemas import ImageGenerationOptions
+from app.modules.image_generation.service import TaskResultStore
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def create_generate_image_tool(
     settings: Settings,
     client: TokenHubImageClient,
     downloader: ImageResultDownloader,
-    task_store: ImageTaskResultStore,
+    task_store: TaskResultStore,
     storage_factory: Callable[[], Any],
 ):
     """构造捕获图片 Provider、任务仓储及私有 OSS 工厂的 LangChain 工具。"""
@@ -71,15 +72,11 @@ def create_generate_image_tool(
                 use_search_tool=use_search_tool,
             ).validate_exclusivity()
             task_id = int(task_result_id)
-            input_data = {
-                "prompt": prompt,
-                "parameters": options.model_dump(exclude_none=True),
-            }
             task_store.create_running(
                 task_result_id=task_id,
                 user_id=user_id,
                 conversation_id=conversation_id,
-                input_data=input_data,
+                skill_code=IMAGE_AGENT_CODE,
             )
             provider_result = await client.generate(
                 prompt=prompt,
@@ -145,7 +142,7 @@ def create_generate_image_tool(
     return generate_image
 
 
-def _mark_failed(task_store: ImageTaskResultStore, task_result_id: str) -> None:
+def _mark_failed(task_store: TaskResultStore, task_result_id: str) -> None:
     with suppress(Exception):
         task_store.set_status(int(task_result_id), status="failed")
 

@@ -1,14 +1,14 @@
-"""提供登录后读取本人图片任务结果的私有接口。"""
+"""提供登录用户读取本人图片任务结果的私有 API。"""
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 
-from app.modules.agents.image_agent.dependencies import ImageTaskResultServiceDependency
-from app.modules.agents.image_agent.service import ImageResultUnavailableError
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
+from app.modules.image_generation.dependencies import ImageTaskResultServiceDependency
+from app.modules.image_generation.service import ImageResultUnavailableError
 
 router = APIRouter(prefix="/v1/task-results", tags=["task-results"])
 CurrentUser = Annotated[User, Depends(get_current_user)]

@@ -24,8 +24,6 @@ from app.agent.schemas import (
     AgentTextDelta,
     QuestionPayload,
 )
-from app.modules.agents.image_agent.constants import IMAGE_RESULT_URL_PREFIX
-from app.modules.agents.image_agent.service import link_image_result_message
 from app.modules.auth.models import User
 from app.modules.conversations import repository
 from app.modules.conversations.errors import (
@@ -51,6 +49,7 @@ from app.modules.conversations.title import (
     ConversationTitleGenerator,
     fallback_conversation_title,
 )
+from app.modules.image_generation.constants import IMAGE_RESULT_URL_PREFIX
 from app.modules.skills import repository as skills_repository
 from app.shared.streaming import EventType, StreamEvent
 
@@ -610,12 +609,6 @@ class ConversationService:
                 role="assistant",
                 content=content,
             )
-            if response.image_result_id is not None:
-                link_image_result_message(
-                    self._session,
-                    int(response.image_result_id),
-                    assistant_message.id,
-                )
             repository.update_conversation_timestamp(conversation, datetime.now(UTC))
             self._session.commit()
             self._session.refresh(assistant_message)

@@ -255,7 +255,7 @@ Agent 需要用户选择时，发送完整且已保存的题卡消息：
 
 `GET /api/v1/task-results/{task_result_id}/image` 返回 `image/png` 或 `image/jpeg` 图片字节，仅当任务结果属于当前登录用户且状态为 `succeeded` 时可读取。其他用户的 ID、不存在的 ID、失败或尚未完成的任务统一返回 `404`。响应设置 `Cache-Control: private, no-store`，图片保存在私有 OSS，不向客户端公开 OSS Key 或签名 URL。
 
-运行图片助手需配置 `TOKENHUB_API_KEY`；可选配置项 `TOKENHUB_BASE_URL`、`TENCENT_HY_IMAGE_MODEL`、`TENCENT_HY_IMAGE_ENDPOINT`、`TOKENHUB_TIMEOUT_SECONDS` 和 `IMAGE_RESULT_MAX_BYTES` 控制服务地址、模型、超时与下载上限。结果持久化还需配置 `ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_BUCKET` 和可选 `ALIYUN_OSS_OBJECT_PREFIX`。
+运行图片助手需配置 `TOKENHUB_API_KEY`（兼容 `TENCENT_TOKENHUB_API_KEY`）；可选配置项 `TOKENHUB_BASE_URL`（兼容 `TENCENT_TOKENHUB_BASE_URL`）、`TENCENT_HY_IMAGE_MODEL`、`TENCENT_HY_IMAGE_ENDPOINT`、`TOKENHUB_TIMEOUT_SECONDS` 和 `IMAGE_RESULT_MAX_BYTES` 控制服务地址、模型、超时与下载上限。结果持久化还需配置 `ALIYUN_OSS_ACCESS_KEY_ID`、`ALIYUN_OSS_ACCESS_KEY_SECRET`、`ALIYUN_OSS_ENDPOINT`、`ALIYUN_OSS_BUCKET` 和可选 `ALIYUN_OSS_OBJECT_PREFIX`。
 
 ## 实现位置
 

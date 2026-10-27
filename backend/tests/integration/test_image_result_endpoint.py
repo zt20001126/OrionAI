@@ -16,12 +16,14 @@ from app.core.config import Settings
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.storage.object_storage import StoredObject
-from app.modules.agents.image_agent.dependencies import get_image_task_result_service
-from app.modules.agents.image_agent.models import ImageTaskResult
-from app.modules.agents.image_agent.service import ImageTaskResultService
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
 from app.modules.conversations.models import Conversation
+from app.modules.image_generation.dependencies import (
+    get_image_task_result_service,
+)
+from app.modules.image_generation.models import TaskResult
+from app.modules.image_generation.service import ImageTaskResultService
 from app.modules.skills.models import Skill
 
 PNG_BYTES = b"\x89PNG\r\n\x1a\nimage"
@@ -54,20 +56,25 @@ def image_result_client() -> Iterator[tuple[TestClient, dict[str, Any]]]:
         session.flush()
         session.add_all(
             [
-                ImageTaskResult(
-                    task_result_id=1001,
+                TaskResult(
+                    id=1001,
                     user_id=owner.id,
                     conversation_id=conversation.id,
-                    generation_status="succeeded",
-                    input_data={},
-                    result_data={"object_key": "images/private.png", "mime_type": "image/png"},
+                    skill_code=skill.code,
+                    result={
+                        "generation_status": "succeeded",
+                        "result_data": {
+                            "object_key": "images/private.png",
+                            "mime_type": "image/png",
+                        },
+                    },
                 ),
-                ImageTaskResult(
-                    task_result_id=1002,
+                TaskResult(
+                    id=1002,
                     user_id=owner.id,
                     conversation_id=conversation.id,
-                    generation_status="failed",
-                    input_data={},
+                    skill_code=skill.code,
+                    result={"generation_status": "failed"},
                 ),
             ]
         )

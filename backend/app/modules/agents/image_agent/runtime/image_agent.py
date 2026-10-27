@@ -28,10 +28,10 @@ from app.core.config import Settings
 from app.infrastructure.storage.aliyun_oss import AliyunOSSObjectStorage
 from app.modules.agents.image_agent.constants import IMAGE_AGENT_CODE
 from app.modules.agents.image_agent.graph import build_image_agent_graph
-from app.modules.agents.image_agent.providers.result_downloader import ImageResultDownloader
-from app.modules.agents.image_agent.providers.tokenhub_client import TokenHubImageClient
-from app.modules.agents.image_agent.service import ImageTaskResultStore
 from app.modules.agents.image_agent.tools.generate_image import create_generate_image_tool
+from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
+from app.modules.image_generation.providers.tokenhub_client import TokenHubImageClient
+from app.modules.image_generation.service import TaskResultStore
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +45,13 @@ class ImageAgent:
         settings: Settings,
         chat_model: BaseChatModel,
         checkpointer: BaseCheckpointSaver[Any] | None = None,
-        task_store: ImageTaskResultStore | None = None,
+        task_store: TaskResultStore | None = None,
         tokenhub_client: TokenHubImageClient | None = None,
         result_downloader: ImageResultDownloader | None = None,
         storage_factory: Any | None = None,
     ) -> None:
         self._checkpointer = checkpointer
-        self._task_store = task_store or ImageTaskResultStore()
+        self._task_store = task_store or TaskResultStore()
         self._tokenhub_client = tokenhub_client or TokenHubImageClient(settings)
         self._result_downloader = result_downloader or ImageResultDownloader(
             timeout_seconds=settings.tokenhub_timeout_seconds,
