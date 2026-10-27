@@ -25,6 +25,7 @@ from app.modules.conversations.errors import ConversationError
 from app.modules.conversations.title import ModelConversationTitleGenerator
 from app.modules.skills.errors import SkillsError
 from app.modules.skills.repository import ensure_general_chat_skill, ensure_image_agent_skill
+from app.modules.users.errors import UsersError
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +110,10 @@ def create_app(
 
     @application.exception_handler(SkillsError)
     async def handle_skills_error(_request: Request, error: SkillsError) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+    @application.exception_handler(UsersError)
+    async def handle_users_error(_request: Request, error: UsersError) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
     application.add_middleware(

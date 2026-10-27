@@ -4,6 +4,7 @@ import { AuthPage } from "../features/auth/AuthPage";
 import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlaceholderPage } from "../features/platform/PlaceholderPage";
+import { ProfileSettingsPage } from "../features/platform/ProfileSettingsPage";
 import { SkillMarketPage } from "../features/platform/SkillMarketPage";
 import { ConversationPage } from "../features/conversations/ConversationPage";
 import { SessionsPage } from "../features/conversations/SessionsPage";
@@ -134,6 +135,7 @@ export default function App() {
     if (safePathname === platformPaths.market) return <SkillMarketPage />;
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
+    if (safePathname === platformPaths.settings) return <ProfileSettingsPage />;
     if (isConversationPath(safePathname)) {
       return <ConversationPage conversationId={conversationId} onNavigate={navigate} />;
     }

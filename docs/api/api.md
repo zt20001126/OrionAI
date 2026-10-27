@@ -8,7 +8,7 @@
 - **邮箱：** 去除首尾空格并转为小写，最多 254 个字符。
 - **密码：** 注册和重置为 8–128 个字符；登录为 1–128 个字符。
 - **认证：** 登录或注册成功后，服务端设置 `orionai_session` Cookie。Cookie 为 `HttpOnly`、`SameSite=Lax`、`Path=/`，默认有效 7 天；production 环境默认启用 `Secure`。客户端请求需携带 Cookie。
-- **来源校验：** `POST` 状态变更接口若收到 `Origin`，其主机必须与请求 `Host` 一致，否则返回 `403`。
+- **来源校验：** `POST`、`PATCH` 等状态变更接口若收到 `Origin`，其主机必须与请求 `Host` 一致，否则返回 `403`。
 - **错误格式：** 业务错误为 `{"detail":"错误说明"}`；请求字段校验失败返回 FastAPI 的 `422` 校验详情。
 
 ## 接口列表
@@ -34,6 +34,8 @@
 | `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加技能 | Cookie |
 | `POST` | `/api/v1/users/me/skills` | 添加已发布技能 | Cookie |
 | `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户的技能 | Cookie |
+| `GET` | `/api/v1/users/me` | 读取当前用户个人资料 | Cookie |
+| `PATCH` | `/api/v1/users/me` | 更新当前用户昵称和头像 | Cookie |
 | `GET` | `/api/v1/task-results/{task_result_id}/image` | 读取本人已完成的私有图片结果 | Cookie |
 
 ## 接口详情
@@ -152,6 +154,26 @@
 ```
 
 密码更新后，先前签发的会话失效。错误：`400` 验证码无效或过期；`422` 请求字段无效；`503` 数据库或认证状态服务不可用。
+
+### 当前用户个人资料 API
+
+以下接口要求有效的 `orionai_session` Cookie。资料只针对当前登录用户，不接受用户 ID。新账号和已有账号的默认头像为 `/avatar/default_avatar.png`；用户上传头像后，`avatar_url` 为 OSS 图片的公开访问 URL。
+
+`GET /api/v1/users/me` 返回当前个人资料：
+
+```json
+{
+  "nickname": "示例用户",
+  "account": "person@example.com",
+  "avatar_url": "/avatar/default_avatar.png",
+  "created_at": "2025-03-10T06:26:08Z",
+  "last_login_at": "2026-01-26T01:17:34Z"
+}
+```
+
+`PATCH /api/v1/users/me` 使用 `multipart/form-data`，字段为 `nickname`（必填，去除首尾空格后 1–20 个字符）和可选 `avatar` 文件。头像支持 PNG、JPEG、WebP，最大 5 MiB；服务端会检查文件签名及 MIME 一致性。成功返回更新后的同一资料结构。上传头像会写入 OSS 并设置该对象为公共读，数据库保存 OSS 公开 URL；没有上传新头像时，现有头像 URL 保持不变。
+
+PATCH 请求沿用 `Origin` 与 `Host` 同源校验。错误：`401` 未登录；`403` 请求来源无效；`422` 昵称或头像不符合约束；`503` 数据库或 OSS 服务不可用。
 
 ### 会话与消息 API
 

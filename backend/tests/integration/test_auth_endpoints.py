@@ -5,7 +5,7 @@ from typing import Annotated
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -16,6 +16,7 @@ from app.infrastructure.database.session import get_db_session
 from app.infrastructure.email_sender import EmailDeliveryError
 from app.infrastructure.redis.auth_state import AuthSession
 from app.modules.auth import service as auth_service_module
+from app.modules.auth.models import DEFAULT_USER_AVATAR_URL, User
 from app.modules.auth.router import get_auth_service
 from app.modules.auth.service import GENERIC_RESET_CODE_MESSAGE, AuthService
 
@@ -171,7 +172,19 @@ def test_register_creates_one_user_and_uses_httponly_cookie(
         column["name"]
         for column in inspect(client.app.state.test_engine).get_columns("users")  # type: ignore[attr-defined]
     }
-    assert columns == {"id", "account", "password_hash", "created_at", "last_login_at"}
+    assert columns == {
+        "id",
+        "account",
+        "password_hash",
+        "created_at",
+        "last_login_at",
+        "nickname",
+        "avatar_url",
+    }
+    with Session(client.app.state.test_engine) as session:  # type: ignore[attr-defined]
+        user = session.scalar(select(User).where(User.account == "person@example.com"))
+        assert user is not None
+        assert user.avatar_url == DEFAULT_USER_AVATAR_URL
 
     logout_response = client.post("/api/auth/logout")
     assert logout_response.status_code == 200

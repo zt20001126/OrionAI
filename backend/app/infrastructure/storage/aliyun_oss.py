@@ -6,6 +6,7 @@ import logging
 import re
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 from app.core.config import Settings
 from app.infrastructure.storage.object_storage import (
@@ -19,6 +20,7 @@ from app.infrastructure.storage.object_storage import (
 
 logger = logging.getLogger(__name__)
 _MAX_LIST_PAGE_SIZE = 1_000
+_PUBLIC_READ_ACL = "public-read"
 _USER_METADATA_KEY_PATTERN = re.compile(r"^[a-z0-9-]+$")
 
 
@@ -37,6 +39,11 @@ class AliyunOSSObjectStorage:
         endpoint = settings.aliyun_oss_endpoint.strip().rstrip("/")
         if not endpoint.lower().startswith("https://"):
             raise ValueError("阿里云 OSS endpoint 必须使用 HTTPS。")
+        endpoint_parts = urlsplit(endpoint)
+        if endpoint_parts.hostname is None:
+            raise ValueError("阿里云 OSS endpoint 格式无效。")
+        self._endpoint_host = endpoint_parts.hostname.lower()
+        self._endpoint_port = endpoint_parts.port
         self._bucket_name = settings.aliyun_oss_bucket.strip()
         self._prefix = settings.aliyun_oss_object_prefix.strip("/")
         auth = oss2.Auth(access_key_id, access_key_secret)
@@ -49,13 +56,16 @@ class AliyunOSSObjectStorage:
         *,
         content_type: str,
         metadata: Mapping[str, str] | None = None,
+        public_read: bool = False,
     ) -> ObjectMetadata:
-        """上传字节对象；对象键相对于配置的根前缀。"""
+        """上传字节对象；头像等明确公开的资源可单独设置公共读 ACL。"""
         object_key = self._resolve_key(key)
         if not content_type or "\r" in content_type or "\n" in content_type:
             raise ValueError("content_type 必须是有效的非空内容类型。")
         user_metadata = self._validate_metadata(metadata)
         headers = {"Content-Type": content_type}
+        if public_read:
+            headers["x-oss-object-acl"] = _PUBLIC_READ_ACL
         headers.update({f"x-oss-meta-{name}": value for name, value in user_metadata.items()})
         try:
             self._bucket.put_object(object_key, data, headers=headers)
@@ -67,6 +77,61 @@ class AliyunOSSObjectStorage:
             content_type=content_type,
             user_metadata=user_metadata,
         )
+
+    def build_public_url(self, key: str) -> str:
+        """为对象键生成 OSS 固定访问 URL；调用方负责确保对象 ACL 允许公开读取。"""
+
+        object_key = self._resolve_key(key)
+        public_host = self._public_endpoint_host()
+        netloc = f"{self._bucket_name}.{public_host}"
+        if self._endpoint_port is not None:
+            netloc = f"{netloc}:{self._endpoint_port}"
+        return urlunsplit(
+            (
+                "https",
+                netloc,
+                f"/{quote(object_key, safe='/~-._')}",
+                "",
+                "",
+            )
+        )
+
+    def key_from_public_url(self, public_url: str) -> str | None:
+        """仅从本 Bucket、本根前缀生成的公开 URL 反解相对对象键。"""
+
+        parsed_url = urlsplit(public_url)
+        expected_netloc = f"{self._bucket_name}.{self._public_endpoint_host()}"
+        if self._endpoint_port is not None:
+            expected_netloc = f"{expected_netloc}:{self._endpoint_port}"
+        if (
+            parsed_url.scheme.lower() != "https"
+            or parsed_url.netloc.lower() != expected_netloc.lower()
+            or parsed_url.query
+            or parsed_url.fragment
+        ):
+            return None
+
+        object_key = unquote(parsed_url.path.lstrip("/"))
+        if self._prefix:
+            root_prefix = f"{self._prefix}/"
+            if not object_key.startswith(root_prefix):
+                return None
+            object_key = object_key[len(root_prefix) :]
+        if not object_key:
+            return None
+        try:
+            self._resolve_key(object_key)
+        except ValueError:
+            return None
+        return object_key
+
+    def _public_endpoint_host(self) -> str:
+        """将标准 OSS 区域内网域名映射为公网 Endpoint 域名。"""
+
+        internal_suffix = "-internal.aliyuncs.com"
+        if self._endpoint_host.endswith(internal_suffix):
+            return f"{self._endpoint_host.removesuffix(internal_suffix)}.aliyuncs.com"
+        return self._endpoint_host
 
     def get_object(self, key: str, *, max_bytes: int | None = None) -> StoredObject:
         """下载对象；可选限制响应字节数，并始终关闭 OSS 响应。"""

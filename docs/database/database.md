@@ -14,14 +14,18 @@
 | `id`            | `BIGINT`        | 否   | 应用侧 Snowflake | 主键 | 用户 Snowflake ID，供业务外键引用                        |
 | `account`       | `VARCHAR(254)`  | 否   | —       | 唯一    | 规范化后的邮箱：去除首尾空格并转为小写                   |
 | `password_hash` | `VARCHAR(256)`  | 否   | —       | —       | 使用 scrypt 和随机盐生成的密码哈希，不保存明文密码       |
+| `nickname`      | `VARCHAR(20)`   | 是   | `NULL`  | —       | 用户昵称；未设置时资料接口使用邮箱本地部分作为显示值       |
+| `avatar_url`    | `VARCHAR(2048)` | 否   | `/avatar/default_avatar.png` | — | 默认使用前端静态头像；用户上传后保存 OSS 图片公开访问 URL |
 | `created_at`    | `TIMESTAMPTZ`   | 否   | `now()` | —       | 账号创建时间；注册时设置                                 |
 | `last_login_at` | `TIMESTAMPTZ`   | 是   | `NULL`  | —       | 最近一次成功认证时间；新账号注册时初始化，成功登录时更新 |
 
 `id` 是由后端应用生成的 Snowflake 主键，`account` 保持唯一约束。创建用户时由 SQLAlchemy client-side default 赋值；PostgreSQL 中不再使用 Identity 序列。
 
+迁移 `0009_add_user_profile.py` 为现有账号回填默认头像路径，并将其设为新账号默认值；`nickname` 对既有和新账号均可空。上传头像的图片字节保存在 OSS，头像对象使用对象级公共读 ACL；数据库仅保存公开访问 URL，不保存图片二进制或 OSS 对象键。
+
 ### 建表迁移
 
-迁移文件：[`backend/migrations/versions/0001_create_users.py`](../../backend/migrations/versions/0001_create_users.py)、[`0002_add_users_identity_id.py`](../../backend/migrations/versions/0002_add_users_identity_id.py) 与 [`0004_snowflake_primary_ids.py`](../../backend/migrations/versions/0004_snowflake_primary_ids.py)。数据库另有 Alembic 管理的 `alembic_version` 迁移版本表，它不存放业务数据。
+迁移文件：[`backend/migrations/versions/0001_create_users.py`](../../backend/migrations/versions/0001_create_users.py)、[`0002_add_users_identity_id.py`](../../backend/migrations/versions/0002_add_users_identity_id.py)、[`0004_snowflake_primary_ids.py`](../../backend/migrations/versions/0004_snowflake_primary_ids.py) 与 [`0009_add_user_profile.py`](../../backend/migrations/versions/0009_add_user_profile.py)。数据库另有 Alembic 管理的 `alembic_version` 迁移版本表，它不存放业务数据。
 
 ## `conversations` — 会话
 

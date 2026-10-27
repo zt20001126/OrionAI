@@ -257,6 +257,63 @@ def test_object_operations_use_root_prefix_and_normalize_results(
     assert "orion-test/documents/readme.txt" not in bucket.objects
 
 
+def test_public_objects_get_acl_and_stable_public_url(
+    oss_storage: tuple[AliyunOSSObjectStorage, FakeBucket],
+) -> None:
+    storage, bucket = oss_storage
+
+    storage.put_object(
+        "users/42/avatars/avatar.png",
+        b"png-data",
+        content_type="image/png",
+        public_read=True,
+    )
+    public_url = storage.build_public_url("users/42/avatars/avatar.png")
+
+    assert bucket.objects["orion-test/users/42/avatars/avatar.png"][1] == {
+        "Content-Type": "image/png",
+        "x-oss-object-acl": "public-read",
+    }
+    assert public_url == (
+        "https://private-test-bucket.oss-cn-hangzhou.aliyuncs.com/"
+        "orion-test/users/42/avatars/avatar.png"
+    )
+    assert storage.key_from_public_url(public_url) == "users/42/avatars/avatar.png"
+
+
+def test_public_url_uses_public_endpoint_when_storage_endpoint_is_internal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bucket = FakeBucket()
+    fake_oss2 = SimpleNamespace(
+        Auth=lambda *_args: object(),
+        Bucket=lambda *_args: bucket,
+        exceptions=SimpleNamespace(OssError=FakeOssError),
+    )
+    monkeypatch.setitem(sys.modules, "oss2", fake_oss2)
+    storage = AliyunOSSObjectStorage(
+        Settings(
+            aliyun_oss_access_key_id="test-access-key",
+            aliyun_oss_access_key_secret="test-access-secret",
+            aliyun_oss_endpoint="https://oss-cn-hangzhou-internal.aliyuncs.com",
+            aliyun_oss_bucket="private-test-bucket",
+            _env_file=None,
+        )
+    )
+
+    assert storage.build_public_url("users/42/avatar.webp") == (
+        "https://private-test-bucket.oss-cn-hangzhou.aliyuncs.com/orionai/users/42/avatar.webp"
+    )
+
+
+def test_key_from_public_url_rejects_other_hosts(
+    oss_storage: tuple[AliyunOSSObjectStorage, FakeBucket],
+) -> None:
+    storage, _bucket = oss_storage
+
+    assert storage.key_from_public_url("https://attacker.example/users/42/avatar.png") is None
+
+
 def test_download_enforces_size_limit_and_closes_response(
     oss_storage: tuple[AliyunOSSObjectStorage, FakeBucket],
 ) -> None:

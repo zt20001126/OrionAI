@@ -35,6 +35,8 @@ export function PlatformLayout({
         ? "我的技能"
         : pathname === platformPaths.sessions
           ? "会话记录"
+        : pathname === platformPaths.settings
+          ? "个人设置"
           : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
             ? "通用对话助手"
             : "OrionAI";
