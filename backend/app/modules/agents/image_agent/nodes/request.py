@@ -38,7 +38,10 @@ _SIZE_QUESTION = Question(
 
 def create_request_node(chat_model: Any, system_prompt: str | None = None):
     """创建需求节点，分类并直接组织非生图回复或图片工具调用。"""
-    structured_model = chat_model.with_structured_output(ImageRequestAnalysis)
+    structured_model = chat_model.with_structured_output(
+        ImageRequestAnalysis,
+        method="json_mode",
+    )
     prompt = system_prompt or load_image_agent_prompt()
 
     async def request(

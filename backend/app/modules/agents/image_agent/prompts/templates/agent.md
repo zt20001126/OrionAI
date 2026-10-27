@@ -18,5 +18,8 @@
 
 ## 输出约束
 
-- 严格按结构化输出格式返回 `intent`、`image_prompt` 和 `reply`。
-- 不在结构化字段之外添加解释、标记或工具调用指令。
+- 只返回一个合法 JSON 对象，必须包含 `intent`、`image_prompt` 和 `reply` 三个字段。
+- `intent` 只能是 `generate_image` 或 `other`；字段值按本提示词中的生图规则填写。
+- 示例：`{"intent":"other","image_prompt":"","reply":"我可以帮你生成商品图片。"}`
+- 示例：`{"intent":"generate_image","image_prompt":"白色陶瓷杯的电商主图","reply":""}`
+- 不要在 JSON 对象之外添加解释、Markdown 标记或工具调用指令。

@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 import pytest
 from langchain_core.messages import BaseMessage
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -78,7 +79,13 @@ class FakeChatModel:
     def __init__(self, structured_model: FakeStructuredModel) -> None:
         self.structured_model = structured_model
 
-    def with_structured_output(self, _schema: type[object]) -> FakeStructuredModel:
+    def with_structured_output(
+        self,
+        _schema: type[object],
+        *,
+        method: str,
+    ) -> FakeStructuredModel:
+        assert method == "json_mode"
         return self.structured_model
 
 
@@ -222,6 +229,82 @@ async def test_non_generation_question_does_not_call_image_provider() -> None:
     assert response.image_result_id is None
     assert response.answer == "我可以根据文字帮你生成商品主图或详情页图片。"
     assert image_client.calls == []
+
+
+@pytest.mark.anyio
+async def test_image_agent_uses_json_object_for_deepseek_structured_output() -> None:
+    requests: list[dict[str, Any]] = []
+
+    async def handle_request(request: httpx.Request) -> httpx.Response:
+        request_body = json.loads(request.content)
+        requests.append(request_body)
+        if request_body.get("response_format") != {"type": "json_object"}:
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "type": "invalid_request_error",
+                        "code": "invalid_request_error",
+                        "message": "This response_format type is unavailable now",
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-image-analysis",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "deepseek-flash",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(
+                                {
+                                    "intent": "other",
+                                    "image_prompt": "",
+                                    "reply": "我可以根据文字生成商品图片。",
+                                },
+                                ensure_ascii=False,
+                            ),
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "total_tokens": 2,
+                },
+            },
+        )
+
+    http_client = httpx.AsyncClient(transport=httpx.MockTransport(handle_request))
+    chat_model = ChatOpenAI(
+        model="deepseek-flash",
+        api_key="test-key",
+        base_url="https://api.deepseek.com",
+        http_async_client=http_client,
+        max_retries=0,
+    )
+    agent = ImageAgent(
+        settings=Settings(_env_file=None),
+        chat_model=chat_model,
+        tokenhub_client=FakeImageClient(),  # type: ignore[arg-type]
+        result_downloader=FakeDownloader(),  # type: ignore[arg-type]
+        storage_factory=FakeStorage,
+    )
+
+    try:
+        response = await agent.ainvoke(AgentRequest(message="图片助手可以做什么？"))
+    finally:
+        await http_client.aclose()
+
+    assert response.status == "completed"
+    assert response.answer == "我可以根据文字生成商品图片。"
+    assert requests[0]["response_format"] == {"type": "json_object"}
 
 
 def test_image_parameter_policy_extracts_explicit_size_and_seed() -> None:
