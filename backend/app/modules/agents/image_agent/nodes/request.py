@@ -130,15 +130,18 @@ def _create_image_tool_call(
     if not resolved_prompt:
         raise AgentExecutionError("没有可用于生成图片的商品描述。", code="empty_image_prompt")
 
-    options = state.get("generation_options") or extract_image_options(resolved_request)
+    # 新一轮请求使用本轮输入；仅题卡恢复时沿用已保存参数。
     if resume_answers is not None:
+        options = state.get("generation_options") or extract_image_options(resolved_request)
         options = apply_size_answer(options, resume_answers)
+        task_result_id = state.get("task_result_id") or str(generate_snowflake_id())
     else:
+        options = extract_image_options(resolved_request)
         options = (
             ImageGenerationOptions(**options).validate_exclusivity().model_dump(exclude_none=True)
         )
+        task_result_id = str(generate_snowflake_id())
 
-    task_result_id = state.get("task_result_id") or str(generate_snowflake_id())
     if "size" not in options and "generate_max_pixels" not in options:
         tool_call = {
             "name": "ask_user_questions",

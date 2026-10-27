@@ -66,8 +66,10 @@ Copy-Item .env.example .env
 在项目根目录运行：
 
 ~~~powershell
-docker compose up --build
+docker compose up -d --build
 ~~~
+
+Compose 启用 Uvicorn 热重载并监视 `.py` 和 `.md` 文件。后端代码通过目录挂载同步到容器，日常修改 Python、Agent 或 Prompt 文件不需要重新构建；依赖或 `pyproject.toml` 变化时再执行 `--build`。
 
 Compose 只启动后端、PostgreSQL 和 Redis。前端在另一个终端单独运行：
 
