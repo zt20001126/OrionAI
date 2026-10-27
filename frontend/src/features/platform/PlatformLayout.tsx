@@ -32,6 +32,7 @@ export function PlatformLayout({
 }: PlatformLayoutProps) {
   const isConversationPage =
     pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
+  const isResumePage = pathname === platformPaths.resume;
   const pageTitle =
     pathname === platformPaths.market
       ? "技能市场"
@@ -39,16 +40,20 @@ export function PlatformLayout({
         ? "我的技能"
         : pathname === platformPaths.sessions
           ? "会话记录"
-          : pathname === platformPaths.settings
-            ? "个人设置"
-            : pathname === platformPaths.securitySettings
-              ? "安全设置"
-              : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
-                ? "通用对话助手"
-                : "OrionAI";
+          : pathname === platformPaths.resume
+            ? "简历助手"
+            : pathname === platformPaths.settings
+              ? "个人设置"
+              : pathname === platformPaths.securitySettings
+                ? "安全设置"
+                : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
+                  ? "通用对话助手"
+                  : "OrionAI";
 
   return (
-    <div className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}`}>
+    <div
+      className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}`}
+    >
       <PlatformSidebar
         account={account}
         avatarUrl={avatarUrl}
@@ -59,7 +64,9 @@ export function PlatformLayout({
         pathname={pathname}
       />
 
-      <div className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}`}>
+      <div
+        className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}`}
+      >
         <header className="platform-topbar">
           <div className="platform-topbar__context">
             <span>工作空间</span>
@@ -90,11 +97,11 @@ export function PlatformLayout({
         )}
 
         <main
-          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}`}
+          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}${isResumePage ? " platform-content--resume" : ""}`}
         >
           {children}
         </main>
-        {!isConversationPage && (
+        {!isConversationPage && !isResumePage && (
           <footer className="platform-footer">© OrionAI · 为企业智能体应用而构建</footer>
         )}
       </div>

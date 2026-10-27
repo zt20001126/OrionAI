@@ -28,6 +28,12 @@ requirements = (
 subprocess.check_call([sys.executable, "-m", "pip", "install", *requirements])
 PY
 
+# PDF 导出使用锁定版本的 Chromium；字体支持简体中文简历。
+RUN python -m playwright install --with-deps chromium \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./alembic.ini

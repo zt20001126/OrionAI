@@ -879,3 +879,25 @@
     transition: none;
   }
 }
+.question-card__context {
+  max-height: 240px;
+  overflow: auto;
+  margin: 12px 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font: inherit;
+  line-height: var(--line-height-relaxed);
+  white-space: pre-wrap;
+}
+
+.question-card__context-block {
+  min-width: 0;
+}
+
+.question-card__context-title {
+  color: var(--color-text-label);
+  font-size: var(--font-size-xs);
+}

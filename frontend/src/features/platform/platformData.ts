@@ -2,6 +2,7 @@ export const platformPaths = {
   market: "/market",
   mySkills: "/agents",
   sessions: "/sessions",
+  resume: "/resume",
   knowledge: "/knowledge",
   tools: "/tools",
   workspace: "/workspace",

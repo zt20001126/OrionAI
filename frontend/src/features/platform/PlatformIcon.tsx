@@ -19,7 +19,9 @@ export type PlatformIconName =
   | "camera"
   | "user"
   | "calendar"
-  | "clock";
+  | "clock"
+  | "history"
+  | "plus";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -152,6 +154,13 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
           <path d="M12 7v5l3.5 2" />
         </>
       )}
+      {name === "history" && (
+        <>
+          <path d="M4.5 8.5A8 8 0 1 1 4 13" />
+          <path d="M4 4.5v4h4M12 7.5v5l3 1.8" />
+        </>
+      )}
+      {name === "plus" && <path d="M12 5v14M5 12h14" />}
     </svg>
   );
 }

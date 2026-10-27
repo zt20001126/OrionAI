@@ -24,6 +24,13 @@ IMAGE_AGENT = {
     "type": "agent",
     "status": "published",
 }
+RESUME_ASSISTANT = {
+    "code": "resume_assistant",
+    "name": "简历助手",
+    "description": "编辑和分析简历，提供优化建议、岗位方向与面试准备。",
+    "type": "agent",
+    "status": "published",
+}
 
 
 def list_market_skills(
@@ -193,6 +200,50 @@ def ensure_image_agent_skill(session: Session) -> None:
     else:
         if session.scalar(select(Skill.id).where(Skill.code == IMAGE_AGENT["code"])) is None:
             session.add(Skill(**values))
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()
+
+
+def ensure_resume_assistant_skill(session: Session) -> None:
+    """幂等发布简历助手，并保留已有技能 ID 和用户关联。"""
+    values = RESUME_ASSISTANT.copy()
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_update(
+                index_elements=[Skill.code],
+                set_={
+                    "status": "published",
+                    "name": values["name"],
+                    "description": values["description"],
+                },
+            )
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_update(
+                index_elements=[Skill.code],
+                set_={
+                    "status": "published",
+                    "name": values["name"],
+                    "description": values["description"],
+                },
+            )
+        )
+    else:
+        skill = session.scalar(select(Skill).where(Skill.code == RESUME_ASSISTANT["code"]))
+        if skill is None:
+            session.add(Skill(**values))
+        else:
+            skill.status = "published"
+            skill.name = values["name"]
+            skill.description = values["description"]
         session.commit()
         return
     session.execute(statement)

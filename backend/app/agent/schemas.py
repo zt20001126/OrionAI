@@ -50,6 +50,11 @@ class Question(BaseModel):
         description="批次内唯一的 snake_case 题目标识。",
     )
     title: str = Field(min_length=1, max_length=100, description="题目完整标题。")
+    context: str | None = Field(
+        default=None,
+        max_length=3_000,
+        description="可选的候选内容预览，显示在题卡标题和选项之间。",
+    )
     type: Literal["SingleChoice"] = Field(description="基础对话题卡仅支持单选。")
     options: list[QuestionOption] = Field(
         min_length=QUESTION_OPTION_COUNT,

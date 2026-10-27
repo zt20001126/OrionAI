@@ -6,6 +6,7 @@ type PlaceholderPath = Exclude<
   | typeof platformPaths.market
   | typeof platformPaths.mySkills
   | typeof platformPaths.sessions
+  | typeof platformPaths.resume
   | typeof platformPaths.settings
   | typeof platformPaths.securitySettings
 >;

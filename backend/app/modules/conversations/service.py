@@ -429,7 +429,7 @@ class ConversationService:
             raise ConversationUnavailableError
         thread_id = build_conversation_thread_id(user_id, conversation_id, skill_code)
         configurable: dict[str, object] = {"thread_id": thread_id}
-        if skill_code == "image_agent":
+        if skill_code in {"image_agent", "resume_assistant"}:
             configurable.update(
                 {
                     "user_id": user_id,
@@ -474,7 +474,7 @@ class ConversationService:
         configurable: dict[str, object] = {
             "thread_id": thread_id,
         }
-        if conversation.skill_code == "image_agent":
+        if conversation.skill_code in {"image_agent", "resume_assistant"}:
             configurable.update(
                 {
                     "user_id": user_id,
@@ -773,7 +773,7 @@ class ConversationService:
         thread_id: str,
     ) -> dict[str, object]:
         configurable: dict[str, object] = {"thread_id": thread_id}
-        if prepared.conversation.skill_code == "image_agent":
+        if prepared.conversation.skill_code in {"image_agent", "resume_assistant"}:
             configurable.update(
                 {
                     "user_id": prepared.user_id,

@@ -11,6 +11,21 @@
 - **来源校验：** `POST`、`PATCH` 等状态变更接口若收到 `Origin`，其主机必须与请求 `Host` 一致，否则返回 `403`。
 - **错误格式：** 业务错误为 `{"detail":"错误说明"}`；请求字段校验失败返回 FastAPI 的 `422` 校验详情。
 
+## 简历接口
+
+简历接口均要求当前登录 Cookie。服务器按当前用户 ID 读写，客户端不能指定简历所有者。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/resume` | 获取简历；尚未保存时返回默认空内容和 `exists: false`。 |
+| `PUT` | `/api/resume` | 校验并保存完整简历及排版设置；已有简历需携带 `expected_updated_at`，版本不匹配返回 `409`。 |
+| `POST` | `/api/resume/photo` | 上传 PNG/JPEG 照片，最大 5 MiB，返回暂存 `photo_id`。 |
+| `GET` | `/api/resume/photo` | 读取当前用户已保存简历引用的私有照片。 |
+| `DELETE` | `/api/resume/photo?photo_id={id}` | 删除当前用户未引用的暂存照片。 |
+| `GET` | `/api/resume/export/pdf` | 导出当前用户已保存简历的 PDF。 |
+
+AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户确认前不会写入简历。
+
 ## 接口列表
 
 | 方法   | 路径                       | 用途                     | 认证                           |

@@ -8,9 +8,10 @@ import {
 
 interface ConversationHistoryProps {
   disabled?: boolean;
-  onSelect: (conversationId: string) => void;
+  onSelect: (conversationId: string, title: string) => void;
+  skillCode?: string;
   selectedId?: string | null;
-  variant: "sidebar" | "page";
+  variant: "sidebar" | "page" | "embedded";
 }
 
 function getConversationLabel(conversation: ConversationSummary): string {
@@ -29,6 +30,7 @@ function getConversationLabel(conversation: ConversationSummary): string {
 export function ConversationHistory({
   disabled = false,
   onSelect,
+  skillCode,
   selectedId = null,
   variant,
 }: ConversationHistoryProps) {
@@ -43,12 +45,12 @@ export function ConversationHistory({
   useEffect(() => {
     let isActive = true;
 
-    void listConversations(0)
-      .then((page) => {
+    void loadConversationBatch(0, skillCode)
+      .then((batch) => {
         if (!isActive) return;
-        setConversations(page.items);
-        setOffset(page.items.length);
-        setHasMore(page.items.length === page.limit);
+        setConversations(batch.items);
+        setOffset(batch.offset);
+        setHasMore(batch.hasMore);
         setError(null);
       })
       .catch((requestError: unknown) => {
@@ -61,16 +63,16 @@ export function ConversationHistory({
     return () => {
       isActive = false;
     };
-  }, [retryKey]);
+  }, [retryKey, skillCode]);
 
   async function loadMore() {
     setIsLoadingMore(true);
     setError(null);
     try {
-      const page = await listConversations(offset);
-      setConversations((current) => [...current, ...page.items]);
-      setOffset((current) => current + page.items.length);
-      setHasMore(page.items.length === page.limit);
+      const batch = await loadConversationBatch(offset, skillCode);
+      setConversations((current) => [...current, ...batch.items]);
+      setOffset(batch.offset);
+      setHasMore(batch.hasMore);
     } catch (requestError) {
       setError(getConversationErrorMessage(requestError));
     } finally {
@@ -123,7 +125,7 @@ export function ConversationHistory({
                 aria-pressed={selectedId === conversation.id}
                 className={`conversation-history__item${selectedId === conversation.id ? " is-active" : ""}`}
                 disabled={disabled}
-                onClick={() => onSelect(conversation.id)}
+                onClick={() => onSelect(conversation.id, getConversationLabel(conversation))}
                 type="button"
               >
                 <span className="conversation-history__item-title">
@@ -159,4 +161,28 @@ export function ConversationHistory({
       )}
     </section>
   );
+}
+
+interface ConversationBatch {
+  items: ConversationSummary[];
+  offset: number;
+  hasMore: boolean;
+}
+
+async function loadConversationBatch(
+  startOffset: number,
+  skillCode?: string,
+): Promise<ConversationBatch> {
+  const items: ConversationSummary[] = [];
+  let offset = startOffset;
+  let hasMore = true;
+
+  while (hasMore && items.length === 0) {
+    const page = await listConversations(offset);
+    items.push(...page.items.filter((item) => !skillCode || item.skill_code === skillCode));
+    offset += page.items.length;
+    hasMore = page.items.length === page.limit;
+  }
+
+  return { items, offset, hasMore };
 }

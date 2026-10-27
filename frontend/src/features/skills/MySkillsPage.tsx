@@ -3,10 +3,7 @@ import { useEffect, useState } from "react";
 import { SkillCard } from "../platform/SkillCard";
 import { SkillDetailsDialog } from "../platform/SkillDetailsDialog";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
-import {
-  createConversation,
-  getConversationErrorMessage,
-} from "../conversations/conversationApi";
+import { createConversation, getConversationErrorMessage } from "../conversations/conversationApi";
 import {
   listMySkills,
   removeSkillFromMySkills,
@@ -26,6 +23,7 @@ type MySkillsLoadState =
 const EMPTY_MY_SKILLS: MySkill[] = [];
 const GENERAL_CHAT_SKILL_CODE = "general_chat";
 const IMAGE_AGENT_SKILL_CODE = "image_agent";
+const RESUME_ASSISTANT_SKILL_CODE = "resume_assistant";
 
 /** 当前用户的技能页，只展示已添加且仍可用的技能。 */
 export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
@@ -90,15 +88,21 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
     setStartingSkillIds((current) => new Set(current).add(skill.id));
     try {
       if (skill.code === GENERAL_CHAT_SKILL_CODE) {
-      onNavigate(platformPaths.chat);
-      return;
+        onNavigate(platformPaths.chat);
+        return;
+      }
+      if (skill.code === RESUME_ASSISTANT_SKILL_CODE) {
+        onNavigate(platformPaths.resume);
+        return;
       }
 
       const conversation = await createConversation(skill.code);
       onNavigate(`${platformPaths.chat}/${conversation.id}`);
     } catch (error) {
       setActionError(
-        error instanceof Error ? getConversationErrorMessage(error) : "无法启动此技能，请稍后重试。",
+        error instanceof Error
+          ? getConversationErrorMessage(error)
+          : "无法启动此技能，请稍后重试。",
       );
     } finally {
       setStartingSkillIds((current) => {
@@ -160,14 +164,22 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
                       className="button button--primary"
                       disabled={
                         startingSkillIds.has(skill.id) ||
-                        ![GENERAL_CHAT_SKILL_CODE, IMAGE_AGENT_SKILL_CODE].includes(skill.code)
+                        ![
+                          GENERAL_CHAT_SKILL_CODE,
+                          IMAGE_AGENT_SKILL_CODE,
+                          RESUME_ASSISTANT_SKILL_CODE,
+                        ].includes(skill.code)
                       }
                       onClick={() => void handleUseSkill(skill)}
                       type="button"
                     >
                       {startingSkillIds.has(skill.id)
                         ? "正在启动…"
-                        : [GENERAL_CHAT_SKILL_CODE, IMAGE_AGENT_SKILL_CODE].includes(skill.code)
+                        : [
+                              GENERAL_CHAT_SKILL_CODE,
+                              IMAGE_AGENT_SKILL_CODE,
+                              RESUME_ASSISTANT_SKILL_CODE,
+                            ].includes(skill.code)
                           ? "使用"
                           : "运行入口未接入"}
                     </button>

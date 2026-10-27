@@ -17,16 +17,23 @@ import {
   createConversation,
   getConversationErrorMessage,
   listAllMessages,
+  listConversations,
   streamConversationMessage,
   streamQuestionAnswers,
   type ConversationMessage,
   type ImageResultContentPart,
+  type MessageListResponse,
   type QuestionContentPart,
 } from "./conversationApi";
 import "./conversations.css";
 
 interface ConversationPageProps {
   conversationId: string | null;
+  embedded?: boolean;
+  panelOpen?: boolean;
+  onCollapsePanel?: () => void;
+  onConversationIdChange?: (conversationId: string | null) => void;
+  onResumeSaved?: () => void | Promise<void>;
   onNavigate: (path: PlatformRoute) => void;
 }
 
@@ -61,11 +68,7 @@ function ImageResult({ part }: { part: ImageResultContentPart }) {
   }
   return (
     <figure className="conversation-image-result">
-      <img
-        alt="图片助手生成的商品图片"
-        onError={() => setHasError(true)}
-        src={part.image_url}
-      />
+      <img alt="图片助手生成的商品图片" onError={() => setHasError(true)} src={part.image_url} />
     </figure>
   );
 }
@@ -195,6 +198,14 @@ function QuestionWizard({
 
       <fieldset className="question-card__question" disabled={isSubmitting}>
         <legend>{question.title}</legend>
+        {question.context && (
+          <div className="question-card__context-block">
+            {question.id === "resume_optimization" && (
+              <strong className="question-card__context-title">修改候选预览</strong>
+            )}
+            <pre className="question-card__context">{question.context}</pre>
+          </div>
+        )}
         {question.options.map((option) => (
           <label className="question-card__option" key={option.label}>
             <input
@@ -279,9 +290,18 @@ const markdownComponents: Components = {
     ),
 };
 
-export function ConversationPage({ conversationId, onNavigate }: ConversationPageProps) {
+export function ConversationPage({
+  conversationId,
+  embedded = false,
+  panelOpen = true,
+  onCollapsePanel,
+  onConversationIdChange,
+  onResumeSaved,
+  onNavigate,
+}: ConversationPageProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
-  const [skillCode, setSkillCode] = useState("general_chat");
+  const [skillCode, setSkillCode] = useState(embedded ? "resume_assistant" : "general_chat");
+  const [conversationTitle, setConversationTitle] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [answerSelection, setAnswerSelection] = useState<{
     conversationId: string | null;
@@ -304,6 +324,8 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     message: string;
   } | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [showEmbeddedHistory, setShowEmbeddedHistory] = useState(false);
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const skipNextRouteLoad = useRef<string | null>(null);
   const activeStreamControllerRef = useRef<AbortController | null>(null);
   const messageLogRef = useRef<HTMLDivElement>(null);
@@ -339,7 +361,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     }
 
     let isActive = true;
-    setSkillCode("general_chat");
+    setSkillCode(embedded ? "resume_assistant" : "general_chat");
     void listAllMessages(conversationId)
       .then((history) => {
         if (isActive) {
@@ -363,9 +385,10 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     return () => {
       isActive = false;
     };
-  }, [conversationId]);
+  }, [conversationId, embedded]);
 
   useLayoutEffect(() => {
+    if ((embedded && !panelOpen) || showEmbeddedHistory) return;
     const log = messageLogRef.current;
     if (!log) return;
 
@@ -384,6 +407,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   }, [
     conversationId,
     currentStreamedOutput?.text,
+    embedded,
+    panelOpen,
+    showEmbeddedHistory,
     isSubmitting,
     loadedConversationId,
     pendingText,
@@ -425,11 +451,33 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     pendingQuestion !== null &&
     pendingQuestion.part.questions.every((question) => Boolean(selectedAnswers[question.id]));
 
-  async function refreshMessages(activeConversationId: string): Promise<void> {
+  async function refreshMessages(activeConversationId: string): Promise<MessageListResponse> {
     const history = await listAllMessages(activeConversationId);
     setMessages(history.items);
     setSkillCode(history.skill_code);
     setLoadedConversationId(activeConversationId);
+    return history;
+  }
+
+  async function handleCreateConversation() {
+    if (isSubmitting || isCreatingConversation) return;
+    setIsCreatingConversation(true);
+    setErrorState(null);
+    try {
+      const conversation = await createConversation("resume_assistant");
+      setConversationTitle(conversation.title?.trim() || "新对话");
+      setShowEmbeddedHistory(false);
+      setQuestionStep({ messageId: null, index: 0 });
+      setHistoryRefreshKey((current) => current + 1);
+      onConversationIdChange?.(conversation.id);
+    } catch (requestError) {
+      setErrorState({
+        conversationId,
+        message: getConversationErrorMessage(requestError),
+      });
+    } finally {
+      setIsCreatingConversation(false);
+    }
   }
 
   async function handleReloadMessages() {
@@ -516,9 +564,10 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
 
     try {
       if (!activeConversationId) {
-        const conversation = await createConversation();
+        const conversation = await createConversation(embedded ? "resume_assistant" : undefined);
         activeConversationId = conversation.id;
         createdThisTurn = true;
+        setConversationTitle(conversation.title?.trim() || "新对话");
         setStreamedOutput({
           conversationId: activeConversationId,
           text: "",
@@ -553,12 +602,14 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
         );
       }
       await refreshMessages(activeConversationId);
+      if (embedded) void refreshConversationTitle(activeConversationId);
       setDraft("");
       setStreamedOutput(null);
       setHistoryRefreshKey((current) => current + 1);
       if (createdThisTurn) {
         skipNextRouteLoad.current = activeConversationId;
-        onNavigate(`${platformPaths.chat}/${activeConversationId}`);
+        if (embedded) onConversationIdChange?.(activeConversationId);
+        else onNavigate(`${platformPaths.chat}/${activeConversationId}`);
       }
     } catch (requestError) {
       if (controller.signal.aborted) {
@@ -581,7 +632,8 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
         setHistoryRefreshKey((current) => current + 1);
         if (createdThisTurn) {
           skipNextRouteLoad.current = activeConversationId;
-          onNavigate(`${platformPaths.chat}/${activeConversationId}`);
+          if (embedded) onConversationIdChange?.(activeConversationId);
+          else onNavigate(`${platformPaths.chat}/${activeConversationId}`);
         }
       }
     } finally {
@@ -595,6 +647,14 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
 
   async function handleSubmitAnswers() {
     if (!conversationId || !pendingQuestion || !canSubmitAnswers || isSubmitting) return;
+
+    const confirmsResumeSave =
+      skillCode === "resume_assistant" &&
+      pendingQuestion.part.questions.some(
+        (question) =>
+          question.id === "resume_optimization" &&
+          selectedAnswers[question.id] === "确认采用并保存",
+      );
 
     const previousMessageId = visibleMessages.at(-1)?.id ?? null;
     const submittedUserText = `用户已提交以下选择：\n${pendingQuestion.part.questions
@@ -630,11 +690,14 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
             : [...current, questionMessage],
         );
       }
-      await refreshMessages(conversationId);
+      const updatedHistory = await refreshMessages(conversationId);
       setAnswerSelection({ conversationId, answers: {} });
       setQuestionStep({ messageId: null, index: 0 });
       setStreamedOutput(null);
       setHistoryRefreshKey((current) => current + 1);
+      if (confirmsResumeSave && resumeSaveSucceeded(updatedHistory)) {
+        await onResumeSaved?.();
+      }
     } catch (requestError) {
       if (controller.signal.aborted) {
         await reconcileAbortedStream(conversationId, previousMessageId, submittedUserText);
@@ -682,234 +745,350 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     shouldFollowMessagesRef.current = distanceFromBottom <= 96;
   }
 
-  const agentName = skillCode === "image_agent" ? "图片助手" : "通用对话助手";
+  function handleSelectEmbeddedConversation(id: string, title: string) {
+    setConversationTitle(title);
+    setShowEmbeddedHistory(false);
+    onConversationIdChange?.(id);
+  }
+
+  async function refreshConversationTitle(activeConversationId: string) {
+    try {
+      const latest = await listConversations(0);
+      const summary = latest.items.find((item) => item.id === activeConversationId);
+      if (summary) setConversationTitle(summary.title?.trim() || "未命名会话");
+    } catch {
+      // 标题加载失败时保留当前会话名称，不影响消息功能。
+    }
+  }
+
+  const agentName =
+    skillCode === "image_agent"
+      ? "图片助手"
+      : skillCode === "resume_assistant"
+        ? "简历助手"
+        : "通用对话助手";
 
   return (
-    <div className="conversation-page">
-      <aside aria-label="历史会话导航" className="conversation-page__history">
-        <button
-          className="button button--outline conversation-page__new"
-          disabled={isSubmitting}
-          onClick={() => onNavigate(platformPaths.chat)}
-          type="button"
-        >
-          <span aria-hidden="true">+</span>
-          新建对话
-        </button>
-        <ConversationHistory
-          disabled={isSubmitting}
-          key={historyRefreshKey}
-          onSelect={(id) => onNavigate(`${platformPaths.chat}/${id}`)}
-          selectedId={conversationId}
-          variant="sidebar"
-        />
-      </aside>
+    <div className={`conversation-page${embedded ? " conversation-page--embedded" : ""}`}>
+      {!embedded && (
+        <aside aria-label="历史会话导航" className="conversation-page__history">
+          <button
+            className="button button--outline conversation-page__new"
+            disabled={isSubmitting}
+            onClick={() => onNavigate(platformPaths.chat)}
+            type="button"
+          >
+            <span aria-hidden="true">+</span>
+            新建对话
+          </button>
+          <ConversationHistory
+            disabled={isSubmitting}
+            key={historyRefreshKey}
+            onSelect={(id) => onNavigate(`${platformPaths.chat}/${id}`)}
+            selectedId={conversationId}
+            variant="sidebar"
+          />
+        </aside>
+      )}
 
       <section aria-label={agentName} className="conversation-panel">
         <header className="conversation-panel__header">
-          <h1>{agentName}</h1>
-          <span>多轮对话</span>
+          <div className="conversation-panel__identity">
+            <h1>{embedded ? "简历助手" : agentName}</h1>
+            {embedded && conversationId && (
+              <span title={conversationTitle ?? undefined}>
+                {conversationTitle || "未命名会话"}
+              </span>
+            )}
+          </div>
+          {embedded ? (
+            <div className="conversation-panel__actions">
+              <button
+                aria-pressed={showEmbeddedHistory}
+                className="resume-chat-icon-button"
+                disabled={isSubmitting || isCreatingConversation}
+                onClick={() => setShowEmbeddedHistory((current) => !current)}
+                type="button"
+              >
+                <PlatformIcon name="history" size={17} />
+                <span>历史</span>
+              </button>
+              <button
+                className="resume-chat-icon-button"
+                disabled={isSubmitting || isCreatingConversation}
+                onClick={() => void handleCreateConversation()}
+                type="button"
+              >
+                <PlatformIcon name="plus" size={17} />
+                <span>新对话</span>
+              </button>
+              <button
+                aria-label="收起简历助手"
+                className="resume-chat-icon-button resume-chat-icon-button--collapse"
+                onClick={onCollapsePanel}
+                type="button"
+              >
+                <PlatformIcon name="chevron" size={17} />
+              </button>
+            </div>
+          ) : (
+            <span>多轮对话</span>
+          )}
         </header>
 
-        <div
-          aria-label="对话消息"
-          aria-live="polite"
-          className="conversation-messages"
-          onScroll={handleMessagesScroll}
-          ref={messageLogRef}
-          role="log"
-        >
-          {!conversationId && visibleMessages.length === 0 && (
-            <div className="conversation-empty">
-              <span aria-hidden="true" className="conversation-empty__icon">
-                <PlatformIcon name="assistant" size={24} />
-              </span>
-              <h1>{agentName}</h1>
-              <p>{skillCode === "image_agent" ? "描述商品和画面效果，开始生成图片。" : "有什么问题，尽管问我。"}</p>
-            </div>
-          )}
-
-          {isLoading && (
-            <p className="conversation-status" role="status">
-              正在加载对话…
-            </p>
-          )}
-
-          {!isLoading && !error && conversationId && visibleMessages.length === 0 && (
-            <p className="conversation-status">发送第一条消息，开始这段对话。</p>
-          )}
-
-          {error && (
-            <div className="conversation-error" role="alert">
-              <span>{error}</span>
-              {conversationId && (
-                <button
-                  className="button button--outline"
-                  onClick={() => void handleReloadMessages()}
-                  type="button"
-                >
-                  重新加载消息
-                </button>
+        {embedded && showEmbeddedHistory ? (
+          <div className="conversation-panel__history">
+            <ConversationHistory
+              disabled={isSubmitting}
+              key={`resume-history-${historyRefreshKey}`}
+              onSelect={handleSelectEmbeddedConversation}
+              selectedId={conversationId}
+              skillCode="resume_assistant"
+              variant="embedded"
+            />
+          </div>
+        ) : (
+          <>
+            <div
+              aria-label="对话消息"
+              aria-live="polite"
+              className="conversation-messages"
+              onScroll={handleMessagesScroll}
+              ref={messageLogRef}
+              role="log"
+            >
+              {!conversationId && visibleMessages.length === 0 && (
+                <div className="conversation-empty">
+                  <span aria-hidden="true" className="conversation-empty__icon">
+                    <PlatformIcon name="assistant" size={24} />
+                  </span>
+                  <h1>{agentName}</h1>
+                  <p>
+                    {skillCode === "image_agent"
+                      ? "描述商品和画面效果，开始生成图片。"
+                      : skillCode === "resume_assistant"
+                        ? "可以请我分析已保存简历、讨论求职方向或准备面试。"
+                        : "有什么问题，尽管问我。"}
+                  </p>
+                  {embedded && (
+                    <button
+                      className="button button--outline"
+                      disabled={isCreatingConversation}
+                      onClick={() => void handleCreateConversation()}
+                      type="button"
+                    >
+                      {isCreatingConversation ? "正在创建…" : "新建简历对话"}
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          {!isLoading && error && visibleMessages.length === 0 && conversationId && (
-            <p className="conversation-status">暂时无法显示此会话内容。</p>
-          )}
+              {isLoading && (
+                <p className="conversation-status" role="status">
+                  正在加载对话…
+                </p>
+              )}
 
-          {visibleMessages.map((message, index) => {
-            const questionPart = getQuestionPart(message);
-            const isCurrentQuestion = pendingQuestion?.messageId === message.id;
-            const text = messageText(message);
-            const imageResults = message.content.parts.filter(
-              (part): part is ImageResultContentPart => part.type === "image_result",
-            );
-            const previousQuestionPart = getQuestionPart(visibleMessages[index - 1]);
-            const answerSummary =
-              message.role === "user" ? getQuestionAnswerSummary(text, previousQuestionPart) : null;
-            const nextMessage = visibleMessages[index + 1];
-            const hasSubmittedQuestionAnswers =
-              questionPart !== null &&
-              nextMessage?.role === "user" &&
-              getQuestionAnswerSummary(messageText(nextMessage), questionPart) !== null;
+              {!isLoading && !error && conversationId && visibleMessages.length === 0 && (
+                <p className="conversation-status">发送第一条消息，开始这段对话。</p>
+              )}
 
-            return (
-              <article
-                className={`conversation-message conversation-message--${message.role}`}
-                key={message.id}
-              >
-                {message.role === "assistant" && text && (
+              {error && (
+                <div className="conversation-error" role="alert">
+                  <span>{error}</span>
+                  {conversationId && (
+                    <button
+                      className="button button--outline"
+                      onClick={() => void handleReloadMessages()}
+                      type="button"
+                    >
+                      重新加载消息
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {!isLoading && error && visibleMessages.length === 0 && conversationId && (
+                <p className="conversation-status">暂时无法显示此会话内容。</p>
+              )}
+
+              {visibleMessages.map((message, index) => {
+                const questionPart = getQuestionPart(message);
+                const isCurrentQuestion = pendingQuestion?.messageId === message.id;
+                const text = messageText(message);
+                const imageResults = message.content.parts.filter(
+                  (part): part is ImageResultContentPart => part.type === "image_result",
+                );
+                const previousQuestionPart = getQuestionPart(visibleMessages[index - 1]);
+                const answerSummary =
+                  message.role === "user"
+                    ? getQuestionAnswerSummary(text, previousQuestionPart)
+                    : null;
+                const nextMessage = visibleMessages[index + 1];
+                const hasSubmittedQuestionAnswers =
+                  questionPart !== null &&
+                  nextMessage?.role === "user" &&
+                  getQuestionAnswerSummary(messageText(nextMessage), questionPart) !== null;
+
+                return (
+                  <article
+                    className={`conversation-message conversation-message--${message.role}`}
+                    key={message.id}
+                  >
+                    {message.role === "assistant" && text && (
+                      <div className="conversation-message__bubble">
+                        <div className="conversation-message__markdown">
+                          <ReactMarkdown
+                            components={markdownComponents}
+                            remarkPlugins={[remarkGfm]}
+                          >
+                            {text}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                    {message.role === "assistant" &&
+                      imageResults.map((part) => (
+                        <ImageResult key={part.task_result_id} part={part} />
+                      ))}
+                    {message.role === "user" &&
+                      text &&
+                      (answerSummary ? (
+                        <QuestionAnswerSummary summary={answerSummary} />
+                      ) : (
+                        <p className="conversation-message__text">{text}</p>
+                      ))}
+                    {questionPart && isCurrentQuestion && (
+                      <QuestionWizard
+                        currentIndex={currentQuestionIndex}
+                        isSubmitting={isSubmitting}
+                        messageId={message.id}
+                        onNext={() =>
+                          setQuestionStep({
+                            messageId: message.id,
+                            index: currentQuestionIndex + 1,
+                          })
+                        }
+                        onPrevious={() =>
+                          setQuestionStep({
+                            messageId: message.id,
+                            index: currentQuestionIndex - 1,
+                          })
+                        }
+                        onSelect={(questionId, answer) =>
+                          setAnswerSelection((current) => ({
+                            conversationId,
+                            answers: {
+                              ...(current.conversationId === conversationId ? current.answers : {}),
+                              [questionId]: answer,
+                            },
+                          }))
+                        }
+                        onSubmit={() => void handleSubmitAnswers()}
+                        questions={questionPart.questions}
+                        selectedAnswers={selectedAnswers}
+                      />
+                    )}
+                    {questionPart && !isCurrentQuestion && (
+                      <div
+                        className={`question-card__history${hasSubmittedQuestionAnswers ? " is-complete" : ""}`}
+                        role="status"
+                      >
+                        {hasSubmittedQuestionAnswers
+                          ? `✓ 已完成答题 · 共 ${questionPart.questions.length} 题`
+                          : "此题卡当前不等待答题。"}
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+
+              {pendingText && (
+                <article
+                  aria-label="正在发送的消息"
+                  className="conversation-message conversation-message--user conversation-message--pending"
+                >
+                  <p className="conversation-message__text">{pendingText}</p>
+                </article>
+              )}
+
+              {currentStreamedOutput?.text && (
+                <article
+                  aria-label={
+                    currentStreamedOutput.status === "failed" ? "未完成的助手回答" : "助手回答"
+                  }
+                  className={`conversation-message conversation-message--assistant${
+                    currentStreamedOutput.status === "streaming"
+                      ? " conversation-message--streaming"
+                      : ""
+                  }`}
+                >
                   <div className="conversation-message__bubble">
                     <div className="conversation-message__markdown">
                       <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
-                        {text}
+                        {currentStreamedOutput.text}
                       </ReactMarkdown>
                     </div>
                   </div>
-                )}
-                {message.role === "assistant" && imageResults.map((part) => (
-                  <ImageResult key={part.task_result_id} part={part} />
-                ))}
-                {message.role === "user" &&
-                  text &&
-                  (answerSummary ? (
-                    <QuestionAnswerSummary summary={answerSummary} />
-                  ) : (
-                    <p className="conversation-message__text">{text}</p>
-                  ))}
-                {questionPart && isCurrentQuestion && (
-                  <QuestionWizard
-                    currentIndex={currentQuestionIndex}
-                    isSubmitting={isSubmitting}
-                    messageId={message.id}
-                    onNext={() =>
-                      setQuestionStep({ messageId: message.id, index: currentQuestionIndex + 1 })
-                    }
-                    onPrevious={() =>
-                      setQuestionStep({ messageId: message.id, index: currentQuestionIndex - 1 })
-                    }
-                    onSelect={(questionId, answer) =>
-                      setAnswerSelection((current) => ({
-                        conversationId,
-                        answers: {
-                          ...(current.conversationId === conversationId ? current.answers : {}),
-                          [questionId]: answer,
-                        },
-                      }))
-                    }
-                    onSubmit={() => void handleSubmitAnswers()}
-                    questions={questionPart.questions}
-                    selectedAnswers={selectedAnswers}
-                  />
-                )}
-                {questionPart && !isCurrentQuestion && (
-                  <div
-                    className={`question-card__history${hasSubmittedQuestionAnswers ? " is-complete" : ""}`}
-                    role="status"
-                  >
-                    {hasSubmittedQuestionAnswers
-                      ? `✓ 已完成答题 · 共 ${questionPart.questions.length} 题`
-                      : "此题卡当前不等待答题。"}
-                  </div>
-                )}
-              </article>
-            );
-          })}
+                  {currentStreamedOutput.status === "failed" && (
+                    <p className="conversation-stream-status" role="status">
+                      回答未完成，刷新后不会保留这部分内容。
+                    </p>
+                  )}
+                </article>
+              )}
 
-          {pendingText && (
-            <article
-              aria-label="正在发送的消息"
-              className="conversation-message conversation-message--user conversation-message--pending"
-            >
-              <p className="conversation-message__text">{pendingText}</p>
-            </article>
-          )}
-
-          {currentStreamedOutput?.text && (
-            <article
-              aria-label={
-                currentStreamedOutput.status === "failed" ? "未完成的助手回答" : "助手回答"
-              }
-              className={`conversation-message conversation-message--assistant${
-                currentStreamedOutput.status === "streaming"
-                  ? " conversation-message--streaming"
-                  : ""
-              }`}
-            >
-              <div className="conversation-message__bubble">
-                <div className="conversation-message__markdown">
-                  <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
-                    {currentStreamedOutput.text}
-                  </ReactMarkdown>
-                </div>
-              </div>
-              {currentStreamedOutput.status === "failed" && (
-                <p className="conversation-stream-status" role="status">
-                  回答未完成，刷新后不会保留这部分内容。
+              {isSubmitting && (
+                <p className="conversation-status" role="status">
+                  助手正在生成…
                 </p>
               )}
-            </article>
-          )}
+            </div>
 
-          {isSubmitting && (
-            <p className="conversation-status" role="status">
-              助手正在生成…
-            </p>
-          )}
-        </div>
-
-        <form className="conversation-composer" onSubmit={(event) => void handleSend(event)}>
-          <label className="conversation-visually-hidden" htmlFor="conversation-message-input">
-            发送消息
-          </label>
-          <textarea
-            id="conversation-message-input"
-            ref={composerInputRef}
-            disabled={isSubmitting || isLoading || Boolean(pendingQuestion)}
-            maxLength={20_000}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={handleComposerKeyDown}
-            placeholder={
-              pendingQuestion ? "请先完成题卡选择。" : "输入消息，Enter 发送，Shift + Enter 换行"
-            }
-            value={draft}
-          />
-          <div className="conversation-composer__footer">
-            <span>{error ? "检查消息状态后再决定是否重试。" : "回答会逐段显示。"}</span>
-            <button
-              aria-label="发送消息"
-              className="button button--primary conversation-composer__send"
-              disabled={!draft.trim() || isSubmitting || isLoading || Boolean(pendingQuestion)}
-              ref={composerSendButtonRef}
-              type="submit"
-            >
-              <PlatformIcon name="arrow" size={16} />
-              发送
-            </button>
-          </div>
-        </form>
+            <form className="conversation-composer" onSubmit={(event) => void handleSend(event)}>
+              <label className="conversation-visually-hidden" htmlFor="conversation-message-input">
+                发送消息
+              </label>
+              <textarea
+                id="conversation-message-input"
+                ref={composerInputRef}
+                disabled={isSubmitting || isLoading || Boolean(pendingQuestion)}
+                maxLength={20_000}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder={
+                  pendingQuestion
+                    ? "请先完成题卡选择。"
+                    : "输入消息，Enter 发送，Shift + Enter 换行"
+                }
+                value={draft}
+              />
+              <div className="conversation-composer__footer">
+                <span>{error ? "检查消息状态后再决定是否重试。" : "回答会逐段显示。"}</span>
+                <button
+                  aria-label="发送消息"
+                  className="button button--primary conversation-composer__send"
+                  disabled={!draft.trim() || isSubmitting || isLoading || Boolean(pendingQuestion)}
+                  ref={composerSendButtonRef}
+                  type="submit"
+                >
+                  <PlatformIcon name="arrow" size={16} />
+                  发送
+                </button>
+              </div>
+            </form>
+          </>
+        )}
       </section>
     </div>
   );
+}
+
+function resumeSaveSucceeded(history: MessageListResponse): boolean {
+  const finalAssistantMessage = [...history.items]
+    .reverse()
+    .find((message) => message.role === "assistant");
+  return finalAssistantMessage
+    ? messageText(finalAssistantMessage).trim() === "已按你的确认保存优化内容。"
+    : false;
 }

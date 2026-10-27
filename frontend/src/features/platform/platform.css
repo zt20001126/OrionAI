@@ -14,6 +14,13 @@
   overflow: hidden;
 }
 
+.platform-shell--resume {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .platform-sidebar {
   position: sticky;
   top: 0;
@@ -370,6 +377,12 @@
   overflow: hidden;
 }
 
+.platform-main--resume {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .platform-topbar {
   position: sticky;
   top: 0;
@@ -469,6 +482,16 @@
 }
 
 .platform-content--conversation {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 0;
+  align-self: stretch;
+  overflow: hidden;
+  padding: var(--space-3);
+}
+
+.platform-content--resume {
   display: flex;
   width: 100%;
   min-height: 0;
@@ -1506,6 +1529,19 @@
     flex: 1 1 0;
   }
 
+  .platform-shell--resume {
+    height: 100vh;
+    height: 100svh;
+    grid-template-rows: 88px minmax(0, 1fr);
+  }
+
+  .platform-main--resume {
+    height: calc(100vh - 88px);
+    height: calc(100svh - 88px);
+    min-height: 0;
+    flex: 1 1 0;
+  }
+
   .platform-topbar {
     min-height: 56px;
     padding-inline: var(--space-5);
@@ -1516,6 +1552,11 @@
   }
 
   .platform-content--conversation {
+    min-height: 0;
+    padding: var(--space-3);
+  }
+
+  .platform-content--resume {
     min-height: 0;
     padding: var(--space-3);
   }
@@ -1557,6 +1598,10 @@
   }
 
   .platform-content--conversation {
+    padding: var(--space-2);
+  }
+
+  .platform-content--resume {
     padding: var(--space-2);
   }
 

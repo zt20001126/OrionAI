@@ -25,6 +25,7 @@ export interface QuestionOption {
 export interface SingleChoiceQuestion {
   id: string;
   title: string;
+  context?: string | null;
   type: "SingleChoice";
   options: QuestionOption[];
   allow_custom_input: false;
@@ -42,10 +43,7 @@ export interface ImageResultContentPart {
   image_url: string;
 }
 
-export type MessageContentPart =
-  | TextContentPart
-  | QuestionContentPart
-  | ImageResultContentPart;
+export type MessageContentPart = TextContentPart | QuestionContentPart | ImageResultContentPart;
 
 export interface ConversationMessage {
   id: string;

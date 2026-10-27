@@ -9,6 +9,7 @@ import { SkillMarketPage } from "../features/platform/SkillMarketPage";
 import { ConversationPage } from "../features/conversations/ConversationPage";
 import { SessionsPage } from "../features/conversations/SessionsPage";
 import { MySkillsPage } from "../features/skills/MySkillsPage";
+import { ResumePage } from "../features/resume/ResumePage";
 import {
   getConversationId,
   isConversationPath,
@@ -30,6 +31,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [pathname, setPathname] = useState(getCurrentPath);
   const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false);
+  const [hasUnsavedResume, setHasUnsavedResume] = useState(false);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
@@ -40,11 +42,17 @@ export default function App() {
     (path: AppPath, replace = false) => {
       const isSettingsPath =
         pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
+      const shouldConfirmLeave =
+        (isSettingsPath && hasUnsavedSettings) ||
+        (pathname === platformPaths.resume && hasUnsavedResume);
       if (
-        isSettingsPath &&
         path !== pathname &&
-        hasUnsavedSettings &&
-        !window.confirm("当前设置有尚未保存的更改，确定离开吗？")
+        shouldConfirmLeave &&
+        !window.confirm(
+          pathname === platformPaths.resume
+            ? "简历有未保存的修改，确定离开吗？"
+            : "当前设置有尚未保存的更改，确定离开吗？",
+        )
       ) {
         return;
       }
@@ -55,7 +63,7 @@ export default function App() {
       }
       setPathname(path);
     },
-    [hasUnsavedSettings, pathname],
+    [hasUnsavedResume, hasUnsavedSettings, pathname],
   );
 
   useEffect(() => {
@@ -63,11 +71,17 @@ export default function App() {
       const nextPath = getCurrentPath();
       const isSettingsPath =
         pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
+      const shouldConfirmLeave =
+        (isSettingsPath && hasUnsavedSettings) ||
+        (pathname === platformPaths.resume && hasUnsavedResume);
       if (
-        isSettingsPath &&
         nextPath !== pathname &&
-        hasUnsavedSettings &&
-        !window.confirm("当前设置有尚未保存的更改，确定离开吗？")
+        shouldConfirmLeave &&
+        !window.confirm(
+          pathname === platformPaths.resume
+            ? "简历有未保存的修改，确定离开吗？"
+            : "当前设置有尚未保存的更改，确定离开吗？",
+        )
       ) {
         window.history.pushState({}, "", pathname);
         return;
@@ -77,17 +91,17 @@ export default function App() {
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [hasUnsavedSettings, pathname]);
+  }, [hasUnsavedResume, hasUnsavedSettings, pathname]);
 
   useEffect(() => {
-    if (!hasUnsavedSettings) return;
+    if (!hasUnsavedSettings && !hasUnsavedResume) return;
     function warnBeforeUnload(event: BeforeUnloadEvent) {
       event.preventDefault();
       event.returnValue = "";
     }
     window.addEventListener("beforeunload", warnBeforeUnload);
     return () => window.removeEventListener("beforeunload", warnBeforeUnload);
-  }, [hasUnsavedSettings]);
+  }, [hasUnsavedResume, hasUnsavedSettings]);
 
   useEffect(() => {
     if (!account) return;
@@ -213,6 +227,9 @@ export default function App() {
   const page = (() => {
     if (safePathname === platformPaths.market) return <SkillMarketPage />;
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
+    if (safePathname === platformPaths.resume) {
+      return <ResumePage onDirtyChange={setHasUnsavedResume} onNavigate={navigate} />;
+    }
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
     if (
       safePathname === platformPaths.settings ||

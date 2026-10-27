@@ -3,7 +3,7 @@
 ## 概览
 
 - **关系型数据库：** PostgreSQL 17。
-- **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`、`task_results`。
+- **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`、`task_results`、`resumes`。
 - **验证码和登录状态：** 保存在 Redis；聊天会话和消息保存在 PostgreSQL。
 - **迁移：** Alembic。Docker 后端启动时自动执行迁移；本地可在 `backend/` 目录运行 `python -m alembic upgrade head`。
 
@@ -84,6 +84,19 @@ Snowflake 生成器由 `SNOWFLAKE_WORKER_ID` 区分并发 backend 实例，范�
 唯一约束：`(user_id, skill_id)`；索引：`(user_id, created_at)`。所有业务表主键及引用主键的外键统一使用 Snowflake `BIGINT`。`0006_snowflake_skill_ids.py` 将技能及关联表中已有 UUID 重映射为 Snowflake ID，并幂等注册 `resume_assistant` 和 `literature_assistant`；升级后客户端应重新获取技能 ID。
 
 LangGraph PostgreSQL Checkpointer 使用其依赖管理的内部表保存图执行状态；这些表不属于业务表，也不通过业务 Alembic 迁移维护。应用首次启动会调用 Checkpointer `setup()`，数据库账号需要具备相应建表/升级权限。
+
+## `resumes` — 用户简历
+
+| 字段 | PostgreSQL 类型 | 可空 | 默认值 | 键/约束 | 说明 |
+|---|---|---|---|---|---|
+| `id` | `BIGINT` | 否 | 应用侧 Snowflake | 主键 | 简历记录 ID |
+| `user_id` | `BIGINT` | 否 | — | 外键 `users.id`，删除级联；唯一 | 每个用户最多一份简历 |
+| `content` | `JSONB` | 否 | — | 根节点 CHECK 为对象 | 基本信息、教育、技能、工作和项目内容；详细契约由 Pydantic 校验 |
+| `style_config` | `JSONB` | 否 | — | 根节点 CHECK 为对象 | PDF 排版参数 |
+| `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 创建时间 |
+| `updated_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 最后更新时间；用于 AI 优化候选并发检查 |
+
+`0012_create_resumes.py` 新建此表并发布预置的 `resume_assistant` 技能。首次读取不会写入空记录。照片字节存储在私有 OSS；简历 JSON 仅保留照片 ID。教育、工作和项目条目保存在 `content` JSONB 中，不单独拆表。
 
 ## `task_results` — 技能任务结果
 
