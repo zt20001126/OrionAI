@@ -57,6 +57,7 @@
 
 .conversation-history__list {
   display: grid;
+  align-content: start;
   gap: var(--space-1);
   margin: 0;
   padding: 0;
