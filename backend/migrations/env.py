@@ -7,6 +7,7 @@ from app.core.config import get_settings
 from app.infrastructure.database.base import Base
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.conversations import models as conversation_models  # noqa: F401
+from app.modules.skills import models as skills_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

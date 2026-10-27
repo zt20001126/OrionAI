@@ -1,0 +1,88 @@
+"""定义技能市场和当前用户技能 API。"""
+
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query, Response
+
+from app.modules.auth.dependencies import validate_origin
+from app.modules.skills.dependencies import CurrentUser, SkillsServiceDependency
+from app.modules.skills.schemas import (
+    AddSkillRequest,
+    MySkillsResponse,
+    SkillPageResponse,
+    SkillResponse,
+    SkillType,
+)
+
+router = APIRouter(prefix="/v1", tags=["skills"])
+
+
+@router.get("/skills", response_model=SkillPageResponse)
+def list_market_skills(
+    user: CurrentUser,
+    service: SkillsServiceDependency,
+    skill_type: Annotated[SkillType | None, Query(alias="type")] = None,
+    keyword: Annotated[str | None, Query(max_length=100)] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> SkillPageResponse:
+    """分页查询已发布技能市场。"""
+
+    return service.list_market(
+        user,
+        skill_type=skill_type,
+        keyword=keyword,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get("/skills/{skill_id}", response_model=SkillResponse)
+def get_skill_detail(
+    skill_id: UUID,
+    user: CurrentUser,
+    service: SkillsServiceDependency,
+) -> SkillResponse:
+    """读取已发布技能详情。"""
+
+    return service.get_detail(user, skill_id)
+
+
+@router.get("/users/me/skills", response_model=MySkillsResponse)
+def list_my_skills(user: CurrentUser, service: SkillsServiceDependency) -> MySkillsResponse:
+    """查询当前用户已添加且仍发布的技能。"""
+
+    return service.list_my_skills(user)
+
+
+@router.post(
+    "/users/me/skills",
+    response_model=SkillResponse,
+    status_code=201,
+    dependencies=[Depends(validate_origin)],
+)
+def add_my_skill(
+    payload: AddSkillRequest,
+    user: CurrentUser,
+    service: SkillsServiceDependency,
+) -> SkillResponse:
+    """将已发布技能添加到当前用户列表。"""
+
+    return service.add_skill(user, payload.skill_id)
+
+
+@router.delete(
+    "/users/me/skills/{skill_id}",
+    status_code=204,
+    dependencies=[Depends(validate_origin)],
+)
+def remove_my_skill(
+    skill_id: UUID,
+    user: CurrentUser,
+    service: SkillsServiceDependency,
+) -> Response:
+    """移除当前用户与技能的关联。"""
+
+    service.remove_skill(user, skill_id)
+    return Response(status_code=204)

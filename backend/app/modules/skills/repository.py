@@ -1,0 +1,151 @@
+"""封装技能相关 SQLAlchemy 查询，不处理 HTTP 或业务错误。"""
+
+from datetime import datetime
+from uuid import UUID, uuid4
+
+from sqlalchemy import and_, delete, func, select
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Session
+
+from app.modules.skills.models import Skill, UserSkill
+
+GENERAL_CHAT = {
+    "code": "general_chat",
+    "name": "通用对话助手",
+    "description": "支持日常问答和多轮对话",
+    "type": "agent",
+    "status": "published",
+}
+
+
+def list_market_skills(
+    session: Session,
+    user_id: int,
+    *,
+    skill_type: str | None,
+    keyword: str | None,
+    page: int,
+    page_size: int,
+) -> tuple[list[tuple[Skill, bool]], int]:
+    """分页查询已发布技能，并通过单次外连接获取用户添加状态。"""
+
+    filters = [Skill.status == "published"]
+    if skill_type is not None:
+        filters.append(Skill.type == skill_type)
+    if keyword:
+        escape_character = chr(92)
+        escaped_keyword = (
+            keyword.replace(escape_character, escape_character * 2)
+            .replace("%", f"{escape_character}%")
+            .replace("_", f"{escape_character}_")
+        )
+        filters.append(Skill.name.ilike(f"%{escaped_keyword}%", escape=escape_character))
+
+    total = session.scalar(select(func.count()).select_from(Skill).where(*filters)) or 0
+    statement = (
+        select(Skill, UserSkill.id.is_not(None))
+        .outerjoin(
+            UserSkill,
+            and_(UserSkill.skill_id == Skill.id, UserSkill.user_id == user_id),
+        )
+        .where(*filters)
+        .order_by(Skill.created_at.desc(), Skill.id.asc())
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    )
+    return list(session.execute(statement).tuples()), total
+
+
+def get_market_skill(session: Session, user_id: int, skill_id: UUID) -> tuple[Skill, bool] | None:
+    """读取已发布技能详情及当前用户的添加状态。"""
+
+    statement = (
+        select(Skill, UserSkill.id.is_not(None))
+        .outerjoin(
+            UserSkill,
+            and_(UserSkill.skill_id == Skill.id, UserSkill.user_id == user_id),
+        )
+        .where(Skill.id == skill_id, Skill.status == "published")
+    )
+    result = session.execute(statement).first()
+    return (result[0], result[1]) if result is not None else None
+
+
+def list_user_skills(session: Session, user_id: int) -> list[tuple[Skill, datetime]]:
+    """按添加时间倒序列出当前用户已添加且仍发布的技能。"""
+
+    statement = (
+        select(Skill, UserSkill.created_at)
+        .join(UserSkill, UserSkill.skill_id == Skill.id)
+        .where(UserSkill.user_id == user_id, Skill.status == "published")
+        .order_by(UserSkill.created_at.desc(), UserSkill.id.desc())
+    )
+    return list(session.execute(statement).tuples())
+
+
+def get_published_skill(session: Session, skill_id: UUID) -> Skill | None:
+    """查找可供新用户添加的技能。"""
+
+    return session.scalar(select(Skill).where(Skill.id == skill_id, Skill.status == "published"))
+
+
+def user_has_skill(session: Session, user_id: int, skill_id: UUID) -> bool:
+    """检查用户是否已有技能关联。"""
+
+    return (
+        session.scalar(
+            select(UserSkill.id).where(
+                UserSkill.user_id == user_id,
+                UserSkill.skill_id == skill_id,
+            )
+        )
+        is not None
+    )
+
+
+def add_user_skill(session: Session, user_id: int, skill_id: UUID) -> UserSkill:
+    """创建用户技能关联并 flush，以便数据库约束立即校验。"""
+
+    user_skill = UserSkill(user_id=user_id, skill_id=skill_id)
+    session.add(user_skill)
+    session.flush()
+    return user_skill
+
+
+def remove_user_skill(session: Session, user_id: int, skill_id: UUID) -> bool:
+    """只删除指定用户自己的关联记录。"""
+
+    result = session.execute(
+        delete(UserSkill).where(
+            UserSkill.user_id == user_id,
+            UserSkill.skill_id == skill_id,
+        )
+    )
+    return result.rowcount == 1
+
+
+def ensure_general_chat_skill(session: Session) -> None:
+    """幂等创建通用对话助手，不覆盖已存在技能的管理员配置。"""
+
+    values = {"id": uuid4(), **GENERAL_CHAT}
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    else:
+        if session.scalar(select(Skill.id).where(Skill.code == GENERAL_CHAT["code"])) is None:
+            session.add(Skill(**values))
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()

@@ -8,13 +8,17 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.agent import create_basic_conversation_agent
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
+from app.infrastructure.database.session import SessionLocal
 from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModelProvider
 from app.modules.auth.errors import AuthError
 from app.modules.conversations.errors import ConversationError
+from app.modules.skills.errors import SkillsError
+from app.modules.skills.repository import ensure_general_chat_skill
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +38,13 @@ def create_agent_lifespan(
         database_url = settings.database_url.replace("postgresql+psycopg://", "postgresql://", 1)
         async with AsyncPostgresSaver.from_conn_string(database_url) as checkpointer:
             await checkpointer.setup()
+            with SessionLocal() as session:
+                try:
+                    ensure_general_chat_skill(session)
+                except SQLAlchemyError:
+                    session.rollback()
+                    logger.exception("general_chat_skill_initialization_failed")
+                    raise
             application.state.conversation_agent = create_basic_conversation_agent(
                 chat_model=chat_model,
                 checkpointer=checkpointer,
@@ -64,6 +75,10 @@ def create_app(
     async def handle_conversation_error(
         _request: Request, error: ConversationError
     ) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+    @application.exception_handler(SkillsError)
+    async def handle_skills_error(_request: Request, error: SkillsError) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
     application.add_middleware(

@@ -38,6 +38,7 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
     )
     checkpointer = FakeCheckpointer()
     observed_urls: list[str] = []
+    seed_sessions: list[object] = []
     agent = object()
 
     @asynccontextmanager
@@ -62,11 +63,16 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         "app.core.application.create_basic_conversation_agent",
         lambda *, chat_model, checkpointer: agent,
     )
+    monkeypatch.setattr(
+        "app.core.application.ensure_general_chat_skill",
+        lambda session: seed_sessions.append(session),
+    )
 
     application = FakeApplication()
     lifespan = create_agent_lifespan(settings)
     async with lifespan(application):
         assert checkpointer.setup_called
+        assert len(seed_sessions) == 1
         assert application.state.conversation_agent is agent
 
     assert observed_urls == ["postgresql://test:test@localhost/test"]
