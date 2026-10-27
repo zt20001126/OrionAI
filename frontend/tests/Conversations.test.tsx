@@ -5,6 +5,7 @@ import App from "../src/app/App";
 import type {
   ConversationMessage,
   ConversationSummary,
+  QuestionContentPart,
 } from "../src/features/conversations/conversationApi";
 
 const createdConversationId = "9007199254740993";
@@ -23,6 +24,31 @@ function textMessage(
     content: { parts: [{ type: "text", text }] },
     created_at: createdAt,
   };
+}
+
+function singleChoiceQuestion(
+  id: string,
+  title: string,
+  labels: string[],
+): QuestionContentPart["questions"][number] {
+  return {
+    id,
+    title,
+    type: "SingleChoice",
+    allow_custom_input: false,
+    options: labels.map((label) => ({ label, description: `${label}选项。` })),
+  };
+}
+
+function getQuestionPartForTest(
+  message: ConversationMessage | undefined,
+): QuestionContentPart | null {
+  if (message?.role !== "assistant") return null;
+
+  return (
+    message.content.parts.find((part): part is QuestionContentPart => part.type === "question") ??
+    null
+  );
 }
 
 function createBackend(options?: {
@@ -92,41 +118,52 @@ function createBackend(options?: {
         const items = messages.get(conversationId) ?? [];
         const userText = typeof body?.message === "string" ? body.message : "";
         items.push(textMessage(String(nextMessageId++), conversationId, "user", userText));
-        const assistantMessage =
+        const questions: QuestionContentPart["questions"] | null =
           userText === "请先问我一个选择题"
-            ? {
-                id: String(nextMessageId++),
-                conversation_id: conversationId,
-                role: "assistant" as const,
-                content: {
-                  parts: [
-                    {
-                      type: "question" as const,
-                      questions: [
-                        {
-                          id: "response_style",
-                          title: "你希望回答采用哪种风格？",
-                          type: "SingleChoice" as const,
-                          allow_custom_input: false as const,
-                          options: [
-                            { label: "简洁", description: "优先使用较短内容。" },
-                            { label: "详细", description: "提供背景和步骤。" },
-                            { label: "正式", description: "采用正式书面表达。" },
-                            { label: "轻松", description: "采用轻松自然的语气。" },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-                created_at: createdAt,
-              }
-            : textMessage(
-                String(nextMessageId++),
-                conversationId,
-                "assistant",
-                `已回答：${userText}`,
-              );
+            ? [
+                singleChoiceQuestion("response_style", "你希望回答采用哪种风格？", [
+                  "简洁",
+                  "详细",
+                  "正式",
+                  "轻松",
+                ]),
+              ]
+            : userText === "请发我三道题"
+              ? [
+                  singleChoiceQuestion("main_issue", "你目前遇到的主要问题是什么？", [
+                    "选择一",
+                    "选择二",
+                    "选择三",
+                    "选择四",
+                  ]),
+                  singleChoiceQuestion("experience", "你目前的工作年限是多少？", [
+                    "1 年内",
+                    "1–3 年",
+                    "3–8 年",
+                    "8 年以上",
+                  ]),
+                  singleChoiceQuestion("priority", "你最看重工作的哪一方面？", [
+                    "薪资待遇",
+                    "技术成长",
+                    "工作稳定性",
+                    "工作内容",
+                  ]),
+                ]
+              : null;
+        const assistantMessage = questions
+          ? {
+              id: String(nextMessageId++),
+              conversation_id: conversationId,
+              role: "assistant" as const,
+              content: { parts: [{ type: "question" as const, questions }] },
+              created_at: createdAt,
+            }
+          : textMessage(
+              String(nextMessageId++),
+              conversationId,
+              "assistant",
+              `已回答：${userText}`,
+            );
         items.push(assistantMessage);
         messages.set(conversationId, items);
         const conversation = conversations.find((item) => item.id === conversationId);
@@ -146,15 +183,17 @@ function createBackend(options?: {
       if (answersRoute && method === "POST") {
         const conversationId = answersRoute[1];
         const items = messages.get(conversationId) ?? [];
-        const answers = body?.answers ?? {};
-        items.push(
-          textMessage(
-            String(nextMessageId++),
-            conversationId,
-            "user",
-            `已提交选择：${JSON.stringify(answers)}`,
-          ),
-        );
+        const answers =
+          body?.answers && typeof body.answers === "object" && !Array.isArray(body.answers)
+            ? (body.answers as Record<string, unknown>)
+            : {};
+        const latestQuestion = getQuestionPartForTest(items.at(-1));
+        const answerText = latestQuestion
+          ? `用户已提交以下选择：\n${latestQuestion.questions
+              .map((question) => `- ${question.title}：${String(answers[question.id] ?? "")}`)
+              .join("\n")}`
+          : "用户已提交以下选择：";
+        items.push(textMessage(String(nextMessageId++), conversationId, "user", answerText));
         const assistantMessage = textMessage(
           String(nextMessageId++),
           conversationId,
@@ -196,12 +235,14 @@ describe("OrionAI conversations", () => {
     fireEvent.click(await screen.findByRole("button", { name: /通用对话助手/ }));
     expect(await screen.findByText("有什么问题，尽管问我。")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("textbox", { name: "发送消息" }), {
+    const messageInput = screen.getByRole("textbox", { name: "发送消息" });
+    fireEvent.change(messageInput, {
       target: { value: "你好" },
     });
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
 
     expect(await screen.findByText("已回答：你好")).toBeInTheDocument();
+    expect(messageInput).toHaveFocus();
     expect(window.location.pathname).toBe(`/chat/${createdConversationId}`);
     expect(
       backend.calls.some(
@@ -222,6 +263,7 @@ describe("OrionAI conversations", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
     expect(await screen.findByText("已回答：再问一个问题")).toBeInTheDocument();
+    expect(messageInput).toHaveFocus();
     expect(window.location.pathname).toBe(`/chat/${createdConversationId}`);
   });
 
@@ -239,9 +281,14 @@ describe("OrionAI conversations", () => {
     const option = await screen.findByRole("radio", { name: /简洁/ });
     expect(screen.getByRole("button", { name: "发送消息" })).toBeDisabled();
     fireEvent.click(option);
-    fireEvent.click(screen.getByRole("button", { name: "提交选择" }));
+    fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
     expect(await screen.findByText("已按选择继续对话。")).toBeInTheDocument();
+    expect(screen.getByText(/已提交回答 · 共 1 题/)).toBeInTheDocument();
+    expect(screen.getByText("简洁", { selector: "strong" })).toBeInTheDocument();
+    expect(
+      document.querySelector(".conversation-message--user .conversation-message__label"),
+    ).toBeNull();
     expect(
       backend.calls.some(
         ({ url, method, body }) =>
@@ -255,6 +302,98 @@ describe("OrionAI conversations", () => {
     ).toBe(true);
   });
 
+  it("retains a selected answer when submission fails and allows retry", async () => {
+    window.history.replaceState({}, "", "/chat");
+    const backend = createBackend();
+    const originalFetch = backend.fetchMock.getMockImplementation();
+    if (!originalFetch) throw new Error("对话接口 mock 未初始化。");
+    let failNextAnswer = true;
+    backend.fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost");
+      if (failNextAnswer && url.pathname.endsWith("/answers") && init?.method === "POST") {
+        failNextAnswer = false;
+        return {
+          ok: false,
+          status: 503,
+          json: async () => ({ detail: "题目服务暂不可用。" }),
+        } as Response;
+      }
+      return originalFetch(input, init);
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "请先问我一个选择题" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    const option = await screen.findByRole("radio", { name: /简洁/ });
+    fireEvent.click(option);
+    fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("题目服务暂不可用。");
+    expect(screen.getByRole("radio", { name: /简洁/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
+
+    expect(await screen.findByText(/已提交回答 · 共 1 题/)).toBeInTheDocument();
+  });
+
+  it("walks through a multi-question card and submits retained answers once", async () => {
+    window.history.replaceState({}, "", "/chat");
+    const backend = createBackend();
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "请发我三道题" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+
+    expect(await screen.findByText("你目前遇到的主要问题是什么？")).toBeInTheDocument();
+    expect(screen.queryByText("你目前的工作年限是多少？")).not.toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "答题进度" })).toHaveAttribute(
+      "aria-valuenow",
+      "1",
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: /选择一/ }));
+    fireEvent.click(screen.getByRole("button", { name: /下一题/ }));
+    expect(screen.getByText("你目前的工作年限是多少？")).toBeInTheDocument();
+    expect(screen.queryByText("你目前遇到的主要问题是什么？")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: /1–3 年/ }));
+    fireEvent.click(screen.getByRole("button", { name: /上一题/ }));
+    expect(screen.getByRole("radio", { name: /选择一/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: /下一题/ }));
+    fireEvent.click(screen.getByRole("button", { name: /下一题/ }));
+    expect(screen.getByText("你最看重工作的哪一方面？")).toBeInTheDocument();
+    expect(
+      backend.calls.some(
+        ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers"),
+      ),
+    ).toBe(false);
+
+    fireEvent.click(screen.getByRole("radio", { name: /技术成长/ }));
+    fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
+
+    expect(await screen.findByText("已按选择继续对话。")).toBeInTheDocument();
+    expect(screen.getByText(/已提交回答 · 共 3 题/)).toBeInTheDocument();
+    expect(screen.getByText("你目前遇到的主要问题是什么？")).toBeInTheDocument();
+    expect(screen.getByText("选择一", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("1–3 年", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("技术成长", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "提交答案" })).not.toBeInTheDocument();
+
+    const answerCall = backend.calls.find(
+      ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers"),
+    );
+    expect(answerCall?.body?.answers).toEqual({
+      main_issue: "选择一",
+      experience: "1–3 年",
+      priority: "技术成长",
+    });
+  });
+
   it("keeps Shift+Enter in the draft and sends on Enter", async () => {
     window.history.replaceState({}, "", "/chat");
     const backend = createBackend();
@@ -263,6 +402,9 @@ describe("OrionAI conversations", () => {
 
     const input = await screen.findByRole("textbox", { name: "发送消息" });
     fireEvent.change(input, { target: { value: "通过键盘发送" } });
+    input.focus();
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
     fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
 
     expect(input).toHaveValue("通过键盘发送");
@@ -274,6 +416,7 @@ describe("OrionAI conversations", () => {
 
     fireEvent.keyDown(input, { key: "Enter" });
     expect(await screen.findByText("已回答：通过键盘发送")).toBeInTheDocument();
+    expect(input).toHaveFocus();
   });
 
   it("follows new messages until the user scrolls up during a reply", async () => {
@@ -327,10 +470,14 @@ describe("OrionAI conversations", () => {
 
     messageLog.scrollTop = 350;
     fireEvent.scroll(messageLog);
+    const profileButton = screen.getByRole("button", { name: "更多用户选项" });
+    profileButton.focus();
+    fireEvent.click(profileButton);
     releaseMessageResponse();
 
     expect(await screen.findByText("已回答：继续追问")).toBeInTheDocument();
     expect(messageLog.scrollTop).toBe(350);
+    expect(profileButton).toHaveFocus();
   });
 
   it("renders assistant Markdown and GFM with links kept safe", async () => {
@@ -411,5 +558,48 @@ describe("OrionAI conversations", () => {
 
     expect(await screen.findByText("本季度目标分为三项。")).toBeInTheDocument();
     expect(window.location.pathname).toBe(`/chat/${historyId}`);
+  });
+
+  it("restores a submitted question summary from historical messages", async () => {
+    const conversationId = "9100000000000004";
+    const questions: QuestionContentPart["questions"] = [
+      singleChoiceQuestion("work_style", "你偏好的工作方式是什么？", [
+        "独立完成",
+        "团队协作",
+        "灵活切换",
+        "尚不确定",
+      ]),
+    ];
+    const questionMessage: ConversationMessage = {
+      id: "206",
+      conversation_id: conversationId,
+      role: "assistant",
+      content: { parts: [{ type: "question", questions }] },
+      created_at: createdAt,
+    };
+    window.history.replaceState({}, "", `/chat/${conversationId}`);
+    const backend = createBackend({
+      messages: {
+        [conversationId]: [
+          textMessage("207", conversationId, "user", "请先了解我的偏好"),
+          questionMessage,
+          textMessage(
+            "208",
+            conversationId,
+            "user",
+            "用户已提交以下选择：\n- 你偏好的工作方式是什么？：团队协作",
+          ),
+          textMessage("209", conversationId, "assistant", "我会按团队协作的方式展开。"),
+        ],
+      },
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    expect(await screen.findByText(/已提交回答 · 共 1 题/)).toBeInTheDocument();
+    expect(screen.getByText("你偏好的工作方式是什么？")).toBeInTheDocument();
+    expect(screen.getByText("团队协作", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText(/已完成答题 · 共 1 题/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 });

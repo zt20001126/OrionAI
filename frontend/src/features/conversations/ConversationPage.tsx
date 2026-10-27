@@ -49,6 +49,204 @@ function messageText(message: ConversationMessage): string {
     .join("\n");
 }
 
+interface QuestionAnswerSummaryItem {
+  question: string;
+  answer: string;
+}
+
+interface QuestionAnswerSummaryData {
+  count: number;
+  items: QuestionAnswerSummaryItem[];
+  detailsUnavailable: boolean;
+}
+
+function getQuestionPart(message: ConversationMessage | undefined): QuestionContentPart | null {
+  if (message?.role !== "assistant") return null;
+
+  return (
+    message.content.parts.find((part): part is QuestionContentPart => part.type === "question") ??
+    null
+  );
+}
+
+function getQuestionAnswerSummary(
+  text: string,
+  questionPart?: QuestionContentPart | null,
+): QuestionAnswerSummaryData | null {
+  const answerHeader = "用户已提交以下选择：";
+  if (text.startsWith(answerHeader)) {
+    if (questionPart) {
+      const lines = text.split(/\r?\n/);
+      const items = questionPart.questions.map((question) => {
+        const fullWidthPrefix = `- ${question.title}：`;
+        const asciiPrefix = `- ${question.title}:`;
+        const answerLine = lines.find(
+          (line) => line.startsWith(fullWidthPrefix) || line.startsWith(asciiPrefix),
+        );
+        if (!answerLine) return null;
+
+        const prefix = answerLine.startsWith(fullWidthPrefix) ? fullWidthPrefix : asciiPrefix;
+        const answer = answerLine.slice(prefix.length).trim();
+        return answer ? { question: question.title, answer } : null;
+      });
+
+      if (items.every((item): item is QuestionAnswerSummaryItem => item !== null)) {
+        return { count: items.length, items, detailsUnavailable: false };
+      }
+    }
+
+    const formattedAnswerCount = text
+      .split(/\r?\n/)
+      .filter((line) => /^- .+[:：].+$/u.test(line)).length;
+    if (formattedAnswerCount > 0) {
+      return { count: formattedAnswerCount, items: [], detailsUnavailable: true };
+    }
+  }
+
+  const legacyPrefix = "已提交选择：";
+  if (!text.startsWith(legacyPrefix)) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(text.slice(legacyPrefix.length));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+    const values = Object.values(parsed as Record<string, unknown>);
+    if (values.length === 0 || !values.every((value) => typeof value === "string")) return null;
+    return { count: values.length, items: [], detailsUnavailable: true };
+  } catch {
+    return null;
+  }
+}
+
+interface QuestionWizardProps {
+  currentIndex: number;
+  isSubmitting: boolean;
+  messageId: string;
+  onNext: () => void;
+  onPrevious: () => void;
+  onSelect: (questionId: string, answer: string) => void;
+  onSubmit: () => void;
+  questions: QuestionContentPart["questions"];
+  selectedAnswers: Record<string, string>;
+}
+
+function QuestionWizard({
+  currentIndex,
+  isSubmitting,
+  messageId,
+  onNext,
+  onPrevious,
+  onSelect,
+  onSubmit,
+  questions,
+  selectedAnswers,
+}: QuestionWizardProps) {
+  const question = questions[currentIndex];
+  if (!question) return null;
+
+  const hasSteps = questions.length > 1;
+  const hasAnswer = Boolean(selectedAnswers[question.id]);
+  const isLastQuestion = currentIndex === questions.length - 1;
+
+  return (
+    <section aria-label="问题答题卡" className="question-card">
+      <header className="question-card__header">
+        <strong>需要你的选择</strong>
+        {hasSteps && (
+          <span>
+            第 {currentIndex + 1} / {questions.length} 题
+          </span>
+        )}
+      </header>
+
+      {hasSteps && (
+        <div
+          aria-label="答题进度"
+          aria-valuemax={questions.length}
+          aria-valuemin={1}
+          aria-valuenow={currentIndex + 1}
+          className="question-card__progress"
+          role="progressbar"
+        >
+          <span style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
+        </div>
+      )}
+
+      <fieldset className="question-card__question" disabled={isSubmitting}>
+        <legend>{question.title}</legend>
+        {question.options.map((option) => (
+          <label className="question-card__option" key={option.label}>
+            <input
+              checked={selectedAnswers[question.id] === option.label}
+              name={`question-${messageId}-${question.id}`}
+              onChange={() => onSelect(question.id, option.label)}
+              type="radio"
+              value={option.label}
+            />
+            <span>
+              <strong>{option.label}</strong>
+              <small>{option.description}</small>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+
+      <footer className="question-card__footer">
+        {hasSteps && currentIndex > 0 ? (
+          <button
+            className="button button--outline"
+            disabled={isSubmitting}
+            onClick={onPrevious}
+            type="button"
+          >
+            ← 上一题
+          </button>
+        ) : (
+          <span />
+        )}
+
+        {isLastQuestion ? (
+          <button
+            className="button button--primary"
+            disabled={isSubmitting || !questions.every((item) => selectedAnswers[item.id])}
+            onClick={onSubmit}
+            type="button"
+          >
+            {isSubmitting ? "正在提交…" : "提交答案"}
+          </button>
+        ) : (
+          <button
+            className="button button--primary"
+            disabled={isSubmitting || !hasAnswer}
+            onClick={onNext}
+            type="button"
+          >
+            下一题 →
+          </button>
+        )}
+      </footer>
+    </section>
+  );
+}
+
+function QuestionAnswerSummary({ summary }: { summary: QuestionAnswerSummaryData }) {
+  return (
+    <div aria-label="已提交回答摘要" className="conversation-answer-summary">
+      <strong className="conversation-answer-summary__heading">
+        <span aria-hidden="true">✓</span>
+        已提交回答 · 共 {summary.count} 题
+      </strong>
+      {summary.items.map((item) => (
+        <div className="conversation-answer-summary__item" key={item.question}>
+          <span>{item.question}</span>
+          <strong>{item.answer}</strong>
+        </div>
+      ))}
+      {summary.detailsUnavailable && <p>历史消息未包含完整题目，暂时无法还原选择明细。</p>}
+    </div>
+  );
+}
+
 const markdownComponents: Components = {
   a: ({ href, title, children }) =>
     href ? (
@@ -67,6 +265,10 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     conversationId: string | null;
     answers: Record<string, string>;
   }>({ conversationId: null, answers: {} });
+  const [questionStep, setQuestionStep] = useState<{ messageId: string | null; index: number }>({
+    messageId: null,
+    index: 0,
+  });
   const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingText, setPendingText] = useState<string | null>(null);
@@ -78,7 +280,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   const skipNextRouteLoad = useRef<string | null>(null);
   const messageLogRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
+  const composerSendButtonRef = useRef<HTMLButtonElement>(null);
   const shouldFollowMessagesRef = useRef(true);
+  const shouldRestoreComposerFocusRef = useRef(false);
   const previousConversationIdRef = useRef(conversationId);
   const visibleMessages = useMemo(
     () => (conversationId && loadedConversationId === conversationId ? messages : []),
@@ -141,6 +345,21 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   }, [conversationId, isSubmitting, loadedConversationId, pendingText, visibleMessages]);
 
   useLayoutEffect(() => {
+    if (isSubmitting || !shouldRestoreComposerFocusRef.current) return;
+
+    shouldRestoreComposerFocusRef.current = false;
+    const input = composerInputRef.current;
+    const activeElement = document.activeElement;
+    const focusRemainsInComposer =
+      activeElement === document.body ||
+      activeElement === document.documentElement ||
+      activeElement === input ||
+      activeElement === composerSendButtonRef.current;
+
+    if (input && !input.disabled && focusRemainsInComposer) input.focus();
+  }, [isSubmitting]);
+
+  useLayoutEffect(() => {
     const input = composerInputRef.current;
     if (!input) return;
 
@@ -152,6 +371,10 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   }, [draft]);
 
   const pendingQuestion = useMemo(() => getPendingQuestion(visibleMessages), [visibleMessages]);
+  const currentQuestionIndex =
+    pendingQuestion && questionStep.messageId === pendingQuestion.messageId
+      ? Math.min(questionStep.index, pendingQuestion.part.questions.length - 1)
+      : 0;
   const canSubmitAnswers =
     pendingQuestion !== null &&
     pendingQuestion.part.questions.every((question) => Boolean(selectedAnswers[question.id]));
@@ -182,6 +405,11 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     const text = draft.trim();
     if (!text || isSubmitting || isLoading || pendingQuestion) return;
 
+    const submitter = (event?.nativeEvent as SubmitEvent | undefined)?.submitter;
+    shouldRestoreComposerFocusRef.current =
+      document.activeElement === composerInputRef.current ||
+      document.activeElement === composerSendButtonRef.current ||
+      submitter === composerSendButtonRef.current;
     shouldFollowMessagesRef.current = true;
     setIsSubmitting(true);
     setPendingText(text);
@@ -236,6 +464,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
       await submitQuestionAnswers(conversationId, selectedAnswers);
       await refreshMessages(conversationId);
       setAnswerSelection({ conversationId, answers: {} });
+      setQuestionStep({ messageId: null, index: 0 });
       setHistoryRefreshKey((current) => current + 1);
     } catch (requestError) {
       setErrorState({
@@ -253,10 +482,17 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      void handleSend();
+    if (
+      event.key !== "Enter" ||
+      event.shiftKey ||
+      event.nativeEvent.isComposing ||
+      event.keyCode === 229
+    ) {
+      return;
     }
+
+    event.preventDefault();
+    void handleSend();
   }
 
   function handleMessagesScroll() {
@@ -341,82 +577,74 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
             <p className="conversation-status">暂时无法显示此会话内容。</p>
           )}
 
-          {visibleMessages.map((message) => {
-            const questionPart = message.content.parts.find(
-              (part): part is QuestionContentPart => part.type === "question",
-            );
+          {visibleMessages.map((message, index) => {
+            const questionPart = getQuestionPart(message);
             const isCurrentQuestion = pendingQuestion?.messageId === message.id;
             const text = messageText(message);
+            const previousQuestionPart = getQuestionPart(visibleMessages[index - 1]);
+            const answerSummary =
+              message.role === "user" ? getQuestionAnswerSummary(text, previousQuestionPart) : null;
+            const nextMessage = visibleMessages[index + 1];
+            const hasSubmittedQuestionAnswers =
+              questionPart !== null &&
+              nextMessage?.role === "user" &&
+              getQuestionAnswerSummary(messageText(nextMessage), questionPart) !== null;
 
             return (
               <article
                 className={`conversation-message conversation-message--${message.role}`}
                 key={message.id}
               >
-                <div className="conversation-message__label">
-                  {message.role === "user" ? "你" : "通用对话助手"}
-                </div>
-                {text &&
-                  (message.role === "assistant" ? (
+                {message.role === "assistant" && text && (
+                  <div className="conversation-message__bubble">
+                    <div className="conversation-message__label">通用对话助手</div>
                     <div className="conversation-message__markdown">
                       <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
                         {text}
                       </ReactMarkdown>
                     </div>
+                  </div>
+                )}
+                {message.role === "user" &&
+                  text &&
+                  (answerSummary ? (
+                    <QuestionAnswerSummary summary={answerSummary} />
                   ) : (
                     <p className="conversation-message__text">{text}</p>
                   ))}
-                {questionPart && (
-                  <div className="question-card">
-                    {questionPart.questions.map((question) => (
-                      <fieldset
-                        className="question-card__question"
-                        disabled={!isCurrentQuestion || isSubmitting}
-                        key={question.id}
-                      >
-                        <legend>{question.title}</legend>
-                        {question.options.map((option) => (
-                          <label className="question-card__option" key={option.label}>
-                            <input
-                              checked={
-                                isCurrentQuestion && selectedAnswers[question.id] === option.label
-                              }
-                              name={`question-${message.id}-${question.id}`}
-                              onChange={() =>
-                                setAnswerSelection((current) => ({
-                                  conversationId,
-                                  answers: {
-                                    ...(current.conversationId === conversationId
-                                      ? current.answers
-                                      : {}),
-                                    [question.id]: option.label,
-                                  },
-                                }))
-                              }
-                              type="radio"
-                              value={option.label}
-                            />
-                            <span>
-                              <strong>{option.label}</strong>
-                              <small>{option.description}</small>
-                            </span>
-                          </label>
-                        ))}
-                      </fieldset>
-                    ))}
-                    {isCurrentQuestion && (
-                      <div className="question-card__footer">
-                        <p>请先完成当前题卡，再发送新消息。</p>
-                        <button
-                          className="button button--primary"
-                          disabled={!canSubmitAnswers || isSubmitting}
-                          onClick={() => void handleSubmitAnswers()}
-                          type="button"
-                        >
-                          {isSubmitting ? "正在提交…" : "提交选择"}
-                        </button>
-                      </div>
-                    )}
+                {questionPart && isCurrentQuestion && (
+                  <QuestionWizard
+                    currentIndex={currentQuestionIndex}
+                    isSubmitting={isSubmitting}
+                    messageId={message.id}
+                    onNext={() =>
+                      setQuestionStep({ messageId: message.id, index: currentQuestionIndex + 1 })
+                    }
+                    onPrevious={() =>
+                      setQuestionStep({ messageId: message.id, index: currentQuestionIndex - 1 })
+                    }
+                    onSelect={(questionId, answer) =>
+                      setAnswerSelection((current) => ({
+                        conversationId,
+                        answers: {
+                          ...(current.conversationId === conversationId ? current.answers : {}),
+                          [questionId]: answer,
+                        },
+                      }))
+                    }
+                    onSubmit={() => void handleSubmitAnswers()}
+                    questions={questionPart.questions}
+                    selectedAnswers={selectedAnswers}
+                  />
+                )}
+                {questionPart && !isCurrentQuestion && (
+                  <div
+                    className={`question-card__history${hasSubmittedQuestionAnswers ? " is-complete" : ""}`}
+                    role="status"
+                  >
+                    {hasSubmittedQuestionAnswers
+                      ? `✓ 已完成答题 · 共 ${questionPart.questions.length} 题`
+                      : "此题卡当前不等待答题。"}
                   </div>
                 )}
               </article>
@@ -428,7 +656,6 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
               aria-label="正在发送的消息"
               className="conversation-message conversation-message--user conversation-message--pending"
             >
-              <div className="conversation-message__label">你</div>
               <p className="conversation-message__text">{pendingText}</p>
             </article>
           )}
@@ -462,6 +689,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
               aria-label="发送消息"
               className="button button--primary conversation-composer__send"
               disabled={!draft.trim() || isSubmitting || isLoading || Boolean(pendingQuestion)}
+              ref={composerSendButtonRef}
               type="submit"
             >
               <PlatformIcon name="arrow" size={16} />
