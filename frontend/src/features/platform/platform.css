@@ -72,8 +72,8 @@
 }
 
 .platform-navigation__item:hover {
-  color: var(--color-text);
-  background: var(--color-surface-muted);
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
 }
 
 .platform-navigation__item.is-active {
@@ -125,8 +125,8 @@
 }
 
 .workspace-link:hover {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-muted);
+  border-color: var(--color-brand-line);
+  background: var(--color-brand-soft);
 }
 
 .workspace-link__avatar {
@@ -141,14 +141,14 @@
 }
 
 .workspace-link__copy,
-.sidebar-account__copy {
+.profile-menu__trigger-copy {
   display: grid;
   min-width: 0;
   gap: var(--space-1);
 }
 
 .workspace-link__copy strong,
-.sidebar-account__copy strong {
+.profile-menu__trigger-copy strong {
   overflow: hidden;
   color: var(--color-text-label);
   font-size: var(--font-size-xs);
@@ -158,28 +158,16 @@
 }
 
 .workspace-link__copy small,
-.sidebar-account__copy small {
+.profile-menu__trigger-copy small {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
 }
 
 .sidebar-account {
-  display: flex;
   min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-1);
   padding: 0 var(--space-1);
 }
 
-.sidebar-account__identity {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.sidebar-account__avatar,
 .user-avatar {
   display: grid;
   width: 32px;
@@ -204,6 +192,10 @@
   flex: 0 0 auto;
 }
 
+.profile-menu--sidebar {
+  width: 100%;
+}
+
 .profile-menu__trigger {
   display: inline-flex;
   min-width: 36px;
@@ -224,12 +216,35 @@
 
 .profile-menu__trigger:hover,
 .profile-menu__trigger[aria-expanded="true"] {
-  color: var(--color-text);
-  background: var(--color-surface-muted);
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
 }
 
 .profile-menu__trigger > .user-avatar {
   display: none;
+}
+
+.profile-menu__trigger--sidebar {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-1);
+  text-align: left;
+}
+
+.profile-menu__trigger--sidebar > .user-avatar {
+  display: grid;
+}
+
+.profile-menu__trigger-copy {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.profile-menu__trigger--sidebar > .platform-icon {
+  margin-left: auto;
 }
 
 .profile-menu__popover {
@@ -243,7 +258,18 @@
   border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-menu);
-  animation: platform-pop-in var(--motion-fast) both;
+  animation: platform-pop-in var(--motion-normal) both;
+}
+
+.profile-menu--sidebar .profile-menu__popover {
+  right: auto;
+  left: 0;
+  width: 100%;
+}
+
+.profile-menu__popover.is-closing {
+  pointer-events: none;
+  animation: platform-pop-out var(--motion-normal) both;
 }
 
 .profile-menu__identity {
@@ -304,8 +330,8 @@
 }
 
 .profile-menu__item:hover:not(:disabled) {
-  color: var(--color-text);
-  background: var(--color-surface-muted);
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
 }
 
 .profile-menu__item--danger {
@@ -314,7 +340,7 @@
 
 .profile-menu__item--danger:hover:not(:disabled) {
   color: var(--color-danger);
-  background: var(--color-danger-soft);
+  background: var(--color-surface-muted);
 }
 
 .profile-menu__item:disabled {
@@ -389,8 +415,8 @@
 }
 
 .notification-button:hover {
-  color: var(--color-text);
-  background: var(--color-surface-muted);
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
 }
 
 .notification-button > span {
@@ -457,6 +483,25 @@
   gap: var(--space-7);
 }
 
+.market-intro {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(ellipse at 92% 0%, var(--color-secondary-glow), transparent 42%),
+    radial-gradient(ellipse at 8% 100%, var(--color-brand-glow), transparent 38%),
+    var(--gradient-page-soft);
+}
+
+.market-intro .market-header {
+  min-height: 0;
+}
+
 .market-header {
   display: flex;
   min-height: 88px;
@@ -487,13 +532,13 @@
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   color: var(--color-text-tertiary);
   background: var(--color-surface);
   transition:
-    border-color var(--motion-fast),
-    box-shadow var(--motion-fast);
+    border-color var(--motion-normal),
+    box-shadow var(--motion-normal);
 }
 
 .market-search:focus-within {
@@ -587,9 +632,13 @@
   font-weight: 550;
 }
 
+.category-chip:active {
+  background: var(--color-brand-soft);
+}
+
 .skill-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: var(--space-3);
 }
 
@@ -601,16 +650,21 @@
   align-items: flex-start;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  border-radius: var(--radius-skill-card);
+  background: var(--gradient-card-soft);
+  box-shadow: var(--shadow-subtle);
   transition:
-    border-color var(--motion-fast),
-    background-color var(--motion-fast);
+    border-color var(--motion-normal),
+    background var(--motion-normal),
+    box-shadow var(--motion-normal),
+    transform var(--motion-normal);
 }
 
 .skill-card:hover {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface);
+  border-color: var(--color-brand-line);
+  background: var(--gradient-card-soft);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
 }
 
 .skill-card__icon {
@@ -624,10 +678,47 @@
   place-items: center;
 }
 
+.skill-card__icon--knowledge {
+  border-color: var(--color-brand-line);
+  color: var(--color-agent-icon-ink);
+  background: var(--color-agent-icon);
+}
+
+.skill-card__icon--tools {
+  border-color: var(--color-tool-icon-line);
+  color: var(--color-tool-icon-ink);
+  background: var(--color-tool-icon);
+}
+
 .skill-card__category {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin-top: var(--space-3);
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
+}
+
+.skill-card__status {
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.skill-card__status--added {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.skill-card__status--disabled {
+  color: var(--color-text-tertiary);
+  background: var(--color-control-disabled);
+}
+
+.skill-card__status--available {
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
 }
 
 .skill-card h3 {
@@ -636,6 +727,7 @@
   font-size: var(--font-size-md);
   font-weight: 600;
   letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
 }
 
 .skill-card > p {
@@ -643,6 +735,7 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+  overflow-wrap: anywhere;
 }
 
 .skill-card__action {
@@ -663,6 +756,11 @@
 
 .skill-card__action:hover {
   color: var(--color-brand-hover);
+}
+
+.skill-card__action:disabled {
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
 }
 
 .skill-card__actions {
@@ -888,6 +986,18 @@
   }
 }
 
+@keyframes platform-pop-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  to {
+    transform: translateY(3px);
+    opacity: 0;
+  }
+}
+
 @keyframes platform-dialog-in {
   from {
     transform: translateY(5px);
@@ -903,10 +1013,6 @@
 @media (max-width: 1120px) {
   .platform-shell {
     grid-template-columns: 216px minmax(0, 1fr);
-  }
-
-  .skill-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -988,6 +1094,12 @@
     min-height: 0;
     padding: var(--space-3);
   }
+
+  .market-intro {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+    padding: var(--space-5);
+  }
 }
 
 @media (max-width: 560px) {
@@ -1025,6 +1137,11 @@
 
   .market-page {
     gap: var(--space-6);
+  }
+
+  .market-intro {
+    gap: var(--space-4);
+    padding: var(--space-4);
   }
 
   .market-header {

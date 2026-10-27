@@ -49,7 +49,7 @@ class Skill(Base):
 
 
 class UserSkill(Base):
-    """将一个用户关联到平台技能，不复制技能定义。"""
+    """保存用户技能关联及关联时的技能名称快照。"""
 
     __tablename__ = "user_skills"
     __table_args__ = (
@@ -72,6 +72,9 @@ class UserSkill(Base):
         BigInteger().with_variant(Integer(), "sqlite"),
         ForeignKey("skills.id", ondelete="CASCADE"),
         nullable=False,
+    )
+    skill_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, comment="用户关联技能名称快照"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

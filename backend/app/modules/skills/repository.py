@@ -120,10 +120,10 @@ def user_has_skill_code(session: Session, user_id: int, skill_code: str) -> bool
     return session.scalar(statement) is not None
 
 
-def add_user_skill(session: Session, user_id: int, skill_id: int) -> UserSkill:
+def add_user_skill(session: Session, user_id: int, skill: Skill) -> UserSkill:
     """创建用户技能关联并 flush，以便数据库约束立即校验。"""
 
-    user_skill = UserSkill(user_id=user_id, skill_id=skill_id)
+    user_skill = UserSkill(user_id=user_id, skill_id=skill.id, skill_name=skill.name)
     session.add(user_skill)
     session.flush()
     return user_skill

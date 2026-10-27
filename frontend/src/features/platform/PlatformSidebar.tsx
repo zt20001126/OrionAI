@@ -1,7 +1,7 @@
 import { BrandMark } from "../auth/ProductIntro";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformIcon } from "./PlatformIcon";
-import { getDisplayName, navigationItems, platformPaths, type PlatformRoute } from "./platformData";
+import { navigationItems, platformPaths, type PlatformRoute } from "./platformData";
 
 interface PlatformSidebarProps {
   account: string;
@@ -18,7 +18,6 @@ export function PlatformSidebar({
   onNavigate,
   pathname,
 }: PlatformSidebarProps) {
-  const displayName = getDisplayName(account);
   const activePath = pathname.startsWith(`${platformPaths.chat}`)
     ? platformPaths.mySkills
     : pathname;
@@ -70,21 +69,13 @@ export function PlatformSidebar({
           </span>
         </button>
         <div className="sidebar-account">
-          <span className="sidebar-account__identity" title={account}>
-            <span className="sidebar-account__avatar" aria-hidden="true">
-              {displayName.charAt(0).toUpperCase()}
-            </span>
-            <span className="sidebar-account__copy">
-              <strong>{displayName}</strong>
-              <small>已登录</small>
-            </span>
-          </span>
           <ProfileMenu
             account={account}
             isLoggingOut={isLoggingOut}
             onLogout={onLogout}
             onNavigate={onNavigate}
             triggerLabel="侧边栏用户菜单"
+            variant="sidebar"
           />
         </div>
       </div>

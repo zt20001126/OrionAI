@@ -96,22 +96,24 @@ export function SkillMarketPage() {
 
   return (
     <div className="market-page">
-      <section className="market-header" aria-labelledby="market-title">
-        <div>
-          <h1 id="market-title">探索 AI 技能，构建专属智能体</h1>
-          <p>发现、使用和管理各类可复用的 AI 能力，快速搭建你的智能体应用。</p>
-        </div>
-      </section>
+      <section aria-labelledby="market-title" className="market-intro">
+        <header className="market-header">
+          <div>
+            <h1 id="market-title">探索 AI 技能，构建专属智能体</h1>
+            <p>发现、使用和管理各类可复用的 AI 能力，快速搭建你的智能体应用。</p>
+          </div>
+        </header>
 
-      <section className="market-search" aria-label="搜索技能">
-        <PlatformIcon name="search" size={21} />
-        <input
-          aria-label="搜索技能"
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="搜索技能名称、说明或编码"
-          type="search"
-          value={search}
-        />
+        <section aria-label="搜索技能" className="market-search">
+          <PlatformIcon name="search" size={21} />
+          <input
+            aria-label="搜索技能"
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="搜索技能名称、说明或编码"
+            type="search"
+            value={search}
+          />
+        </section>
       </section>
 
       <section className="market-section" aria-labelledby="category-title">

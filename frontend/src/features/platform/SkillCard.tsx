@@ -14,6 +14,8 @@ export function SkillCard({ actions, onView, skill }: SkillCardProps) {
   const category = skill.type === "agent" ? "智能体" : "工具";
   const icon = skill.type === "agent" ? "knowledge" : "tools";
   const status = skill.status === "disabled" ? "已停用" : skill.is_added ? "已添加" : "可添加";
+  const statusClass =
+    skill.status === "disabled" ? "disabled" : skill.is_added ? "added" : "available";
 
   return (
     <article className="skill-card">
@@ -21,7 +23,8 @@ export function SkillCard({ actions, onView, skill }: SkillCardProps) {
         <PlatformIcon name={icon} size={25} />
       </div>
       <span className="skill-card__category">
-        {category} · {status}
+        {category}
+        <span className={`skill-card__status skill-card__status--${statusClass}`}>{status}</span>
       </span>
       <h3>{skill.name}</h3>
       <p>{skill.description}</p>

@@ -86,7 +86,9 @@ def _create_skill(
 
 def _add_relation(state: dict[str, Any], user: User, skill_id: int) -> None:
     with state["session_factory"]() as session:
-        session.add(UserSkill(user_id=user.id, skill_id=skill_id))
+        skill = session.get(Skill, skill_id)
+        assert skill is not None
+        session.add(UserSkill(user_id=user.id, skill_id=skill_id, skill_name=skill.name))
         session.commit()
 
 

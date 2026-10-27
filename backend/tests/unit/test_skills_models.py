@@ -27,6 +27,7 @@ def test_skills_models_match_postgresql_schema() -> None:
     assert "CHECK (status IN ('published', 'disabled'))" in skills_ddl
     assert "BIGINT NOT NULL" in user_skills_ddl
     assert "skill_id BIGINT NOT NULL" in user_skills_ddl
+    assert "skill_name VARCHAR(100) NOT NULL" in user_skills_ddl
     assert "user_id BIGINT NOT NULL" in user_skills_ddl
     assert "UNIQUE (user_id, skill_id)" in user_skills_ddl
 
@@ -83,10 +84,10 @@ def test_database_constraints_reject_invalid_values_and_duplicate_relations() ->
             skill = session.scalar(select(Skill).where(Skill.code == "constraint_skill"))
             assert user is not None
             assert skill is not None
-            session.add(UserSkill(user_id=user.id, skill_id=skill.id))
+            session.add(UserSkill(user_id=user.id, skill_id=skill.id, skill_name=skill.name))
             session.commit()
 
-            session.add(UserSkill(user_id=user.id, skill_id=skill.id))
+            session.add(UserSkill(user_id=user.id, skill_id=skill.id, skill_name=skill.name))
             with pytest.raises(IntegrityError):
                 session.flush()
     finally:
@@ -110,6 +111,7 @@ def test_competing_adds_are_guarded_by_the_database_unique_constraint(tmp_path: 
             setup_session.commit()
             user_id = user.id
             skill_id = skill.id
+            skill_name = skill.name
 
         barrier = Barrier(2)
 
@@ -127,7 +129,9 @@ def test_competing_adds_are_guarded_by_the_database_unique_constraint(tmp_path: 
 
             barrier.wait(timeout=5)
             with Session(engine) as session:
-                session.add(UserSkill(user_id=user_id, skill_id=skill_id))
+                session.add(
+                    UserSkill(user_id=user_id, skill_id=skill_id, skill_name=skill_name)
+                )
                 try:
                     session.commit()
                     return True

@@ -158,8 +158,16 @@ def conversation_client() -> Iterator[
         session.flush()
         session.add_all(
             [
-                UserSkill(user_id=owner.id, skill_id=general_chat.id),
-                UserSkill(user_id=other_user.id, skill_id=general_chat.id),
+                UserSkill(
+                    user_id=owner.id,
+                    skill_id=general_chat.id,
+                    skill_name=general_chat.name,
+                ),
+                UserSkill(
+                    user_id=other_user.id,
+                    skill_id=general_chat.id,
+                    skill_name=general_chat.name,
+                ),
             ]
         )
         session.commit()

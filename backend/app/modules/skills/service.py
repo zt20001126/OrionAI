@@ -95,7 +95,7 @@ class SkillsService:
             if repository.user_has_skill(self._session, user.id, skill_id):
                 raise SkillAlreadyAddedError
 
-            repository.add_user_skill(self._session, user.id, skill_id)
+            repository.add_user_skill(self._session, user.id, skill)
             self._session.commit()
             return self._skill_response(skill, True)
         except (SkillAlreadyAddedError, SkillNotFoundError):

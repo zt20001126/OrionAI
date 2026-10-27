@@ -140,7 +140,8 @@ describe("OrionAI platform", () => {
     expect(screen.getByRole("link", { name: /技能市场/ })).toHaveAttribute("aria-current", "page");
     expect(await screen.findByRole("heading", { name: "简历助手" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文献助手" })).toBeInTheDocument();
-    expect(screen.getAllByText("智能体 · 已停用")).toHaveLength(2);
+    expect(screen.getAllByText("已停用")).toHaveLength(2);
+    expect(document.querySelectorAll(".skill-card__status--disabled")).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "通用对话助手" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文档处理工具" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "会话记录" }));
