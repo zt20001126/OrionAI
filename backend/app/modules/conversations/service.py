@@ -2,7 +2,11 @@
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import partial
 
 import anyio
 from pydantic import ValidationError
@@ -12,7 +16,13 @@ from sqlalchemy.orm import Session
 from app.agent.errors import AgentError, AgentInputError
 from app.agent.memory.thread import build_conversation_thread_id
 from app.agent.runtime.base_agent import BaseAgent, invoke_agent_from_worker_thread
-from app.agent.schemas import AgentRequest, AgentResponse, QuestionPayload
+from app.agent.schemas import (
+    AgentRequest,
+    AgentResponse,
+    AgentStreamResult,
+    AgentTextDelta,
+    QuestionPayload,
+)
 from app.modules.auth.models import User
 from app.modules.conversations import repository
 from app.modules.conversations.errors import (
@@ -26,6 +36,8 @@ from app.modules.conversations.schemas import (
     AgentTurnResponse,
     ConversationCreateResponse,
     ConversationListResponse,
+    ConversationQuestionEvent,
+    ConversationTextDeltaEvent,
     MessageContent,
     MessageListResponse,
     MessageResponse,
@@ -37,10 +49,22 @@ from app.modules.conversations.title import (
     fallback_conversation_title,
 )
 from app.modules.skills import repository as skills_repository
+from app.shared.streaming import EventType, StreamEvent
 
 logger = logging.getLogger(__name__)
 MAX_PAGE_SIZE = 100
 DEFAULT_PAGE_SIZE = 50
+
+
+@dataclass(frozen=True)
+class PreparedConversationTurn:
+    """流式响应开始前已校验并保存用户消息的一轮对话。"""
+
+    user_id: int
+    conversation: Conversation
+    message_text: str
+    message_id: int
+    should_generate_title: bool
 
 
 class ConversationService:
@@ -131,6 +155,134 @@ class ConversationService:
     ) -> AgentTurnResponse:
         """保存用户文本，运行 Agent，并保存助手文本或题卡。"""
 
+        prepared = self._prepare_message_turn(user, conversation_id, message_text)
+        if prepared.should_generate_title:
+            agent_response = self._invoke_agent_and_title(
+                user_id=prepared.user_id,
+                conversation=prepared.conversation,
+                message_text=prepared.message_text,
+                message_id=prepared.message_id,
+            )
+        else:
+            agent_response = self._invoke_agent(
+                user_id=prepared.user_id,
+                conversation_id=prepared.conversation.id,
+                message_text=prepared.message_text,
+                message_id=prepared.message_id,
+            )
+        return self._save_agent_response(prepared.conversation, agent_response)
+
+    def answer_questions(
+        self,
+        user: User,
+        conversation_id: int,
+        request: QuestionAnswersRequest,
+    ) -> AgentTurnResponse:
+        """验证当前待答题卡并在原 Checkpointer 线程继续运行。"""
+
+        prepared = self._prepare_answer_turn(user, conversation_id, request)
+        agent_response = self._invoke_agent(
+            user_id=prepared.user_id,
+            conversation_id=prepared.conversation.id,
+            message_text=prepared.message_text,
+            message_id=prepared.message_id,
+        )
+        return self._save_agent_response(prepared.conversation, agent_response)
+
+    def prepare_message_stream(
+        self,
+        user: User,
+        conversation_id: int,
+        message_text: str,
+    ) -> PreparedConversationTurn:
+        """在 SSE 响应头发送前完成普通消息的业务校验和用户消息写入。"""
+
+        return self._prepare_message_turn(user, conversation_id, message_text)
+
+    def prepare_answer_stream(
+        self,
+        user: User,
+        conversation_id: int,
+        request: QuestionAnswersRequest,
+    ) -> PreparedConversationTurn:
+        """在 SSE 响应头发送前校验题卡并保存用户答案。"""
+
+        return self._prepare_answer_turn(user, conversation_id, request)
+
+    async def stream_turn(
+        self,
+        prepared: PreparedConversationTurn,
+    ) -> AsyncIterator[StreamEvent]:
+        """将 Agent 文本增量转为 SSE 消息，并在成功后保存正式结果。"""
+
+        if self._agent is None:
+            raise ConversationUnavailableError
+
+        title_task = (
+            asyncio.create_task(self._title_generator.generate_title(prepared.message_text))
+            if prepared.should_generate_title and self._title_generator is not None
+            else None
+        )
+        agent_response: AgentResponse | None = None
+        thread_id = build_conversation_thread_id(prepared.user_id, prepared.conversation.id)
+        try:
+            async for event in self._agent.astream(
+                AgentRequest(message=prepared.message_text),
+                runnable_config={"configurable": {"thread_id": thread_id}},
+                message_id=str(prepared.message_id),
+            ):
+                if isinstance(event, AgentTextDelta):
+                    payload = ConversationTextDeltaEvent(
+                        type="text_delta",
+                        content=event.content,
+                    )
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data=payload.model_dump(mode="json"),
+                    )
+                elif isinstance(event, AgentStreamResult):
+                    agent_response = event.response
+
+            if agent_response is None:
+                raise ConversationUnavailableError
+
+            await self._finish_stream_title(prepared, title_task)
+            persisted_turn = await anyio.to_thread.run_sync(
+                self._save_stream_response,
+                prepared,
+                agent_response,
+            )
+        except asyncio.CancelledError:
+            if title_task is not None:
+                title_task.cancel()
+                with suppress(asyncio.CancelledError, Exception):
+                    await title_task
+            with anyio.CancelScope(shield=True):
+                with suppress(Exception):
+                    await self._finish_stream_title(prepared, None)
+            raise
+        except Exception as error:
+            await self._finish_stream_title(prepared, title_task)
+            self._raise_agent_error(error)
+
+        if persisted_turn.status == "waiting":
+            payload = ConversationQuestionEvent(
+                type="question",
+                message=persisted_turn.message,
+            )
+            yield StreamEvent(
+                event_type=EventType.MESSAGE,
+                data=payload.model_dump(mode="json"),
+            )
+
+    def _prepare_message_turn(
+        self,
+        user: User,
+        conversation_id: int,
+        message_text: str,
+    ) -> PreparedConversationTurn:
+        """校验普通消息并按现有顺序先提交用户消息。"""
+
         conversation = self._get_conversation_safely(
             user.id,
             conversation_id,
@@ -145,33 +297,22 @@ class ConversationService:
         except SQLAlchemyError:
             self._session.rollback()
             raise ConversationUnavailableError from None
-        user_message = self._save_user_message(
-            conversation,
-            message_text,
+        user_message = self._save_user_message(conversation, message_text)
+        return PreparedConversationTurn(
+            user_id=user.id,
+            conversation=conversation,
+            message_text=message_text,
+            message_id=user_message.id,
+            should_generate_title=should_generate_title,
         )
-        if should_generate_title:
-            agent_response = self._invoke_agent_and_title(
-                user_id=user.id,
-                conversation=conversation,
-                message_text=message_text,
-                message_id=user_message.id,
-            )
-        else:
-            agent_response = self._invoke_agent(
-                user_id=user.id,
-                conversation_id=conversation.id,
-                message_text=message_text,
-                message_id=user_message.id,
-            )
-        return self._save_agent_response(conversation, agent_response)
 
-    def answer_questions(
+    def _prepare_answer_turn(
         self,
         user: User,
         conversation_id: int,
         request: QuestionAnswersRequest,
-    ) -> AgentTurnResponse:
-        """验证当前待答题卡并在原 Checkpointer 线程继续运行。"""
+    ) -> PreparedConversationTurn:
+        """校验题卡答案并按现有顺序先提交用户选择。"""
 
         conversation = self._get_conversation_safely(user.id, conversation_id)
         self._require_general_chat_skill(user.id)
@@ -184,13 +325,68 @@ class ConversationService:
 
         answer_text = self._format_answer(question_payload, request)
         user_message = self._save_user_message(conversation, answer_text)
-        agent_response = self._invoke_agent(
+        return PreparedConversationTurn(
             user_id=user.id,
-            conversation_id=conversation.id,
+            conversation=conversation,
             message_text=answer_text,
             message_id=user_message.id,
+            should_generate_title=False,
         )
-        return self._save_agent_response(conversation, agent_response)
+
+    async def _finish_stream_title(
+        self,
+        prepared: PreparedConversationTurn,
+        title_task: asyncio.Task[str | None] | None,
+    ) -> None:
+        """收束并保存首轮标题；标题生成失败时写入首条消息回退值。"""
+
+        if not prepared.should_generate_title:
+            return
+
+        generated_title = None
+        if title_task is not None:
+            try:
+                generated_title = await title_task
+            except asyncio.CancelledError:
+                title_task.cancel()
+                with suppress(asyncio.CancelledError, Exception):
+                    await title_task
+                await self._persist_stream_title(prepared, None)
+                raise
+            except Exception as error:
+                logger.warning(
+                    "conversation_title_task_failed error_type=%s",
+                    type(error).__name__,
+                )
+
+        await self._persist_stream_title(prepared, generated_title)
+
+    async def _persist_stream_title(
+        self,
+        prepared: PreparedConversationTurn,
+        generated_title: str | None,
+    ) -> None:
+        """在取消屏蔽区完成标题保存，避免丢失首轮标题回退。"""
+
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(
+                partial(
+                    self._save_conversation_title,
+                    user_id=prepared.user_id,
+                    conversation_id=prepared.conversation.id,
+                    first_user_message=prepared.message_text,
+                    generated_title=generated_title,
+                )
+            )
+
+    def _save_stream_response(
+        self,
+        prepared: PreparedConversationTurn,
+        response: AgentResponse,
+    ) -> AgentTurnResponse:
+        """保存流式执行的正式助手结果。"""
+
+        return self._save_agent_response(prepared.conversation, response)
 
     def _invoke_agent(
         self,

@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
@@ -11,7 +13,7 @@ from pydantic import PrivateAttr
 from app.agent.config import BASIC_CONVERSATION_AGENT, BaseAgentConfig
 from app.agent.errors import AgentConfigurationError, AgentExecutionError, AgentInputError
 from app.agent.runtime.base_agent import BaseAgent, create_basic_conversation_agent
-from app.agent.schemas import AgentRequest
+from app.agent.schemas import AgentRequest, AgentResponse, AgentStreamResult, AgentTextDelta
 from app.agent.tools.builtin.ask_user_questions import ask_user_questions
 from app.agent.tools.registry import ToolRegistry
 
@@ -94,6 +96,75 @@ async def test_agent_returns_completed_text() -> None:
 
 
 @pytest.mark.anyio
+async def test_agent_streams_text_and_returns_the_same_graph_result() -> None:
+    agent = BaseAgent(
+        config=BaseAgentConfig(system_prompt="请简短回答。"),
+        chat_model=ScriptedChatModel([AIMessage(content="你好。")]),
+    )
+
+    events = [event async for event in agent.astream("你好")]
+
+    assert events[0] == AgentTextDelta(content="你好。")
+    assert events[-1] == AgentStreamResult(
+        response=AgentResponse(
+            agent=BASIC_CONVERSATION_AGENT,
+            status="completed",
+            answer="你好。",
+        )
+    )
+    assert len(events) == 2
+
+
+@pytest.mark.anyio
+async def test_agent_closes_graph_stream_when_consumer_cancels() -> None:
+    closed = asyncio.Event()
+
+    class BlockingTextMessage:
+        node = "agent_node"
+
+        @property
+        def text(self) -> AsyncIterator[str]:
+            async def chunks() -> AsyncIterator[str]:
+                yield "部分回答"
+                await asyncio.Event().wait()
+
+            return chunks()
+
+    class GraphStream:
+        async def __aenter__(self) -> "GraphStream":
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            closed.set()
+
+        @property
+        def messages(self) -> AsyncIterator[BlockingTextMessage]:
+            async def messages() -> AsyncIterator[BlockingTextMessage]:
+                yield BlockingTextMessage()
+
+            return messages()
+
+        async def output(self) -> dict[str, Any]:
+            return {}
+
+    class Graph:
+        async def astream_events(self, *_args: object, **_kwargs: object) -> GraphStream:
+            return GraphStream()
+
+    agent = BaseAgent(
+        config=BaseAgentConfig(system_prompt="请简短回答。"),
+        chat_model=ScriptedChatModel([]),
+    )
+    agent._graph = Graph()  # type: ignore[assignment]
+    stream = agent.astream("你好")
+
+    assert await anext(stream) == AgentTextDelta(content="部分回答")
+    await stream.aclose()
+
+    assert closed.is_set()
+
+
+@pytest.mark.anyio
 async def test_agent_executes_registered_tool_and_returns_model_follow_up() -> None:
     model_tool_call = AIMessage(
         content="",
@@ -128,7 +199,17 @@ async def test_agent_waits_for_question_answers_and_resumes_same_thread() -> Non
     )
     runnable_config = {"configurable": {"thread_id": "test-user:test-conversation"}}
 
-    waiting = await agent.ainvoke("请帮我准备一份内容", runnable_config=runnable_config)
+    waiting_events = [
+        event
+        async for event in agent.astream(
+            "请帮我准备一份内容",
+            runnable_config=runnable_config,
+            message_id="question-message-1",
+        )
+    ]
+    assert isinstance(waiting_events[-1], AgentStreamResult)
+    waiting = waiting_events[-1].response
+    assert not any(isinstance(event, AgentTextDelta) for event in waiting_events)
     resumed = await agent.ainvoke(
         AgentRequest(message="用户已选择：短文"),
         runnable_config=runnable_config,

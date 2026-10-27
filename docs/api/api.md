@@ -26,7 +26,9 @@
 | `GET` | `/api/conversations` | 列出当前用户会话 | Cookie |
 | `GET` | `/api/conversations/{id}/messages` | 分页读取会话消息 | Cookie |
 | `POST` | `/api/conversations/{id}/messages` | 发送文本并获取回答或题卡 | Cookie |
+| `POST` | `/api/conversations/{id}/messages/stream` | 流式发送文本并获取回答或题卡 | Cookie |
 | `POST` | `/api/conversations/{id}/answers` | 提交题卡选项并恢复对话 | Cookie |
+| `POST` | `/api/conversations/{id}/answers/stream` | 提交题卡选项并流式恢复对话 | Cookie |
 | `GET` | `/api/v1/skills` | 分页查询技能市场 | Cookie |
 | `GET` | `/api/v1/skills/{skill_id}` | 查询已发布技能详情 | Cookie |
 | `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加技能 | Cookie |
@@ -175,6 +177,28 @@
 ```
 
 答案题目 ID 集合必须与当前题卡完全相同，选项值必须为该题的有效标签；无待答题卡返回 `409`，答案不匹配返回 `422`。模型或 Checkpointer 暂不可用时返回 `503`，错误文本不会包含底层服务异常。
+
+### 流式对话接口
+
+`POST /api/conversations/{id}/messages/stream` 与 `POST /api/conversations/{id}/answers/stream` 使用与对应 JSON 接口相同的请求体、Cookie 登录、Origin 校验、会话所有权和技能要求。原 JSON 接口保持不变。
+
+两个流式接口返回 `Content-Type: text/event-stream`。帧外层复用通用 `StreamEvent`：SSE 的 `id`、`event`、`data` 字段中，`data` 是 JSON，包含 `event_id`、`event_type`、`timestamp` 和业务 `data`。连接按 `start`、零到多条 `message`、空闲时的 `heartbeat`，最后一条 `end` 发送。共享响应设置 `Cache-Control: no-cache, no-transform` 与 `X-Accel-Buffering: no`。
+
+普通回答按增量发送：
+
+```json
+{"type":"text_delta","content":"你好"}
+```
+
+Agent 需要用户选择时，发送完整且已保存的题卡消息：
+
+```json
+{"type":"question","message":{"id":"...","conversation_id":"...","role":"assistant","content":{"parts":[{"type":"question","questions":[...]}]},"created_at":"..."}}
+```
+
+`end.data.status` 为 `completed` 表示传输成功结束；若上游 Agent 或最终持久化在 SSE 开始后失败，则为 `failed`，且不带异常详情。登录、权限、请求校验、当前题卡状态等可在发送响应头前判断的错误仍返回原 HTTP 状态码及 JSON 错误格式。对于题卡等待结果，客户端根据此前的 `question` 事件进入待答状态。
+
+用户消息在模型调用前提交；只有 Agent 完成后，完整文本或题卡才写入消息表。中途断连或生成失败时不会保存部分助手回答，已提交的用户消息可能仍在历史中。浏览器客户端使用带 Cookie 的 Fetch POST 和 `ReadableStream` 读取事件，不自动重发失败消息。
 
 ### 技能市场 API
 

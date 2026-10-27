@@ -1,7 +1,7 @@
 """提供 BaseAgent 门面，隔离 LangGraph 状态、工具调用与应用 Service。"""
 
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import AsyncIterator, Iterable, Mapping
 from functools import partial
 from typing import Any
 
@@ -24,7 +24,14 @@ from app.agent.errors import (
 from app.agent.graph import build_conversation_graph
 from app.agent.nodes.tool import ASK_USER_QUESTIONS_TOOL_NAME
 from app.agent.prompts.loader import load_default_chat_system_prompt
-from app.agent.schemas import AgentRequest, AgentResponse, QuestionPayload
+from app.agent.schemas import (
+    AgentRequest,
+    AgentResponse,
+    AgentStreamEvent,
+    AgentStreamResult,
+    AgentTextDelta,
+    QuestionPayload,
+)
 from app.agent.tools.builtin.ask_user_questions import ask_user_questions
 from app.agent.tools.registry import ToolRegistry
 
@@ -100,6 +107,59 @@ class BaseAgent:
                 type(error).__name__,
             )
             raise AgentExecutionError("智能体执行失败。", code="agent_execution_failed") from None
+
+        return self._response_from_result(result)
+
+    async def astream(
+        self,
+        request: AgentRequest | str | Mapping[str, Any],
+        *,
+        runnable_config: RunnableConfig | None = None,
+        message_id: str | None = None,
+    ) -> AsyncIterator[AgentStreamEvent]:
+        """执行同一对话图，并依次产出文本增量及正式结果。"""
+
+        try:
+            normalized_request = (
+                request
+                if isinstance(request, AgentRequest)
+                else AgentRequest.model_validate(
+                    {"message": request} if isinstance(request, str) else request
+                )
+            )
+        except ValidationError:
+            raise AgentInputError("智能体输入格式无效。", code="invalid_agent_request") from None
+
+        graph_config = self._prepare_runnable_config(runnable_config)
+        human_message = HumanMessage(content=normalized_request.message, id=message_id)
+        try:
+            stream = await self._graph.astream_events(
+                {"messages": [human_message]},
+                config=graph_config,
+                version="v3",
+            )
+            async with stream:
+                async for message in stream.messages:
+                    if message.node != "agent_node":
+                        continue
+                    async for content in message.text:
+                        if content:
+                            yield AgentTextDelta(content=content)
+
+                result = await stream.output()
+            yield AgentStreamResult(response=self._response_from_result(result or {}))
+        except AgentError:
+            raise
+        except Exception as error:
+            logger.warning(
+                "agent_stream_execution_failed agent=%s error_type=%s",
+                self._config.agent,
+                type(error).__name__,
+            )
+            raise AgentExecutionError("智能体执行失败。", code="agent_execution_failed") from None
+
+    def _response_from_result(self, result: Mapping[str, Any]) -> AgentResponse:
+        """将 LangGraph 完整状态映射为对外 Agent 响应。"""
 
         messages = result.get("messages", [])
         last_message = messages[-1] if messages else None

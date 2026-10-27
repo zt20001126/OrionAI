@@ -114,3 +114,17 @@ class AgentTurnResponse(BaseModel):
 
     status: Literal["completed", "waiting"] = Field(description="回答完成或等待用户选择。")
     message: MessageResponse = Field(description="本轮新生成的助手消息。")
+
+
+class ConversationTextDeltaEvent(BaseModel):
+    """流式回答中的一个文本增量。"""
+
+    type: Literal["text_delta"] = Field(description="文本增量事件。")
+    content: str = Field(min_length=1, description="本次新增的助手文本。")
+
+
+class ConversationQuestionEvent(BaseModel):
+    """Agent 需要用户选择时发送的完整题卡消息。"""
+
+    type: Literal["question"] = Field(description="题卡事件。")
+    message: MessageResponse = Field(description="已持久化的题卡助手消息。")

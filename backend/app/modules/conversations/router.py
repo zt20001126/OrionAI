@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 
 from app.modules.auth.dependencies import validate_origin
 from app.modules.conversations.dependencies import ConversationServiceDependency, CurrentUser
@@ -14,6 +15,7 @@ from app.modules.conversations.schemas import (
     MessageListResponse,
     QuestionAnswersRequest,
 )
+from app.shared.streaming import create_sse_response
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 PageLimit = Annotated[int, Query(ge=1, le=100, description="每页条数，最大 100。")]
@@ -61,6 +63,22 @@ def list_messages(
 
 
 @router.post(
+    "/{conversation_id}/messages/stream",
+    dependencies=[Depends(validate_origin)],
+)
+def stream_message(
+    conversation_id: int,
+    payload: MessageCreateRequest,
+    user: CurrentUser,
+    service: ConversationServiceDependency,
+) -> StreamingResponse:
+    """先完成消息预检，再以 SSE 返回 Agent 的逐段回答。"""
+
+    prepared = service.prepare_message_stream(user, conversation_id, payload.message)
+    return create_sse_response(service.stream_turn(prepared))
+
+
+@router.post(
     "/{conversation_id}/messages",
     response_model=AgentTurnResponse,
     dependencies=[Depends(validate_origin)],
@@ -90,3 +108,19 @@ def answer_questions(
     """校验当前待答题卡选项并恢复原对话线程。"""
 
     return service.answer_questions(user, conversation_id, payload)
+
+
+@router.post(
+    "/{conversation_id}/answers/stream",
+    dependencies=[Depends(validate_origin)],
+)
+def stream_answers(
+    conversation_id: int,
+    payload: QuestionAnswersRequest,
+    user: CurrentUser,
+    service: ConversationServiceDependency,
+) -> StreamingResponse:
+    """预检并保存题卡答案，再以 SSE 返回恢复后的 Agent 回答。"""
+
+    prepared = service.prepare_answer_stream(user, conversation_id, payload)
+    return create_sse_response(service.stream_turn(prepared))

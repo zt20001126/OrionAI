@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../src/app/App";
@@ -24,6 +24,97 @@ function textMessage(
     content: { parts: [{ type: "text", text }] },
     created_at: createdAt,
   };
+}
+
+function createSseResponse(
+  events: Array<{ event_type: "start" | "message" | "heartbeat" | "end"; data: unknown }>,
+  endGate?: Promise<void>,
+  signal?: AbortSignal | null,
+  deliveryGate?: Promise<void>,
+  onEnd?: () => void,
+): Response {
+  const eventChunks = events.map((event, index) => {
+    const envelope = {
+      event_id: `evt_${index.toString(16).padStart(32, "0")}`,
+      event_type: event.event_type,
+      timestamp: Date.now(),
+      data: event.data,
+    };
+    const bytes = new TextEncoder().encode(
+      `id: ${envelope.event_id}\nevent: ${event.event_type}\ndata: ${JSON.stringify(envelope)}\n\n`,
+    );
+    const chunks: Uint8Array[] = [];
+    for (let offset = 0; offset < bytes.length; offset += 11) {
+      chunks.push(bytes.slice(offset, offset + 11));
+    }
+    return chunks;
+  });
+
+  let eventIndex = 0;
+  let chunkIndex = 0;
+  let endGateReleased = false;
+  let endActionCompleted = false;
+  async function waitForGate(gate: Promise<void>): Promise<void> {
+    if (!signal) {
+      await gate;
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => signal.removeEventListener("abort", abort);
+      const abort = () => {
+        cleanup();
+        reject(new DOMException("Request aborted", "AbortError"));
+      };
+      signal.addEventListener("abort", abort, { once: true });
+      void gate.then(
+        () => {
+          cleanup();
+          resolve();
+        },
+        (error: unknown) => {
+          cleanup();
+          reject(error);
+        },
+      );
+    });
+  }
+  const readChunk = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+    if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
+    if (eventIndex >= eventChunks.length) return { done: true, value: undefined };
+    if (events[eventIndex]?.event_type === "end" && endGate && !endGateReleased) {
+      await waitForGate(endGate);
+      endGateReleased = true;
+    }
+    if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
+    if (events[eventIndex]?.event_type === "end" && !endActionCompleted) {
+      onEnd?.();
+      endActionCompleted = true;
+      if (deliveryGate) await waitForGate(deliveryGate);
+    }
+
+    const chunks = eventChunks[eventIndex] ?? [];
+    const value = chunks[chunkIndex];
+    if (!value) {
+      eventIndex += 1;
+      chunkIndex = 0;
+      return readChunk();
+    }
+    chunkIndex += 1;
+    return { done: false, value };
+  };
+  const body = {
+    getReader: () => ({
+      read: readChunk,
+      releaseLock: () => undefined,
+    }),
+  };
+
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: () => "text/event-stream; charset=utf-8" },
+    body,
+  } as unknown as Response;
 }
 
 function singleChoiceQuestion(
@@ -54,6 +145,8 @@ function getQuestionPartForTest(
 function createBackend(options?: {
   conversations?: ConversationSummary[];
   messages?: Record<string, ConversationMessage[]>;
+  streamEndGate?: Promise<void>;
+  streamDeliveryGate?: Promise<void>;
 }) {
   const conversations = [...(options?.conversations ?? [])];
   const messages = new Map<string, ConversationMessage[]>(
@@ -122,8 +215,11 @@ function createBackend(options?: {
         } as Response;
       }
 
-      const messageRoute = url.pathname.match(/^\/api\/conversations\/([^/]+)\/messages$/);
-      if (messageRoute && method === "GET") {
+      const isMessageStream = url.pathname.endsWith("/messages/stream");
+      const messageRoute = url.pathname.match(
+        /^\/api\/conversations\/([^/]+)\/messages(?:\/stream)?$/,
+      );
+      if (messageRoute && method === "GET" && !isMessageStream) {
         const conversationId = messageRoute[1];
         const items = messages.get(conversationId) ?? [];
         const limit = Number(url.searchParams.get("limit") ?? 50);
@@ -186,15 +282,42 @@ function createBackend(options?: {
               "assistant",
               `已回答：${userText}`,
             );
-        items.push(assistantMessage);
         messages.set(conversationId, items);
-        const conversation = conversations.find((item) => item.id === conversationId);
-        if (conversation) {
-          conversation.updated_at = createdAt;
-          if (!conversation.title && items.filter((item) => item.role === "user").length === 1) {
-            conversation.title = "首条消息自动标题";
+        const persistAssistantMessage = () => {
+          items.push(assistantMessage);
+          messages.set(conversationId, items);
+          const conversation = conversations.find((item) => item.id === conversationId);
+          if (conversation) {
+            conversation.updated_at = createdAt;
+            if (!conversation.title && items.filter((item) => item.role === "user").length === 1) {
+              conversation.title = "首条消息自动标题";
+            }
           }
+        };
+        if (isMessageStream) {
+          const assistantPart = assistantMessage.content.parts[0];
+          const isQuestion = assistantPart?.type === "question";
+          if (isQuestion) persistAssistantMessage();
+          const messageEvents = isQuestion
+            ? [{ type: "question", message: assistantMessage }]
+            : ((assistantPart?.type === "text" ? assistantPart.text : "")
+                .match(/.{1,8}/gu)
+                ?.map((content) => ({ type: "text_delta", content })) ?? []);
+          return createSseResponse(
+            [
+              { event_type: "start", data: {} },
+              ...messageEvents.map((data) => ({ event_type: "message" as const, data })),
+              { event_type: "end", data: { status: "completed" } },
+            ],
+            options?.streamEndGate,
+            init?.signal,
+            options?.streamDeliveryGate,
+            isQuestion ? undefined : persistAssistantMessage,
+          );
         }
+
+        persistAssistantMessage();
+
         return {
           ok: true,
           status: 200,
@@ -206,7 +329,10 @@ function createBackend(options?: {
         } as Response;
       }
 
-      const answersRoute = url.pathname.match(/^\/api\/conversations\/([^/]+)\/answers$/);
+      const isAnswersStream = url.pathname.endsWith("/answers/stream");
+      const answersRoute = url.pathname.match(
+        /^\/api\/conversations\/([^/]+)\/answers(?:\/stream)?$/,
+      );
       if (answersRoute && method === "POST") {
         const conversationId = answersRoute[1];
         const items = messages.get(conversationId) ?? [];
@@ -227,8 +353,32 @@ function createBackend(options?: {
           "assistant",
           "已按选择继续对话。",
         );
-        items.push(assistantMessage);
         messages.set(conversationId, items);
+        const persistAssistantMessage = () => {
+          items.push(assistantMessage);
+          messages.set(conversationId, items);
+        };
+        if (isAnswersStream) {
+          const answer = assistantMessage.content.parts[0];
+          const messageEvents =
+            answer?.type === "text"
+              ? answer.text.match(/.{1,8}/gu)?.map((content) => ({ type: "text_delta", content }))
+              : [];
+          return createSseResponse(
+            [
+              { event_type: "start", data: {} },
+              ...(messageEvents ?? []).map((data) => ({ event_type: "message" as const, data })),
+              { event_type: "end", data: { status: "completed" } },
+            ],
+            options?.streamEndGate,
+            init?.signal,
+            options?.streamDeliveryGate,
+            persistAssistantMessage,
+          );
+        }
+
+        persistAssistantMessage();
+
         return {
           ok: true,
           status: 200,
@@ -253,6 +403,134 @@ afterEach(() => {
 });
 
 describe("OrionAI conversations", () => {
+  it("shows streamed answer text before the turn ends", async () => {
+    window.history.replaceState({}, "", "/chat");
+    let releaseEnd!: () => void;
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve;
+    });
+    const backend = createBackend({ streamEndGate: endGate });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "实时流式" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+
+    expect(await screen.findByText("已回答：实时流式")).toBeInTheDocument();
+    expect(screen.getByText("助手正在生成…")).toBeInTheDocument();
+    releaseEnd();
+    await waitFor(() => {
+      expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("marks partial streamed text as incomplete after switching conversations", async () => {
+    const activeConversationId = "9100000000000010";
+    const otherConversationId = "9100000000000011";
+    const endGate = new Promise<void>(() => undefined);
+    window.history.replaceState({}, "", `/chat/${activeConversationId}`);
+    const backend = createBackend({
+      conversations: [
+        {
+          id: activeConversationId,
+          title: "当前会话",
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+        {
+          id: otherConversationId,
+          title: "另一个会话",
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+      ],
+      messages: {
+        [activeConversationId]: [
+          textMessage("210", activeConversationId, "user", "之前的问题"),
+          textMessage("211", activeConversationId, "assistant", "之前的回答"),
+        ],
+        [otherConversationId]: [
+          textMessage("212", otherConversationId, "user", "另一段会话的记录"),
+        ],
+      },
+      streamEndGate: endGate,
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "继续追问" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByText("已回答：继续追问")).toBeInTheDocument();
+    expect(screen.getByText("助手正在生成…")).toBeInTheDocument();
+
+    window.history.pushState({}, "", `/chat/${otherConversationId}`);
+    fireEvent.popState(window);
+    expect(await screen.findByText("另一段会话的记录")).toBeInTheDocument();
+
+    window.history.pushState({}, "", `/chat/${activeConversationId}`);
+    fireEvent.popState(window);
+    expect(await screen.findByRole("article", { name: "未完成的助手回答" })).toBeInTheDocument();
+    expect(screen.getByText("回答未完成，刷新后不会保留这部分内容。")).toBeInTheDocument();
+    expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
+  });
+
+  it("uses the saved answer when disconnect happens before the end event", async () => {
+    const activeConversationId = "9100000000000012";
+    const otherConversationId = "9100000000000013";
+    const deliveryGate = new Promise<void>(() => undefined);
+    window.history.replaceState({}, "", `/chat/${activeConversationId}`);
+    const backend = createBackend({
+      conversations: [
+        {
+          id: activeConversationId,
+          title: "当前会话",
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+        {
+          id: otherConversationId,
+          title: "另一个会话",
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+      ],
+      messages: {
+        [activeConversationId]: [
+          textMessage("213", activeConversationId, "user", "之前的问题"),
+          textMessage("214", activeConversationId, "assistant", "之前的回答"),
+        ],
+        [otherConversationId]: [
+          textMessage("215", otherConversationId, "user", "另一段会话的记录"),
+        ],
+      },
+      streamDeliveryGate: deliveryGate,
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "结束事件前断开" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByText("已回答：结束事件前断开")).toBeInTheDocument();
+    expect(screen.getByText("助手正在生成…")).toBeInTheDocument();
+
+    window.history.pushState({}, "", `/chat/${otherConversationId}`);
+    fireEvent.popState(window);
+    expect(await screen.findByText("另一段会话的记录")).toBeInTheDocument();
+
+    window.history.pushState({}, "", `/chat/${activeConversationId}`);
+    fireEvent.popState(window);
+    expect(await screen.findByText("已回答：结束事件前断开")).toBeInTheDocument();
+    expect(screen.queryByRole("article", { name: "未完成的助手回答" })).not.toBeInTheDocument();
+    expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
+  });
+
   it("creates a conversation on first send and continues multi-turn messages with the string ID", async () => {
     window.history.replaceState({}, "", "/agents");
     const backend = createBackend();
@@ -280,7 +558,7 @@ describe("OrionAI conversations", () => {
     expect(
       backend.calls.some(
         ({ url, method, body }) =>
-          url.pathname === `/api/conversations/${createdConversationId}/messages` &&
+          url.pathname === `/api/conversations/${createdConversationId}/messages/stream` &&
           method === "POST" &&
           body?.message === "你好",
       ),
@@ -320,7 +598,7 @@ describe("OrionAI conversations", () => {
     expect(
       backend.calls.some(
         ({ url, method, body }) =>
-          url.pathname === `/api/conversations/${createdConversationId}/answers` &&
+          url.pathname === `/api/conversations/${createdConversationId}/answers/stream` &&
           method === "POST" &&
           typeof body?.answers === "object" &&
           body.answers !== null &&
@@ -338,7 +616,7 @@ describe("OrionAI conversations", () => {
     let failNextAnswer = true;
     backend.fetchMock.mockImplementation(async (input, init) => {
       const url = new URL(String(input), "http://localhost");
-      if (failNextAnswer && url.pathname.endsWith("/answers") && init?.method === "POST") {
+      if (failNextAnswer && url.pathname.endsWith("/answers/stream") && init?.method === "POST") {
         failNextAnswer = false;
         return {
           ok: false,
@@ -397,7 +675,7 @@ describe("OrionAI conversations", () => {
     expect(screen.getByText("你最看重工作的哪一方面？")).toBeInTheDocument();
     expect(
       backend.calls.some(
-        ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers"),
+        ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers/stream"),
       ),
     ).toBe(false);
 
@@ -413,7 +691,7 @@ describe("OrionAI conversations", () => {
     expect(screen.queryByRole("button", { name: "提交答案" })).not.toBeInTheDocument();
 
     const answerCall = backend.calls.find(
-      ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers"),
+      ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers/stream"),
     );
     expect(answerCall?.body?.answers).toEqual({
       main_issue: "选择一",
@@ -438,7 +716,7 @@ describe("OrionAI conversations", () => {
     expect(input).toHaveValue("通过键盘发送");
     expect(
       backend.calls.some(
-        ({ method, url }) => method === "POST" && url.pathname.endsWith("/messages"),
+        ({ method, url }) => method === "POST" && url.pathname.endsWith("/messages/stream"),
       ),
     ).toBe(false);
 
@@ -466,7 +744,7 @@ describe("OrionAI conversations", () => {
     });
     backend.fetchMock.mockImplementation(async (input, init) => {
       const url = new URL(String(input), "http://localhost");
-      if (url.pathname.endsWith("/messages") && init?.method === "POST") {
+      if (url.pathname.endsWith("/messages/stream") && init?.method === "POST") {
         await responseGate;
       }
       return originalFetch(input, init);
@@ -493,7 +771,7 @@ describe("OrionAI conversations", () => {
       target: { value: "继续追问" },
     });
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
-    expect(await screen.findByText("助手正在回复…")).toBeInTheDocument();
+    expect(await screen.findByText("助手正在生成…")).toBeInTheDocument();
     expect(messageLog.scrollTop).toBe(800);
 
     messageLog.scrollTop = 350;

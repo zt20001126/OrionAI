@@ -134,3 +134,20 @@ class AgentResponse(BaseModel):
         elif self.answer is not None or self.questions is None:
             raise ValueError("waiting 结果必须只包含 questions。")
         return self
+
+
+class AgentTextDelta(BaseModel):
+    """Agent 流中的一段用户可见文本。"""
+
+    type: Literal["text_delta"] = "text_delta"
+    content: str = Field(min_length=1, description="本次新增的助手文本。")
+
+
+class AgentStreamResult(BaseModel):
+    """Agent 流完成后得到的正式结果。"""
+
+    type: Literal["result"] = "result"
+    response: AgentResponse = Field(description="本轮完整回答或待答题卡。")
+
+
+AgentStreamEvent = AgentTextDelta | AgentStreamResult

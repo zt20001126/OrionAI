@@ -17,8 +17,8 @@ import {
   createConversation,
   getConversationErrorMessage,
   listAllMessages,
-  sendConversationMessage,
-  submitQuestionAnswers,
+  streamConversationMessage,
+  streamQuestionAnswers,
   type ConversationMessage,
   type QuestionContentPart,
 } from "./conversationApi";
@@ -272,12 +272,18 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingText, setPendingText] = useState<string | null>(null);
+  const [streamedOutput, setStreamedOutput] = useState<{
+    conversationId: string | null;
+    text: string;
+    status: "streaming" | "completed" | "failed";
+  } | null>(null);
   const [errorState, setErrorState] = useState<{
     conversationId: string | null;
     message: string;
   } | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const skipNextRouteLoad = useRef<string | null>(null);
+  const activeStreamControllerRef = useRef<AbortController | null>(null);
   const messageLogRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
   const composerSendButtonRef = useRef<HTMLButtonElement>(null);
@@ -292,6 +298,15 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     answerSelection.conversationId === conversationId ? answerSelection.answers : {};
   const isLoading = Boolean(conversationId) && loadedConversationId !== conversationId;
   const error = errorState?.conversationId === conversationId ? errorState.message : null;
+  const currentStreamedOutput =
+    streamedOutput &&
+    (streamedOutput.conversationId === conversationId || (!conversationId && pendingText !== null))
+      ? streamedOutput
+      : null;
+
+  useEffect(() => {
+    return () => activeStreamControllerRef.current?.abort();
+  }, [conversationId]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -342,7 +357,14 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     ) {
       log.scrollTop = log.scrollHeight;
     }
-  }, [conversationId, isSubmitting, loadedConversationId, pendingText, visibleMessages]);
+  }, [
+    conversationId,
+    currentStreamedOutput?.text,
+    isSubmitting,
+    loadedConversationId,
+    pendingText,
+    visibleMessages,
+  ]);
 
   useLayoutEffect(() => {
     if (isSubmitting || !shouldRestoreComposerFocusRef.current) return;
@@ -400,39 +422,127 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     }
   }
 
+  async function reconcileAbortedStream(
+    targetConversationId: string | null,
+    previousMessageId: string | null,
+    submittedUserText: string,
+  ): Promise<void> {
+    if (!targetConversationId) {
+      setStreamedOutput((current) =>
+        current?.conversationId === null ? { ...current, status: "failed" } : current,
+      );
+      return;
+    }
+
+    let refreshedMessages: ConversationMessage[];
+    try {
+      refreshedMessages = await listAllMessages(targetConversationId);
+    } catch {
+      setStreamedOutput((current) =>
+        current?.conversationId === targetConversationId
+          ? { ...current, status: "failed" }
+          : current,
+      );
+      return;
+    }
+
+    const previousMessageIndex = previousMessageId
+      ? refreshedMessages.findIndex((message) => message.id === previousMessageId)
+      : -1;
+    const turnMessages = refreshedMessages.slice(previousMessageIndex + 1);
+    let submittedUserIndex = -1;
+    turnMessages.forEach((message, index) => {
+      if (message.role === "user" && messageText(message) === submittedUserText) {
+        submittedUserIndex = index;
+      }
+    });
+    const hasPersistedAssistant =
+      submittedUserIndex >= 0 &&
+      turnMessages.slice(submittedUserIndex + 1).some((message) => message.role === "assistant");
+
+    setStreamedOutput((current) => {
+      if (current?.conversationId !== targetConversationId) return current;
+      return hasPersistedAssistant ? null : { ...current, status: "failed" };
+    });
+    if (hasPersistedAssistant) setHistoryRefreshKey((current) => current + 1);
+  }
+
   async function handleSend(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const text = draft.trim();
     if (!text || isSubmitting || isLoading || pendingQuestion) return;
 
     const submitter = (event?.nativeEvent as SubmitEvent | undefined)?.submitter;
+    const previousMessageId = visibleMessages.at(-1)?.id ?? null;
     shouldRestoreComposerFocusRef.current =
       document.activeElement === composerInputRef.current ||
       document.activeElement === composerSendButtonRef.current ||
       submitter === composerSendButtonRef.current;
     shouldFollowMessagesRef.current = true;
+    const controller = new AbortController();
+    activeStreamControllerRef.current = controller;
     setIsSubmitting(true);
     setPendingText(text);
+    setStreamedOutput({ conversationId, text: "", status: "streaming" });
     setErrorState(null);
     let activeConversationId = conversationId;
     let createdThisTurn = false;
+    let streamCompleted = false;
 
     try {
       if (!activeConversationId) {
         const conversation = await createConversation();
         activeConversationId = conversation.id;
         createdThisTurn = true;
+        setStreamedOutput({
+          conversationId: activeConversationId,
+          text: "",
+          status: "streaming",
+        });
       }
 
-      await sendConversationMessage(activeConversationId, text);
+      const requestConversationId = activeConversationId;
+      const questionMessage = await streamConversationMessage(
+        requestConversationId,
+        text,
+        (content) => {
+          setStreamedOutput((current) => ({
+            conversationId: requestConversationId,
+            text: (current?.conversationId === requestConversationId ? current.text : "") + content,
+            status: "streaming",
+          }));
+        },
+        controller.signal,
+      );
+      streamCompleted = true;
+      setStreamedOutput((current) =>
+        current?.conversationId === requestConversationId
+          ? { ...current, status: "completed" }
+          : current,
+      );
+      if (questionMessage) {
+        setMessages((current) =>
+          current.some((message) => message.id === questionMessage.id)
+            ? current
+            : [...current, questionMessage],
+        );
+      }
       await refreshMessages(activeConversationId);
       setDraft("");
+      setStreamedOutput(null);
       setHistoryRefreshKey((current) => current + 1);
       if (createdThisTurn) {
         skipNextRouteLoad.current = activeConversationId;
         onNavigate(`${platformPaths.chat}/${activeConversationId}`);
       }
     } catch (requestError) {
+      if (controller.signal.aborted) {
+        await reconcileAbortedStream(activeConversationId, previousMessageId, text);
+        return;
+      }
+      setStreamedOutput((current) =>
+        current ? { ...current, status: streamCompleted ? "completed" : "failed" } : current,
+      );
       setErrorState({
         conversationId: activeConversationId,
         message: getConversationErrorMessage(requestError),
@@ -450,23 +560,64 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
         }
       }
     } finally {
-      setPendingText(null);
-      setIsSubmitting(false);
+      if (activeStreamControllerRef.current === controller) {
+        activeStreamControllerRef.current = null;
+        setPendingText(null);
+        setIsSubmitting(false);
+      }
     }
   }
 
   async function handleSubmitAnswers() {
     if (!conversationId || !pendingQuestion || !canSubmitAnswers || isSubmitting) return;
 
+    const previousMessageId = visibleMessages.at(-1)?.id ?? null;
+    const submittedUserText = `用户已提交以下选择：\n${pendingQuestion.part.questions
+      .map((question) => `- ${question.title}：${selectedAnswers[question.id]}`)
+      .join("\n")}`;
+    const controller = new AbortController();
+    activeStreamControllerRef.current = controller;
     setIsSubmitting(true);
+    setStreamedOutput({ conversationId, text: "", status: "streaming" });
     setErrorState(null);
+    let streamCompleted = false;
     try {
-      await submitQuestionAnswers(conversationId, selectedAnswers);
+      const questionMessage = await streamQuestionAnswers(
+        conversationId,
+        selectedAnswers,
+        (content) => {
+          setStreamedOutput((current) => ({
+            conversationId,
+            text: (current?.conversationId === conversationId ? current.text : "") + content,
+            status: "streaming",
+          }));
+        },
+        controller.signal,
+      );
+      streamCompleted = true;
+      setStreamedOutput((current) =>
+        current?.conversationId === conversationId ? { ...current, status: "completed" } : current,
+      );
+      if (questionMessage) {
+        setMessages((current) =>
+          current.some((message) => message.id === questionMessage.id)
+            ? current
+            : [...current, questionMessage],
+        );
+      }
       await refreshMessages(conversationId);
       setAnswerSelection({ conversationId, answers: {} });
       setQuestionStep({ messageId: null, index: 0 });
+      setStreamedOutput(null);
       setHistoryRefreshKey((current) => current + 1);
     } catch (requestError) {
+      if (controller.signal.aborted) {
+        await reconcileAbortedStream(conversationId, previousMessageId, submittedUserText);
+        return;
+      }
+      setStreamedOutput((current) =>
+        current ? { ...current, status: streamCompleted ? "completed" : "failed" } : current,
+      );
       setErrorState({
         conversationId,
         message: getConversationErrorMessage(requestError),
@@ -477,7 +628,10 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
         // 保留原始提交错误，避免错误提示被刷新失败覆盖。
       }
     } finally {
-      setIsSubmitting(false);
+      if (activeStreamControllerRef.current === controller) {
+        activeStreamControllerRef.current = null;
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -659,9 +813,35 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
             </article>
           )}
 
+          {currentStreamedOutput?.text && (
+            <article
+              aria-label={
+                currentStreamedOutput.status === "failed" ? "未完成的助手回答" : "助手回答"
+              }
+              className={`conversation-message conversation-message--assistant${
+                currentStreamedOutput.status === "streaming"
+                  ? " conversation-message--streaming"
+                  : ""
+              }`}
+            >
+              <div className="conversation-message__bubble">
+                <div className="conversation-message__markdown">
+                  <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
+                    {currentStreamedOutput.text}
+                  </ReactMarkdown>
+                </div>
+              </div>
+              {currentStreamedOutput.status === "failed" && (
+                <p className="conversation-stream-status" role="status">
+                  回答未完成，刷新后不会保留这部分内容。
+                </p>
+              )}
+            </article>
+          )}
+
           {isSubmitting && (
             <p className="conversation-status" role="status">
-              助手正在回复…
+              助手正在生成…
             </p>
           )}
         </div>
@@ -683,7 +863,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
             value={draft}
           />
           <div className="conversation-composer__footer">
-            <span>{error ? "检查消息状态后再决定是否重试。" : "回答以完整消息形式返回。"}</span>
+            <span>{error ? "检查消息状态后再决定是否重试。" : "回答会逐段显示。"}</span>
             <button
               aria-label="发送消息"
               className="button button--primary conversation-composer__send"
