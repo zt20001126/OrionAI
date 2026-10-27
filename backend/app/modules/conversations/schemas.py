@@ -16,7 +16,7 @@ class ConversationCreateResponse(BaseModel):
     """新建会话后的公开字段。"""
 
     id: str = Field(description="Snowflake 会话 ID，以十进制字符串传输。")
-    title: str | None = Field(description="会话标题；当前不自动生成。")
+    title: str | None = Field(description="会话标题；新会话根据首条用户消息自动生成。")
     created_at: datetime = Field(description="创建时间。")
     updated_at: datetime = Field(description="最近更新时间。")
 

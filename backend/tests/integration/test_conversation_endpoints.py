@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -16,6 +16,7 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
+from app.modules.conversations.models import Conversation
 
 
 class ScriptedAgent:
@@ -42,6 +43,20 @@ class ScriptedAgent:
         return self.responses.pop(0)
 
 
+class FixedTitleGenerator:
+    """提供可控标题结果，并记录实际触发的首条消息。"""
+
+    def __init__(self, result: str | None | Exception = "自动生成的标题") -> None:
+        self.result = result
+        self.messages: list[str] = []
+
+    async def generate_title(self, first_user_message: str) -> str | None:
+        self.messages.append(first_user_message)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
 @asynccontextmanager
 async def _test_lifespan(_application: FastAPI):
     """对话 API 测试不连接真实 Checkpointer 或模型。"""
@@ -50,7 +65,15 @@ async def _test_lifespan(_application: FastAPI):
 
 
 @pytest.fixture
-def conversation_client() -> Iterator[tuple[TestClient, dict[str, User], ScriptedAgent]]:
+def conversation_client() -> Iterator[
+    tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ]
+]:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -99,6 +122,7 @@ def conversation_client() -> Iterator[tuple[TestClient, dict[str, User], Scripte
             ),
         ]
     )
+    title_generator = FixedTitleGenerator()
     test_app = create_app(lifespan=_test_lifespan)
 
     def override_db_session() -> Iterator[Session]:
@@ -114,9 +138,10 @@ def conversation_client() -> Iterator[tuple[TestClient, dict[str, User], Scripte
     test_app.dependency_overrides[get_db_session] = override_db_session
     test_app.dependency_overrides[get_current_user] = override_current_user
     test_app.state.conversation_agent = agent
+    test_app.state.conversation_title_generator = title_generator
     try:
         with TestClient(test_app) as client:
-            yield client, users, agent
+            yield client, users, agent, title_generator, session_factory
     finally:
         test_app.dependency_overrides.clear()
         Base.metadata.drop_all(engine)
@@ -131,9 +156,15 @@ def test_conversation_endpoints_require_login() -> None:
 
 
 def test_chat_persists_messages_and_resumes_waiting_questions(
-    conversation_client: tuple[TestClient, dict[str, User], ScriptedAgent],
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
 ) -> None:
-    client, users, agent = conversation_client
+    client, users, agent, title_generator, _session_factory = conversation_client
     created = client.post("/api/conversations")
     assert created.status_code == 201
     conversation_id = created.json()["id"]
@@ -174,6 +205,7 @@ def test_chat_persists_messages_and_resumes_waiting_questions(
     assert resumed_turn.status_code == 200
     assert resumed_turn.json()["status"] == "completed"
     assert agent.calls[1]["runnable_config"] == agent.calls[2]["runnable_config"]
+    assert title_generator.messages == ["你好"]
 
     messages = client.get(f"/api/conversations/{conversation_id}/messages")
     assert messages.status_code == 200
@@ -188,14 +220,79 @@ def test_chat_persists_messages_and_resumes_waiting_questions(
     ]
     assert items[2]["content"] == {"parts": [{"type": "text", "text": "帮我写一份说明"}]}
     assert items[4]["content"]["parts"][0]["text"].endswith("简洁")
-    assert client.get("/api/conversations").json()["items"][0]["id"] == conversation_id
+    listed_conversation = client.get("/api/conversations").json()["items"][0]
+    assert listed_conversation["id"] == conversation_id
+    assert listed_conversation["title"] == "自动生成的标题"
     assert users["other"].id != users["current"].id
 
 
-def test_conversation_is_hidden_from_other_users(
-    conversation_client: tuple[TestClient, dict[str, User], ScriptedAgent],
+def test_title_failure_falls_back_to_first_user_message(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
 ) -> None:
-    client, users, _agent = conversation_client
+    client, _users, _agent, title_generator, _session_factory = conversation_client
+    title_generator.result = None
+    conversation_id = client.post("/api/conversations").json()["id"]
+
+    response = client.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"message": "  生成   会话标题  "},
+    )
+
+    assert response.status_code == 200
+    assert client.get("/api/conversations").json()["items"][0]["title"] == "生成 会话标题"
+
+
+def test_existing_messages_with_empty_title_are_not_renamed_from_later_message(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, _agent, title_generator, session_factory = conversation_client
+    conversation_id = client.post("/api/conversations").json()["id"]
+    first_response = client.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"message": "原始首条消息"},
+    )
+    assert first_response.status_code == 200
+
+    with session_factory() as session:
+        conversation = session.scalar(
+            select(Conversation).where(Conversation.id == int(conversation_id))
+        )
+        assert conversation is not None
+        conversation.title = None
+        session.commit()
+
+    later_response = client.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"message": "后续消息不应用作标题来源"},
+    )
+
+    assert later_response.status_code == 200
+    assert title_generator.messages == ["原始首条消息"]
+    assert client.get("/api/conversations").json()["items"][0]["title"] is None
+
+
+def test_conversation_is_hidden_from_other_users(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, users, _agent, _title_generator, _session_factory = conversation_client
     conversation = client.post("/api/conversations").json()
     users["current"] = users["other"]
 

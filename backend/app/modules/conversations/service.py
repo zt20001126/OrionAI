@@ -1,8 +1,10 @@
 """编排会话权限范围、消息持久化和 BaseAgent 调用。"""
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 
+import anyio
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -30,6 +32,10 @@ from app.modules.conversations.schemas import (
     QuestionAnswersRequest,
     QuestionContentPart,
 )
+from app.modules.conversations.title import (
+    ConversationTitleGenerator,
+    fallback_conversation_title,
+)
 
 logger = logging.getLogger(__name__)
 MAX_PAGE_SIZE = 100
@@ -39,9 +45,16 @@ DEFAULT_PAGE_SIZE = 50
 class ConversationService:
     """实现当前用户的对话数据访问和 Agent 对话闭环。"""
 
-    def __init__(self, *, session: Session, agent: BaseAgent | None) -> None:
+    def __init__(
+        self,
+        *,
+        session: Session,
+        agent: BaseAgent | None,
+        title_generator: ConversationTitleGenerator | None = None,
+    ) -> None:
         self._session = session
         self._agent = agent
+        self._title_generator = title_generator
 
     def create_conversation(self, user: User) -> ConversationCreateResponse:
         """创建一个无标题的新会话。"""
@@ -117,18 +130,37 @@ class ConversationService:
     ) -> AgentTurnResponse:
         """保存用户文本，运行 Agent，并保存助手文本或题卡。"""
 
-        conversation = self._get_conversation_safely(user.id, conversation_id)
+        conversation = self._get_conversation_safely(
+            user.id,
+            conversation_id,
+            for_update=True,
+        )
         self._ensure_not_waiting(conversation.id)
+        try:
+            should_generate_title = (
+                not conversation.title or not conversation.title.strip()
+            ) and not repository.has_messages(self._session, conversation.id)
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise ConversationUnavailableError from None
         user_message = self._save_user_message(
             conversation,
             message_text,
         )
-        agent_response = self._invoke_agent(
-            user_id=user.id,
-            conversation_id=conversation.id,
-            message_text=message_text,
-            message_id=user_message.id,
-        )
+        if should_generate_title:
+            agent_response = self._invoke_agent_and_title(
+                user_id=user.id,
+                conversation=conversation,
+                message_text=message_text,
+                message_id=user_message.id,
+            )
+        else:
+            agent_response = self._invoke_agent(
+                user_id=user.id,
+                conversation_id=conversation.id,
+                message_text=message_text,
+                message_id=user_message.id,
+            )
         return self._save_agent_response(conversation, agent_response)
 
     def answer_questions(
@@ -185,6 +217,109 @@ class ConversationService:
         except Exception as error:
             logger.warning("conversation_agent_bridge_failed error_type=%s", type(error).__name__)
             raise ConversationUnavailableError from None
+
+    def _invoke_agent_and_title(
+        self,
+        *,
+        user_id: int,
+        conversation: Conversation,
+        message_text: str,
+        message_id: int,
+    ) -> AgentResponse:
+        """并行运行首轮标题与 Agent；标题失败不改变对话结果。"""
+
+        if self._agent is None:
+            raise ConversationUnavailableError
+        thread_id = build_conversation_thread_id(user_id, conversation.id)
+        request = AgentRequest(message=message_text)
+        runnable_config = {"configurable": {"thread_id": thread_id}}
+
+        async def invoke_concurrently() -> tuple[
+            AgentResponse | None,
+            str | None,
+            Exception | None,
+        ]:
+            title_task = (
+                asyncio.create_task(self._title_generator.generate_title(message_text))
+                if self._title_generator is not None
+                else None
+            )
+            try:
+                response = await self._agent.ainvoke(
+                    request,
+                    runnable_config=runnable_config,
+                    message_id=str(message_id),
+                )
+                agent_error = None
+            except Exception as error:
+                response = None
+                agent_error = error
+
+            generated_title = None
+            if title_task is not None:
+                try:
+                    generated_title = await title_task
+                except Exception as error:
+                    logger.warning(
+                        "conversation_title_task_failed error_type=%s",
+                        type(error).__name__,
+                    )
+            return response, generated_title, agent_error
+
+        try:
+            response, generated_title, agent_error = anyio.from_thread.run(invoke_concurrently)
+        except Exception as error:
+            response, generated_title, agent_error = None, None, error
+
+        self._save_conversation_title(
+            user_id=user_id,
+            conversation_id=conversation.id,
+            first_user_message=message_text,
+            generated_title=generated_title,
+        )
+        if agent_error is not None:
+            self._raise_agent_error(agent_error)
+        if response is None:
+            raise ConversationUnavailableError
+        return response
+
+    def _save_conversation_title(
+        self,
+        *,
+        user_id: int,
+        conversation_id: int,
+        first_user_message: str,
+        generated_title: str | None,
+    ) -> None:
+        """保存模型标题或首条消息回退；数据库错误不影响 Agent 回复。"""
+
+        title = generated_title or fallback_conversation_title(first_user_message)
+        try:
+            repository.set_conversation_title_if_empty(
+                self._session,
+                user_id=user_id,
+                conversation_id=conversation_id,
+                title=title,
+            )
+            self._session.commit()
+        except SQLAlchemyError:
+            self._session.rollback()
+            logger.warning(
+                "conversation_title_save_failed conversation_id=%s",
+                conversation_id,
+            )
+
+    @staticmethod
+    def _raise_agent_error(error: Exception) -> None:
+        """将 Agent 错误转换为稳定的会话 API 错误。"""
+
+        if isinstance(error, AgentInputError):
+            raise ConversationValidationError(str(error)) from None
+        if isinstance(error, AgentError):
+            logger.warning("conversation_agent_failed error_type=%s", type(error).__name__)
+            raise ConversationUnavailableError from None
+        logger.warning("conversation_agent_bridge_failed error_type=%s", type(error).__name__)
+        raise ConversationUnavailableError from None
 
     def _save_agent_response(
         self,
@@ -244,15 +379,36 @@ class ConversationService:
             self._session.rollback()
             raise ConversationUnavailableError from None
 
-    def _get_conversation(self, user_id: int, conversation_id: int) -> Conversation:
-        conversation = repository.get_conversation(self._session, user_id, conversation_id)
+    def _get_conversation(
+        self,
+        user_id: int,
+        conversation_id: int,
+        *,
+        for_update: bool = False,
+    ) -> Conversation:
+        conversation = repository.get_conversation(
+            self._session,
+            user_id,
+            conversation_id,
+            for_update=for_update,
+        )
         if conversation is None:
             raise ConversationNotFoundError
         return conversation
 
-    def _get_conversation_safely(self, user_id: int, conversation_id: int) -> Conversation:
+    def _get_conversation_safely(
+        self,
+        user_id: int,
+        conversation_id: int,
+        *,
+        for_update: bool = False,
+    ) -> Conversation:
         try:
-            return self._get_conversation(user_id, conversation_id)
+            return self._get_conversation(
+                user_id,
+                conversation_id,
+                for_update=for_update,
+            )
         except SQLAlchemyError:
             self._session.rollback()
             raise ConversationUnavailableError from None

@@ -167,7 +167,12 @@ function createBackend(options?: {
         items.push(assistantMessage);
         messages.set(conversationId, items);
         const conversation = conversations.find((item) => item.id === conversationId);
-        if (conversation) conversation.updated_at = createdAt;
+        if (conversation) {
+          conversation.updated_at = createdAt;
+          if (!conversation.title && items.filter((item) => item.role === "user").length === 1) {
+            conversation.title = "首条消息自动标题";
+          }
+        }
         return {
           ok: true,
           status: 200,
@@ -242,6 +247,9 @@ describe("OrionAI conversations", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
 
     expect(await screen.findByText("已回答：你好")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /首条消息自动标题/ }),
+    ).toBeInTheDocument();
     expect(messageInput).toHaveFocus();
     expect(window.location.pathname).toBe(`/chat/${createdConversationId}`);
     expect(

@@ -1,7 +1,6 @@
 """定义平台技能及用户技能关联的持久化模型。"""
 
 from datetime import datetime
-from uuid import UUID, uuid4
 
 from sqlalchemy import (
     BigInteger,
@@ -16,9 +15,9 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.types import Uuid
 
 from app.infrastructure.database.base import Base
+from app.infrastructure.database.snowflake import generate_snowflake_id
 
 
 class Skill(Base):
@@ -31,7 +30,12 @@ class Skill(Base):
         Index("ix_skills_status_type_created_at", "status", "type", "created_at"),
     )
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"),
+        primary_key=True,
+        default=generate_snowflake_id,
+        comment="技能 Snowflake ID",
+    )
     code: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -53,14 +57,21 @@ class UserSkill(Base):
         Index("ix_user_skills_user_created_at", "user_id", "created_at"),
     )
 
-    id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"),
+        primary_key=True,
+        default=generate_snowflake_id,
+        comment="用户技能关联 Snowflake ID",
+    )
     user_id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer(), "sqlite"),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    skill_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("skills.id", ondelete="CASCADE"), nullable=False
+    skill_id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"),
+        ForeignKey("skills.id", ondelete="CASCADE"),
+        nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

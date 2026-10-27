@@ -3,7 +3,7 @@ from pathlib import Path
 from threading import Barrier
 
 import pytest
-from sqlalchemy import CheckConstraint, create_engine, func, select
+from sqlalchemy import BigInteger, CheckConstraint, create_engine, func, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
@@ -20,12 +20,13 @@ def test_skills_models_match_postgresql_schema() -> None:
     skills_ddl = str(CreateTable(Skill.__table__).compile(dialect=postgresql.dialect()))
     user_skills_ddl = str(CreateTable(UserSkill.__table__).compile(dialect=postgresql.dialect()))
 
-    assert "UUID NOT NULL" in skills_ddl
+    assert "BIGINT NOT NULL" in skills_ddl
     assert "code VARCHAR(100) NOT NULL" in skills_ddl
     assert "description TEXT" in skills_ddl
     assert "CHECK (type IN ('agent', 'tool'))" in skills_ddl
     assert "CHECK (status IN ('published', 'disabled'))" in skills_ddl
-    assert "UUID NOT NULL" in user_skills_ddl
+    assert "BIGINT NOT NULL" in user_skills_ddl
+    assert "skill_id BIGINT NOT NULL" in user_skills_ddl
     assert "user_id BIGINT NOT NULL" in user_skills_ddl
     assert "UNIQUE (user_id, skill_id)" in user_skills_ddl
 
@@ -38,6 +39,11 @@ def test_skills_models_match_postgresql_schema() -> None:
     assert any(
         isinstance(constraint, CheckConstraint) and constraint.name == "ck_skills_status"
         for constraint in Skill.__table__.constraints
+    )
+    assert all(
+        isinstance(column.type, BigInteger)
+        for table in Base.metadata.tables.values()
+        for column in table.primary_key.columns
     )
 
 

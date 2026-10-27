@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     )
     deepseek_temperature: float = Field(default=0.7, ge=0, le=2, description="对话模型生成温度。")
     deepseek_max_retries: int = Field(default=2, ge=0, le=5, description="模型请求的最大重试次数。")
+    conversation_title_timeout_seconds: float = Field(
+        default=8.0, gt=0, le=60, description="会话标题模型调用时限，单位为秒。"
+    )
     snowflake_worker_id: int = Field(
         default=1,
         ge=0,

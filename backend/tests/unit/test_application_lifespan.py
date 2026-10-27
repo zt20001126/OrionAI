@@ -8,6 +8,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from app.core.application import create_agent_lifespan
 from app.core.config import Settings
 from app.infrastructure.llm.provider import OpenAICompatibleChatModelProvider
+from app.modules.conversations.title import ModelConversationTitleGenerator
 
 
 class FakeCheckpointer:
@@ -74,6 +75,12 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         assert checkpointer.setup_called
         assert len(seed_sessions) == 1
         assert application.state.conversation_agent is agent
+        assert isinstance(
+            application.state.conversation_title_generator,
+            ModelConversationTitleGenerator,
+        )
+        assert application.state.conversation_title_generator._timeout_seconds == 8
 
     assert observed_urls == ["postgresql://test:test@localhost/test"]
     assert not hasattr(application.state, "conversation_agent")
+    assert not hasattr(application.state, "conversation_title_generator")

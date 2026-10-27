@@ -1,7 +1,6 @@
 """封装技能相关 SQLAlchemy 查询，不处理 HTTP 或业务错误。"""
 
 from datetime import datetime
-from uuid import UUID, uuid4
 
 from sqlalchemy import and_, delete, func, select
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -57,7 +56,7 @@ def list_market_skills(
     return list(session.execute(statement).tuples()), total
 
 
-def get_market_skill(session: Session, user_id: int, skill_id: UUID) -> tuple[Skill, bool] | None:
+def get_market_skill(session: Session, user_id: int, skill_id: int) -> tuple[Skill, bool] | None:
     """读取已发布技能详情及当前用户的添加状态。"""
 
     statement = (
@@ -84,13 +83,13 @@ def list_user_skills(session: Session, user_id: int) -> list[tuple[Skill, dateti
     return list(session.execute(statement).tuples())
 
 
-def get_published_skill(session: Session, skill_id: UUID) -> Skill | None:
+def get_published_skill(session: Session, skill_id: int) -> Skill | None:
     """查找可供新用户添加的技能。"""
 
     return session.scalar(select(Skill).where(Skill.id == skill_id, Skill.status == "published"))
 
 
-def user_has_skill(session: Session, user_id: int, skill_id: UUID) -> bool:
+def user_has_skill(session: Session, user_id: int, skill_id: int) -> bool:
     """检查用户是否已有技能关联。"""
 
     return (
@@ -104,7 +103,7 @@ def user_has_skill(session: Session, user_id: int, skill_id: UUID) -> bool:
     )
 
 
-def add_user_skill(session: Session, user_id: int, skill_id: UUID) -> UserSkill:
+def add_user_skill(session: Session, user_id: int, skill_id: int) -> UserSkill:
     """创建用户技能关联并 flush，以便数据库约束立即校验。"""
 
     user_skill = UserSkill(user_id=user_id, skill_id=skill_id)
@@ -113,7 +112,7 @@ def add_user_skill(session: Session, user_id: int, skill_id: UUID) -> UserSkill:
     return user_skill
 
 
-def remove_user_skill(session: Session, user_id: int, skill_id: UUID) -> bool:
+def remove_user_skill(session: Session, user_id: int, skill_id: int) -> bool:
     """只删除指定用户自己的关联记录。"""
 
     result = session.execute(
@@ -128,7 +127,7 @@ def remove_user_skill(session: Session, user_id: int, skill_id: UUID) -> bool:
 def ensure_general_chat_skill(session: Session) -> None:
     """幂等创建通用对话助手，不覆盖已存在技能的管理员配置。"""
 
-    values = {"id": uuid4(), **GENERAL_CHAT}
+    values = GENERAL_CHAT.copy()
     dialect_name = session.get_bind().dialect.name
     if dialect_name == "postgresql":
         statement = (

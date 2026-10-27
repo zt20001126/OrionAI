@@ -10,6 +10,7 @@ from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
 from app.modules.conversations.service import ConversationService
+from app.modules.conversations.title import ConversationTitleGenerator
 
 
 def get_conversation_service(
@@ -19,7 +20,16 @@ def get_conversation_service(
     """从应用组合根取 Agent，并构造每请求的对话 Service。"""
 
     agent: BaseAgent | None = getattr(request.app.state, "conversation_agent", None)
-    return ConversationService(session=session, agent=agent)
+    title_generator: ConversationTitleGenerator | None = getattr(
+        request.app.state,
+        "conversation_title_generator",
+        None,
+    )
+    return ConversationService(
+        session=session,
+        agent=agent,
+        title_generator=title_generator,
+    )
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]

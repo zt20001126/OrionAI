@@ -1,7 +1,6 @@
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from typing import Any
-from uuid import UUID
 
 import pytest
 from fastapi import FastAPI
@@ -76,7 +75,7 @@ def _create_skill(
     name: str,
     skill_type: str = "agent",
     status: str = "published",
-) -> UUID:
+) -> int:
     with state["session_factory"]() as session:
         skill = Skill(code=code, name=name, type=skill_type, status=status)
         session.add(skill)
@@ -85,7 +84,7 @@ def _create_skill(
         return skill.id
 
 
-def _add_relation(state: dict[str, Any], user: User, skill_id: UUID) -> None:
+def _add_relation(state: dict[str, Any], user: User, skill_id: int) -> None:
     with state["session_factory"]() as session:
         session.add(UserSkill(user_id=user.id, skill_id=skill_id))
         session.commit()
@@ -166,7 +165,7 @@ def test_skill_detail_only_exposes_published_skills(
     assert response.json()["id"] == str(skill_id)
     assert response.json()["is_added"] is False
     assert client.get(f"/api/v1/skills/{disabled_id}").status_code == 404
-    assert client.get(f"/api/v1/skills/{UUID(int=0)}").status_code == 404
+    assert client.get("/api/v1/skills/1").status_code == 404
 
 
 def test_add_skill_and_reject_duplicate_missing_or_disabled(
@@ -183,7 +182,7 @@ def test_add_skill_and_reject_duplicate_missing_or_disabled(
         client.post("/api/v1/users/me/skills", json={"skill_id": str(skill_id)}).status_code == 409
     )
     assert (
-        client.post("/api/v1/users/me/skills", json={"skill_id": str(UUID(int=0))}).status_code
+        client.post("/api/v1/users/me/skills", json={"skill_id": "1"}).status_code
         == 404
     )
     assert (
@@ -239,10 +238,10 @@ def test_removal_only_deletes_the_current_users_relation(
     ("method", "path", "payload"),
     [
         ("get", "/api/v1/skills", None),
-        ("get", f"/api/v1/skills/{UUID(int=0)}", None),
+        ("get", "/api/v1/skills/1", None),
         ("get", "/api/v1/users/me/skills", None),
-        ("post", "/api/v1/users/me/skills", {"skill_id": str(UUID(int=0))}),
-        ("delete", f"/api/v1/users/me/skills/{UUID(int=0)}", None),
+        ("post", "/api/v1/users/me/skills", {"skill_id": "1"}),
+        ("delete", "/api/v1/users/me/skills/1", None),
     ],
 )
 def test_all_skill_endpoints_require_login(

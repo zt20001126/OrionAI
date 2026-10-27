@@ -11,3 +11,9 @@ def load_default_chat_system_prompt() -> str:
     system_prompt = (_TEMPLATE_DIRECTORY / "system.md").read_text(encoding="utf-8").strip()
     agent_instructions = (_TEMPLATE_DIRECTORY / "agent.md").read_text(encoding="utf-8").strip()
     return f"{system_prompt}\n\n{agent_instructions}\n"
+
+
+def load_conversation_title_prompt() -> str:
+    """读取会话标题生成专用提示词。"""
+
+    return (_TEMPLATE_DIRECTORY / "conversation_title.md").read_text(encoding="utf-8").strip()

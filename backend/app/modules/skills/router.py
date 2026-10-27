@@ -1,14 +1,14 @@
 """定义技能市场和当前用户技能 API。"""
 
 from typing import Annotated
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, Path, Query, Response
 
 from app.modules.auth.dependencies import validate_origin
 from app.modules.skills.dependencies import CurrentUser, SkillsServiceDependency
 from app.modules.skills.schemas import (
     AddSkillRequest,
+    MAX_SNOWFLAKE_ID,
     MySkillsResponse,
     SkillPageResponse,
     SkillResponse,
@@ -16,6 +16,7 @@ from app.modules.skills.schemas import (
 )
 
 router = APIRouter(prefix="/v1", tags=["skills"])
+SnowflakeIdPath = Annotated[int, Path(gt=0, le=MAX_SNOWFLAKE_ID)]
 
 
 @router.get("/skills", response_model=SkillPageResponse)
@@ -40,7 +41,7 @@ def list_market_skills(
 
 @router.get("/skills/{skill_id}", response_model=SkillResponse)
 def get_skill_detail(
-    skill_id: UUID,
+    skill_id: SnowflakeIdPath,
     user: CurrentUser,
     service: SkillsServiceDependency,
 ) -> SkillResponse:
@@ -69,7 +70,7 @@ def add_my_skill(
 ) -> SkillResponse:
     """将已发布技能添加到当前用户列表。"""
 
-    return service.add_skill(user, payload.skill_id)
+    return service.add_skill(user, int(payload.skill_id))
 
 
 @router.delete(
@@ -78,7 +79,7 @@ def add_my_skill(
     dependencies=[Depends(validate_origin)],
 )
 def remove_my_skill(
-    skill_id: UUID,
+    skill_id: SnowflakeIdPath,
     user: CurrentUser,
     service: SkillsServiceDependency,
 ) -> Response:

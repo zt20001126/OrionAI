@@ -1,19 +1,20 @@
 """定义技能 API 请求和响应 DTO，与 ORM 模型分离。"""
 
 from datetime import datetime
-from typing import Literal
-from uuid import UUID
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 SkillType = Literal["agent", "tool"]
 SkillStatus = Literal["published", "disabled"]
+MAX_SNOWFLAKE_ID = (1 << 63) - 1
+SnowflakeIdString = Annotated[str, StringConstraints(pattern=r"^[1-9][0-9]{0,18}$")]
 
 
 class SkillResponse(BaseModel):
     """技能基础信息及当前用户的添加状态。"""
 
-    id: UUID
+    id: str = Field(description="Snowflake 技能 ID，以十进制字符串传输。")
     code: str
     name: str
     description: str | None
@@ -49,4 +50,13 @@ class AddSkillRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    skill_id: UUID = Field(description="技能 UUID。")
+    skill_id: SnowflakeIdString = Field(description="Snowflake 技能 ID，以十进制字符串传输。")
+
+    @field_validator("skill_id")
+    @classmethod
+    def validate_snowflake_id_range(cls, skill_id: str) -> str:
+        """确保十进制 ID 可以存入有符号 BIGINT。"""
+
+        if int(skill_id) > MAX_SNOWFLAKE_ID:
+            raise ValueError("技能 ID 超出 Snowflake ID 范围。")
+        return skill_id

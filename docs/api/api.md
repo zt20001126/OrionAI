@@ -4,7 +4,7 @@
 
 - **默认前缀：** `/api`
 - **请求与响应：** JSON；请求体不接受未定义字段。
-- **Snowflake ID：** 会话和消息响应中的 `id`、`conversation_id` 以十进制字符串返回，避免 JavaScript 整数精度损失；路径参数仍使用该十进制 ID。
+- **Snowflake ID：** 会话、消息和技能响应中的 ID 以十进制字符串返回，避免 JavaScript 整数精度损失；技能添加请求的 `skill_id` 也使用十进制字符串，路径参数使用十进制 ID。
 - **邮箱：** 去除首尾空格并转为小写，最多 254 个字符。
 - **密码：** 注册和重置为 8–128 个字符；登录为 1–128 个字符。
 - **认证：** 登录或注册成功后，服务端设置 `orionai_session` Cookie。Cookie 为 `HttpOnly`、`SameSite=Lax`、`Path=/`，默认有效 7 天；production 环境默认启用 `Secure`。客户端请求需携带 Cookie。
@@ -149,7 +149,7 @@
 
 以下接口均要求有效的 `orionai_session` Cookie。写入接口沿用 `Origin` 与 `Host` 同源校验。会话查询始终限制在当前用户范围；不存在或不属于当前用户的会话统一返回 `404`。列表接口支持 `limit`（默认 50，范围 1–100）和 `offset`（默认 0）。
 
-`POST /api/conversations` 创建空会话，成功返回 `201`，字段包含字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`；首版 `title` 为 `null`。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
+`POST /api/conversations` 创建空会话，成功返回 `201`，字段包含字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`；首条用户消息发送前标题为空；首条用户消息提交后，根据其内容自动生成标题；模型失败或超时时使用首条消息的简短摘要。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
 
 `GET /api/conversations/{id}/messages` 按消息 `id` 升序返回 `items`。消息内容使用 JSON `parts` 数组，例如：
 
@@ -158,6 +158,8 @@
 ```
 
 发送消息时请求 `POST /api/conversations/{id}/messages`，JSON 请求体为 `{"message":"请帮我写一份说明"}`。返回 `status` 为 `completed` 或 `waiting`，以及本轮助手 `message`。普通回答的内容部分为 `type: "text"`；等待选择时为 `type: "question"` 并包含结构化 `questions`。如果当前会话正在等待题卡答案，发送新消息返回 `409`。
+
+标题生成是消息发送流程的内部行为，不改变请求或响应结构；只有首条用户消息用于命名，后续消息和题卡答案不会覆盖标题。
 
 通过 `POST /api/conversations/{id}/answers` 提交选择并恢复同一对话线程，请求示例：
 

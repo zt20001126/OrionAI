@@ -1,7 +1,6 @@
 """实现技能查询、用户添加和移除规则，并协调数据库事务。"""
 
 from typing import NoReturn
-from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -55,7 +54,7 @@ class SkillsService:
             page_size=page_size,
         )
 
-    def get_detail(self, user: User, skill_id: UUID) -> SkillResponse:
+    def get_detail(self, user: User, skill_id: int) -> SkillResponse:
         try:
             result = repository.get_market_skill(self._session, user.id, skill_id)
         except SQLAlchemyError:
@@ -80,7 +79,7 @@ class SkillsService:
             ]
         )
 
-    def add_skill(self, user: User, skill_id: UUID) -> SkillResponse:
+    def add_skill(self, user: User, skill_id: int) -> SkillResponse:
         try:
             skill = repository.get_published_skill(self._session, skill_id)
             if skill is None:
@@ -102,7 +101,7 @@ class SkillsService:
         except SQLAlchemyError:
             self._database_error()
 
-    def remove_skill(self, user: User, skill_id: UUID) -> None:
+    def remove_skill(self, user: User, skill_id: int) -> None:
         try:
             removed = repository.remove_user_skill(self._session, user.id, skill_id)
             if not removed:
@@ -117,7 +116,7 @@ class SkillsService:
     @staticmethod
     def _skill_response(skill: Skill, is_added: bool) -> SkillResponse:
         return SkillResponse(
-            id=skill.id,
+            id=str(skill.id),
             code=skill.code,
             name=skill.name,
             description=skill.description,

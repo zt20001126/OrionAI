@@ -17,6 +17,7 @@ from app.infrastructure.database.session import SessionLocal
 from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModelProvider
 from app.modules.auth.errors import AuthError
 from app.modules.conversations.errors import ConversationError
+from app.modules.conversations.title import ModelConversationTitleGenerator
 from app.modules.skills.errors import SkillsError
 from app.modules.skills.repository import ensure_general_chat_skill
 
@@ -31,7 +32,9 @@ def create_agent_lifespan(
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         try:
-            chat_model = OpenAICompatibleChatModelProvider(settings).create_chat_model()
+            model_provider = OpenAICompatibleChatModelProvider(settings)
+            chat_model = model_provider.create_chat_model()
+            title_model = model_provider.create_chat_model()
         except ModelProviderError:
             logger.exception("conversation_agent_provider_configuration_failed")
             raise
@@ -49,8 +52,13 @@ def create_agent_lifespan(
                 chat_model=chat_model,
                 checkpointer=checkpointer,
             )
+            application.state.conversation_title_generator = ModelConversationTitleGenerator(
+                model=title_model,
+                timeout_seconds=settings.conversation_title_timeout_seconds,
+            )
             yield
             del application.state.conversation_agent
+            del application.state.conversation_title_generator
 
     return lifespan
 
