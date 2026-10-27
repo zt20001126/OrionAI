@@ -85,12 +85,15 @@ class FakeChatModel:
 class FakeTaskStore:
     def __init__(self) -> None:
         self.statuses: dict[int, str] = {}
+        self.results: dict[int, Any] = {}
 
     def create_running(self, **kwargs: Any) -> None:
         self.statuses[kwargs["task_result_id"]] = "running"
 
     def set_status(self, task_result_id: int, *, status: str, result_data: Any = None) -> None:
         self.statuses[task_result_id] = status
+        if result_data is not None:
+            self.results[task_result_id] = result_data
 
 
 class FakeImageClient:
@@ -185,6 +188,9 @@ async def test_image_agent_asks_for_size_then_resumes_and_saves_result() -> None
     assert len(storage.saved) == 1
     assert storage.saved[0][1] == PNG_BYTES
     assert task_store.statuses[int(completed.image_result_id)] == "succeeded"
+    assert task_store.results[int(completed.image_result_id)] == {
+        "object_key": storage.saved[0][0]
+    }
 
 
 @pytest.mark.anyio
@@ -335,10 +341,7 @@ def test_image_result_service_checks_owner_and_generation_status() -> None:
                     skill_code=skill.code,
                     result={
                         "generation_status": "succeeded",
-                        "result_data": {
-                            "object_key": "images/private.png",
-                            "mime_type": "image/png",
-                        },
+                        "result_data": {"object_key": "images/private.png"},
                     },
                 )
             )
@@ -369,5 +372,21 @@ def test_image_result_service_checks_owner_and_generation_status() -> None:
                 service.get_image(stranger.id, 1001)
             with pytest.raises(ImageResultUnavailableError):
                 service.get_image(user.id, 1002)
+
+            class UnsupportedTypeStorage:
+                def get_object(self, key: str, *, max_bytes: int) -> StoredObject:
+                    return StoredObject(
+                        key=key,
+                        data=PNG_BYTES,
+                        content_type="application/octet-stream",
+                    )
+
+            unsupported_type_service = ImageTaskResultService(
+                session=session,
+                settings=Settings(image_result_max_bytes=128),
+                storage_factory=UnsupportedTypeStorage,  # type: ignore[arg-type]
+            )
+            with pytest.raises(ImageResultUnavailableError):
+                unsupported_type_service.get_image(user.id, 1001)
     finally:
         engine.dispose()

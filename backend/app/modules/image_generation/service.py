@@ -92,8 +92,8 @@ class ImageTaskResultService:
         """读取当前用户已成功生成的图片。
 
         Step 1: 按用户 ID 和任务 ID 查询任务，验证所有权及生成状态。
-        Step 2: 校验对象键和 MIME 元数据后从私有 OSS 读取受大小限制的图片。
-        Step 3: 核对对象返回的 MIME 类型并返回图片字节及类型。
+        Step 2: 按对象键从私有 OSS 读取受大小限制的图片。
+        Step 3: 校验 OSS 对象的 MIME 类型并返回图片字节及类型。
         """
         try:
             result = repository.get_user_task_result(self._session, user_id, task_result_id)
@@ -112,8 +112,7 @@ class ImageTaskResultService:
         if not isinstance(image_data, dict):
             raise ImageResultUnavailableError
         object_key = image_data.get("object_key")
-        content_type = image_data.get("mime_type")
-        if not isinstance(object_key, str) or content_type not in {"image/png", "image/jpeg"}:
+        if not isinstance(object_key, str) or not object_key:
             raise ImageResultUnavailableError
         try:
             stored = self._storage_factory().get_object(
@@ -122,7 +121,8 @@ class ImageTaskResultService:
         except (ObjectStorageError, ValueError):
             logger.warning("image_result_storage_read_failed task_result_id=%s", task_result_id)
             raise ImageResultUnavailableError from None
-        if stored.content_type and stored.content_type.split(";")[0].lower() != content_type:
+        content_type = (stored.content_type or "").split(";", maxsplit=1)[0].strip().lower()
+        if content_type not in {"image/png", "image/jpeg"}:
             raise ImageResultUnavailableError
         return stored.data, content_type
 

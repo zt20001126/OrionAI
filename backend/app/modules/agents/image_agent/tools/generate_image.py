@@ -94,16 +94,7 @@ def create_generate_image_tool(
                 content_type=mime_type,
                 metadata={"task-result-id": str(task_id)},
             )
-            result_data = {
-                "object_key": stored.key,
-                "mime_type": mime_type,
-                "file_size": len(image_data),
-                "width": provider_result.width,
-                "height": provider_result.height,
-                "provider_model": provider_result.provider_model,
-                "request_id": provider_result.request_id,
-                "usage_total_tokens": provider_result.metadata.get("usage_total_tokens"),
-            }
+            result_data = {"object_key": stored.key}
             task_store.set_status(task_id, status="succeeded", result_data=result_data)
             return json.dumps(
                 {

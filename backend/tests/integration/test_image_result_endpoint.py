@@ -63,10 +63,7 @@ def image_result_client() -> Iterator[tuple[TestClient, dict[str, Any]]]:
                     skill_code=skill.code,
                     result={
                         "generation_status": "succeeded",
-                        "result_data": {
-                            "object_key": "images/private.png",
-                            "mime_type": "image/png",
-                        },
+                        "result_data": {"object_key": "images/private.png"},
                     },
                 ),
                 TaskResult(
