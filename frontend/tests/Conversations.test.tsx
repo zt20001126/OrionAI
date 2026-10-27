@@ -255,6 +255,137 @@ describe("OrionAI conversations", () => {
     ).toBe(true);
   });
 
+  it("keeps Shift+Enter in the draft and sends on Enter", async () => {
+    window.history.replaceState({}, "", "/chat");
+    const backend = createBackend();
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    const input = await screen.findByRole("textbox", { name: "发送消息" });
+    fireEvent.change(input, { target: { value: "通过键盘发送" } });
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+
+    expect(input).toHaveValue("通过键盘发送");
+    expect(
+      backend.calls.some(
+        ({ method, url }) => method === "POST" && url.pathname.endsWith("/messages"),
+      ),
+    ).toBe(false);
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByText("已回答：通过键盘发送")).toBeInTheDocument();
+  });
+
+  it("follows new messages until the user scrolls up during a reply", async () => {
+    const conversationId = "9100000000000003";
+    window.history.replaceState({}, "", `/chat/${conversationId}`);
+    const backend = createBackend({
+      messages: {
+        [conversationId]: [
+          textMessage("204", conversationId, "user", "先前的问题"),
+          textMessage("205", conversationId, "assistant", "先前的回答"),
+        ],
+      },
+    });
+    const originalFetch = backend.fetchMock.getMockImplementation();
+    if (!originalFetch) throw new Error("对话接口 mock 未初始化。");
+    let releaseMessageResponse!: () => void;
+    const responseGate = new Promise<void>((resolve) => {
+      releaseMessageResponse = resolve;
+    });
+    backend.fetchMock.mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://localhost");
+      if (url.pathname.endsWith("/messages") && init?.method === "POST") {
+        await responseGate;
+      }
+      return originalFetch(input, init);
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    await screen.findByRole("textbox", { name: "发送消息" });
+    const messageLog = screen.getByRole("log", { name: "对话消息" });
+    Object.defineProperties(messageLog, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1200 },
+    });
+    let scrollTop = 0;
+    Object.defineProperty(messageLog, "scrollTop", {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        scrollTop = Math.min(value, 800);
+      },
+    });
+
+    fireEvent.change(screen.getByRole("textbox", { name: "发送消息" }), {
+      target: { value: "继续追问" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByText("助手正在回复…")).toBeInTheDocument();
+    expect(messageLog.scrollTop).toBe(800);
+
+    messageLog.scrollTop = 350;
+    fireEvent.scroll(messageLog);
+    releaseMessageResponse();
+
+    expect(await screen.findByText("已回答：继续追问")).toBeInTheDocument();
+    expect(messageLog.scrollTop).toBe(350);
+  });
+
+  it("renders assistant Markdown and GFM with links kept safe", async () => {
+    const conversationId = "9100000000000002";
+    window.history.replaceState({}, "", `/chat/${conversationId}`);
+    const backend = createBackend({
+      messages: {
+        [conversationId]: [
+          textMessage(
+            "203",
+            conversationId,
+            "assistant",
+            [
+              "## 计划",
+              "",
+              "**清晰**的回答，包含 `inline code`。",
+              "",
+              "- 第一项",
+              "- 第二项",
+              "",
+              "```ts",
+              "const answer = true;",
+              "```",
+              "",
+              "| 名称 | 状态 |",
+              "| --- | --- |",
+              "| 回复 | 完成 |",
+              "",
+              "[官方链接](https://example.com)",
+              "[危险链接](javascript:alert%281%29)",
+              "",
+              "<img src=x onerror=alert(1)>",
+            ].join("\n"),
+          ),
+        ],
+      },
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "计划" })).toBeInTheDocument();
+    expect(screen.getByText("清晰", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByText("inline code", { selector: "code" })).toBeInTheDocument();
+    expect(screen.getByRole("list").querySelectorAll("li")).toHaveLength(2);
+    expect(screen.getByText("const answer = true;", { selector: "code" })).toBeInTheDocument();
+    expect(screen.getByRole("table").querySelectorAll("tr")).toHaveLength(2);
+
+    const link = screen.getByRole("link", { name: "官方链接" });
+    expect(link).toHaveAttribute("href", "https://example.com");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByText("危险链接").closest("a")).toBeNull();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
   it("opens a history conversation from the session page and restores its messages", async () => {
     const historyId = "9100000000000001";
     const existingConversation: ConversationSummary = {

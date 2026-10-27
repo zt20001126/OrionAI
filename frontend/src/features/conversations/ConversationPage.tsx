@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { PlatformIcon } from "../platform/PlatformIcon";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
@@ -39,6 +49,17 @@ function messageText(message: ConversationMessage): string {
     .join("\n");
 }
 
+const markdownComponents: Components = {
+  a: ({ href, title, children }) =>
+    href ? (
+      <a href={href} rel="noopener noreferrer" target="_blank" title={title}>
+        {children}
+      </a>
+    ) : (
+      <span>{children}</span>
+    ),
+};
+
 export function ConversationPage({ conversationId, onNavigate }: ConversationPageProps) {
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [draft, setDraft] = useState("");
@@ -56,6 +77,9 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const skipNextRouteLoad = useRef<string | null>(null);
   const messageLogRef = useRef<HTMLDivElement>(null);
+  const composerInputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldFollowMessagesRef = useRef(true);
+  const previousConversationIdRef = useRef(conversationId);
   const visibleMessages = useMemo(
     () => (conversationId && loadedConversationId === conversationId ? messages : []),
     [conversationId, loadedConversationId, messages],
@@ -98,10 +122,34 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     };
   }, [conversationId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const log = messageLogRef.current;
-    if (log) log.scrollTop = log.scrollHeight;
-  }, [visibleMessages, pendingText]);
+    if (!log) return;
+
+    if (previousConversationIdRef.current !== conversationId) {
+      previousConversationIdRef.current = conversationId;
+      shouldFollowMessagesRef.current = true;
+      log.scrollTop = 0;
+    }
+
+    if (
+      shouldFollowMessagesRef.current &&
+      (!conversationId || loadedConversationId === conversationId)
+    ) {
+      log.scrollTop = log.scrollHeight;
+    }
+  }, [conversationId, isSubmitting, loadedConversationId, pendingText, visibleMessages]);
+
+  useLayoutEffect(() => {
+    const input = composerInputRef.current;
+    if (!input) return;
+
+    input.style.height = "auto";
+    const maxHeight = 200;
+    const minHeight = Number.parseFloat(window.getComputedStyle(input).minHeight) || 64;
+    input.style.height = `${Math.min(Math.max(input.scrollHeight, minHeight), maxHeight)}px`;
+    input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
+  }, [draft]);
 
   const pendingQuestion = useMemo(() => getPendingQuestion(visibleMessages), [visibleMessages]);
   const canSubmitAnswers =
@@ -134,6 +182,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     const text = draft.trim();
     if (!text || isSubmitting || isLoading || pendingQuestion) return;
 
+    shouldFollowMessagesRef.current = true;
     setIsSubmitting(true);
     setPendingText(text);
     setErrorState(null);
@@ -210,6 +259,14 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
     }
   }
 
+  function handleMessagesScroll() {
+    const log = messageLogRef.current;
+    if (!log) return;
+
+    const distanceFromBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+    shouldFollowMessagesRef.current = distanceFromBottom <= 96;
+  }
+
   return (
     <div className="conversation-page">
       <aside aria-label="历史会话导航" className="conversation-page__history">
@@ -232,17 +289,16 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
       </aside>
 
       <section aria-label="通用对话助手" className="conversation-panel">
-        {conversationId && (
-          <header className="conversation-panel__header">
-            <h1>通用对话助手</h1>
-            <span>多轮对话</span>
-          </header>
-        )}
+        <header className="conversation-panel__header">
+          <h1>通用对话助手</h1>
+          <span>多轮对话</span>
+        </header>
 
         <div
           aria-label="对话消息"
           aria-live="polite"
           className="conversation-messages"
+          onScroll={handleMessagesScroll}
           ref={messageLogRef}
           role="log"
         >
@@ -300,7 +356,16 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
                 <div className="conversation-message__label">
                   {message.role === "user" ? "你" : "通用对话助手"}
                 </div>
-                {text && <p className="conversation-message__text">{text}</p>}
+                {text &&
+                  (message.role === "assistant" ? (
+                    <div className="conversation-message__markdown">
+                      <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
+                        {text}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p className="conversation-message__text">{text}</p>
+                  ))}
                 {questionPart && (
                   <div className="question-card">
                     {questionPart.questions.map((question) => (
@@ -381,6 +446,7 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
           </label>
           <textarea
             id="conversation-message-input"
+            ref={composerInputRef}
             disabled={isSubmitting || isLoading || Boolean(pendingQuestion)}
             maxLength={20_000}
             onChange={(event) => setDraft(event.target.value)}

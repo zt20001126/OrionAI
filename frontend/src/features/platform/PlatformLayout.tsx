@@ -26,6 +26,8 @@ export function PlatformLayout({
   onNavigate,
   pathname,
 }: PlatformLayoutProps) {
+  const isConversationPage =
+    pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
   const pageTitle =
     pathname === platformPaths.market
       ? "技能市场"
@@ -38,7 +40,7 @@ export function PlatformLayout({
             : "OrionAI";
 
   return (
-    <div className="platform-shell">
+    <div className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}`}>
       <PlatformSidebar
         account={account}
         isLoggingOut={isLoggingOut}
@@ -47,7 +49,7 @@ export function PlatformLayout({
         pathname={pathname}
       />
 
-      <div className="platform-main">
+      <div className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}`}>
         <header className="platform-topbar">
           <div className="platform-topbar__context">
             <span>工作空间</span>
@@ -75,8 +77,14 @@ export function PlatformLayout({
           </div>
         )}
 
-        <main className="platform-content">{children}</main>
-        <footer className="platform-footer">© OrionAI · 为企业智能体应用而构建</footer>
+        <main
+          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}`}
+        >
+          {children}
+        </main>
+        {!isConversationPage && (
+          <footer className="platform-footer">© OrionAI · 为企业智能体应用而构建</footer>
+        )}
       </div>
     </div>
   );

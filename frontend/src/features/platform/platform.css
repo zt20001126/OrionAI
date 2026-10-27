@@ -6,6 +6,14 @@
   background: var(--color-page);
 }
 
+.platform-shell--conversation {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .platform-sidebar {
   position: sticky;
   top: 0;
@@ -323,6 +331,12 @@
   flex-direction: column;
 }
 
+.platform-main--conversation {
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .platform-topbar {
   position: sticky;
   top: 0;
@@ -419,6 +433,16 @@
   flex: 1 0 auto;
   align-self: center;
   padding: var(--space-8) clamp(var(--space-5), 3vw, var(--space-8));
+}
+
+.platform-content--conversation {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 0;
+  align-self: stretch;
+  overflow: hidden;
+  padding: var(--space-3);
 }
 
 .platform-footer {
@@ -935,6 +959,12 @@
     min-height: calc(100svh - 88px);
   }
 
+  .platform-main--conversation {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+
   .platform-topbar {
     min-height: 56px;
     padding-inline: var(--space-5);
@@ -942,6 +972,11 @@
 
   .platform-content {
     padding: var(--space-6) var(--space-5);
+  }
+
+  .platform-content--conversation {
+    min-height: 0;
+    padding: var(--space-3);
   }
 }
 
@@ -972,6 +1007,10 @@
 
   .platform-content {
     padding: var(--space-5) var(--space-3) var(--space-6);
+  }
+
+  .platform-content--conversation {
+    padding: var(--space-2);
   }
 
   .market-page {
