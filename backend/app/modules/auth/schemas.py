@@ -59,6 +59,27 @@ class PasswordResetRequest(EmailRequest):
         return self
 
 
+class PasswordChangeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str = Field(pattern=r"^[0-9]{6}$")
+    new_password: str = Field(min_length=8, max_length=64)
+    password_confirmation: str = Field(min_length=8, max_length=64)
+
+    @field_validator("new_password")
+    @classmethod
+    def reject_whitespace_only_password(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("密码不能仅由空格组成。")
+        return value
+
+    @model_validator(mode="after")
+    def validate_password_confirmation(self) -> "PasswordChangeRequest":
+        if self.new_password != self.password_confirmation:
+            raise ValueError("两次输入的密码不一致。")
+        return self
+
+
 class MessageResponse(BaseModel):
     message: str
 

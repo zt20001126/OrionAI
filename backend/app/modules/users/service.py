@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.infrastructure.storage.aliyun_oss import AliyunOSSObjectStorage
 from app.infrastructure.storage.object_storage import ObjectMetadata, ObjectStorageError
-from app.modules.auth.models import User
+from app.modules.auth.models import DEFAULT_USER_AVATAR_URL, User
 from app.modules.users import repository
 from app.modules.users.constants import (
     JPEG_SIGNATURE,
@@ -91,8 +91,8 @@ class UsersService:
         """保存当前用户的昵称及可选头像。
 
         Step 1: 规范化昵称并验证头像实际格式和大小。
-        Step 2: 如有新头像，先以对象级公共读上传唯一 OSS 对象并生成公开 URL。
-        Step 3: 在同一数据库提交中保存昵称与新 URL；提交失败时补偿删除新对象。
+        Step 2: 如有新头像，先以对象级公共读上传唯一 OSS 对象。
+        Step 3: 在同一数据库提交中保存昵称和新对象键；提交失败时补偿删除新对象。
         Step 4: 提交成功后尽力清理旧 OSS 头像并返回最新资料。
         """
 
@@ -100,10 +100,18 @@ class UsersService:
         if not nickname or len(nickname) > MAX_NICKNAME_LENGTH:
             raise InvalidUserProfileError("昵称不能为空，且不能超过 20 个字符。")
 
-        avatar_url: str | None = None
+        try:
+            existing_user = repository.get_user_by_id(self._session, current_user.id)
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise UsersUnavailableError from None
+        if existing_user is None:
+            raise UserProfileNotFoundError
+
         uploaded_key: str | None = None
         storage: AvatarStorage | None = None
-        old_avatar_url: str | None = None
+        old_avatar_key = existing_user.avatar_key
+        old_avatar_url = existing_user.avatar_url
         if avatar_data is not None:
             if avatar_content_type is None:
                 raise InvalidUserProfileError("头像文件类型无效，请选择 PNG、JPEG 或 WebP 图片。")
@@ -117,19 +125,17 @@ class UsersService:
                     content_type=mime_type,
                     public_read=True,
                 )
-                avatar_url = storage.build_public_url(uploaded_key)
             except (ObjectStorageError, ValueError):
                 if storage is not None:
                     self._delete_uploaded_object(storage, uploaded_key, current_user.id)
                 raise UsersUnavailableError from None
-            old_avatar_url = current_user.avatar_url
 
         try:
             user = repository.update_user_profile(
                 self._session,
                 current_user.id,
                 nickname=nickname,
-                avatar_url=avatar_url,
+                avatar_key=uploaded_key,
             )
         except SQLAlchemyError:
             self._session.rollback()
@@ -141,21 +147,36 @@ class UsersService:
                 self._delete_uploaded_object(storage, uploaded_key, current_user.id)
             raise UserProfileNotFoundError
 
-        if storage is not None and uploaded_key is not None and old_avatar_url:
-            old_key = storage.key_from_public_url(old_avatar_url)
-            if old_key is not None and old_key != uploaded_key:
+        if storage is not None and uploaded_key is not None:
+            old_key = old_avatar_key
+            if old_key is None and old_avatar_url and old_avatar_url != DEFAULT_USER_AVATAR_URL:
+                old_key = storage.key_from_public_url(old_avatar_url)
+            if (
+                old_key is not None
+                and old_key.startswith(f"users/{current_user.id}/avatars/")
+                and old_key != uploaded_key
+            ):
                 self._delete_replaced_object(storage, old_key, current_user.id)
         return self._profile_response(user)
 
-    @staticmethod
-    def _profile_response(user: User) -> UserProfileResponse:
+    def _profile_response(self, user: User) -> UserProfileResponse:
         nickname = (user.nickname or "").strip()
         if not nickname:
             nickname = user.account.partition("@")[0][:MAX_NICKNAME_LENGTH] or "个人用户"
+        avatar_url = user.avatar_url
+        if user.avatar_key:
+            if not user.avatar_key.startswith(f"users/{user.id}/avatars/"):
+                raise UsersUnavailableError
+            try:
+                avatar_url = self._storage_factory().build_public_url(user.avatar_key)
+            except (ObjectStorageError, ValueError):
+                raise UsersUnavailableError from None
+        if not avatar_url or avatar_url == DEFAULT_USER_AVATAR_URL:
+            avatar_url = DEFAULT_USER_AVATAR_URL
         return UserProfileResponse(
             nickname=nickname,
             account=user.account,
-            avatar_url=user.avatar_url,
+            avatar_url=avatar_url,
             created_at=user.created_at,
             last_login_at=user.last_login_at,
         )
@@ -179,7 +200,7 @@ def _validate_avatar(data: bytes, declared_content_type: str) -> tuple[str, str]
     """按文件签名识别头像格式，并验证声明的 MIME 与文件内容一致。"""
 
     if not data or len(data) > MAX_AVATAR_UPLOAD_BYTES:
-        raise InvalidUserProfileError("头像文件不能为空，且大小不能超过 5 MiB。")
+        raise InvalidUserProfileError("头像文件不能为空，且大小不能超过 2 MiB。")
 
     normalized_content_type = declared_content_type.split(";", maxsplit=1)[0].strip().lower()
     if data.startswith(PNG_SIGNATURE):

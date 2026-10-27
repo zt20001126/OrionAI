@@ -25,11 +25,13 @@ class User(Base):
     nickname: Mapped[str | None] = mapped_column(
         String(20), nullable=True, comment="用户昵称；未设置时使用账号本地部分展示"
     )
-    avatar_url: Mapped[str] = mapped_column(
+    avatar_key: Mapped[str | None] = mapped_column(
+        String(1024), nullable=True, comment="用户头像在 OSS 中的对象键"
+    )
+    avatar_url: Mapped[str | None] = mapped_column(
         String(2048),
-        server_default=DEFAULT_USER_AVATAR_URL,
-        nullable=False,
-        comment="用户头像地址；注册默认项目头像，上传后保存 OSS 公开 URL",
+        nullable=True,
+        comment="兼容既有头像地址；新头像仅保存 avatar_key",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

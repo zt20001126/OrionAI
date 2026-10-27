@@ -38,6 +38,6 @@ class UserProfileResponse(BaseModel):
 
     nickname: str = Field(description="用户昵称；尚未设置时返回账号本地部分")
     account: str = Field(description="规范化后的登录账号，只读")
-    avatar_url: str = Field(description="默认头像路径或 OSS 公开访问链接")
+    avatar_url: str = Field(description="默认头像路径或数据库保存的 OSS 公开访问链接")
     created_at: datetime = Field(description="账号创建时间")
     last_login_at: datetime | None = Field(description="最近一次成功登录时间")

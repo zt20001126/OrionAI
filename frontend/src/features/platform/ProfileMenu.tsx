@@ -5,7 +5,9 @@ import { PlatformIcon } from "./PlatformIcon";
 
 interface ProfileMenuProps {
   account: string;
+  avatarUrl?: string | null;
   isLoggingOut: boolean;
+  nickname?: string | null;
   onLogout: () => void;
   onNavigate: (path: PlatformPath) => void;
   triggerLabel: string;
@@ -14,7 +16,9 @@ interface ProfileMenuProps {
 
 export function ProfileMenu({
   account,
+  avatarUrl,
   isLoggingOut,
+  nickname,
   onLogout,
   onNavigate,
   triggerLabel,
@@ -25,7 +29,7 @@ export function ProfileMenu({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-  const displayName = getDisplayName(account);
+  const displayName = nickname?.trim() || getDisplayName(account);
 
   const closeMenu = useCallback(() => {
     setIsOpen(false);
@@ -87,7 +91,7 @@ export function ProfileMenu({
         title={variant === "sidebar" ? account : undefined}
         type="button"
       >
-        <UserAvatar account={account} />
+        <UserAvatar account={account} avatarUrl={avatarUrl} key={avatarUrl || "default-avatar"} />
         {variant === "sidebar" && (
           <span className="profile-menu__trigger-copy">
             <strong>{displayName}</strong>
@@ -109,7 +113,11 @@ export function ProfileMenu({
           role="menu"
         >
           <div className="profile-menu__identity">
-            <UserAvatar account={account} />
+            <UserAvatar
+              account={account}
+              avatarUrl={avatarUrl}
+              key={avatarUrl || "default-avatar"}
+            />
             <span>
               <strong>{displayName}</strong>
               <small title={account}>{account}</small>
@@ -141,11 +149,21 @@ export function ProfileMenu({
   );
 }
 
-export function UserAvatar({ account }: { account: string }) {
+export function UserAvatar({ account, avatarUrl }: { account: string; avatarUrl?: string | null }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const displayName = getDisplayName(account);
+
   return (
     <span aria-hidden="true" className="user-avatar">
-      {displayName.charAt(0).toUpperCase()}
+      {!imageFailed ? (
+        <img
+          alt=""
+          onError={() => setImageFailed(true)}
+          src={avatarUrl || "/avatar/default_avatar.png"}
+        />
+      ) : (
+        displayName.charAt(0).toUpperCase()
+      )}
     </span>
   );
 }

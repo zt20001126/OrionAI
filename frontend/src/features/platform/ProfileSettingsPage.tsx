@@ -4,11 +4,21 @@ import { PlatformIcon } from "./PlatformIcon";
 import { getUserProfile, updateUserProfile, type UserProfile } from "./profileApi";
 
 const MAX_NICKNAME_LENGTH = 20;
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 const ACCEPTED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
+interface ProfileSettingsPageProps {
+  hidden?: boolean;
+  onDirtyChange?: (isDirty: boolean) => void;
+  onProfileUpdated?: (profile: UserProfile) => void;
+}
+
 /** 个人资料设置页面，允许当前用户编辑昵称和头像并查看账号时间信息。 */
-export function ProfileSettingsPage() {
+export function ProfileSettingsPage({
+  hidden = false,
+  onDirtyChange,
+  onProfileUpdated,
+}: ProfileSettingsPageProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [nickname, setNickname] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
@@ -55,6 +65,10 @@ export function ProfileSettingsPage() {
   const isNicknameValid =
     nickname.trim().length > 0 && Array.from(nickname.trim()).length <= MAX_NICKNAME_LENGTH;
 
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedChanges);
+  }, [hasUnsavedChanges, onDirtyChange]);
+
   function handleAvatarSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0] ?? null;
     event.currentTarget.value = "";
@@ -68,7 +82,7 @@ export function ProfileSettingsPage() {
       return;
     }
     if (file.size === 0 || file.size > MAX_AVATAR_BYTES) {
-      setSaveError("头像文件不能为空，且大小不能超过 5 MiB。");
+      setSaveError("头像文件不能为空，且大小不能超过 2 MiB。");
       return;
     }
     setSelectedAvatar(file);
@@ -93,6 +107,7 @@ export function ProfileSettingsPage() {
     try {
       const updatedProfile = await updateUserProfile(nickname.trim(), selectedAvatar);
       setProfile(updatedProfile);
+      onProfileUpdated?.(updatedProfile);
       setNickname(updatedProfile.nickname);
       setSelectedAvatar(null);
       setPreviewUrl(null);
@@ -106,7 +121,7 @@ export function ProfileSettingsPage() {
 
   if (isLoading) {
     return (
-      <section aria-live="polite" className="profile-settings-state" role="status">
+      <section aria-live="polite" className="profile-settings-state" hidden={hidden} role="status">
         <span className="status-spinner" aria-hidden="true" />
         <p>正在加载个人资料…</p>
       </section>
@@ -115,7 +130,11 @@ export function ProfileSettingsPage() {
 
   if (!profile) {
     return (
-      <section aria-labelledby="profile-settings-title" className="profile-settings-state">
+      <section
+        aria-labelledby="profile-settings-title"
+        className="profile-settings-state"
+        hidden={hidden}
+      >
         <h1 id="profile-settings-title">个人设置</h1>
         <p className="profile-settings__message profile-settings__message--error" role="alert">
           {loadError}
@@ -138,7 +157,11 @@ export function ProfileSettingsPage() {
   const avatarSource = previewUrl ?? profile.avatar_url;
 
   return (
-    <section aria-labelledby="profile-settings-title" className="profile-settings-page">
+    <section
+      aria-labelledby="profile-settings-title"
+      className="profile-settings-page"
+      hidden={hidden}
+    >
       <div className="profile-settings">
         <header className="profile-settings__header">
           <h1 id="profile-settings-title">个人设置</h1>
@@ -226,7 +249,10 @@ export function ProfileSettingsPage() {
             </p>
           )}
           {successMessage && (
-            <p className="profile-settings__message profile-settings__message--success" role="status">
+            <p
+              className="profile-settings__message profile-settings__message--success"
+              role="status"
+            >
               {successMessage}
             </p>
           )}
@@ -261,6 +287,8 @@ function formatDateTime(value: string | null): string {
   if (Number.isNaN(date.getTime())) return "—";
 
   const pad = (part: number) => String(part).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  );
 }

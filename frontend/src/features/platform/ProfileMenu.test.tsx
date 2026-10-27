@@ -68,4 +68,15 @@ describe("ProfileMenu", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "退出登录" }));
     expect(props.onLogout).toHaveBeenCalledOnce();
   });
+
+  it("shows the latest nickname and avatar supplied by the profile", () => {
+    const { container } = renderSidebarMenu({
+      nickname: "更新后的昵称",
+      avatarUrl: "https://oss.example/avatar.png",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "侧边栏用户菜单" }));
+
+    expect(screen.getAllByText("更新后的昵称")).toHaveLength(2);
+    expect(container.querySelector("img")).toHaveAttribute("src", "https://oss.example/avatar.png");
+  });
 });

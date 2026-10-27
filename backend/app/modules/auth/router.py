@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.core.config import Settings, get_settings
+from app.modules.auth.cookies import clear_session_cookie, set_session_cookie
 from app.modules.auth.dependencies import get_auth_service, validate_origin
 from app.modules.auth.schemas import (
     AccountResponse,
@@ -16,34 +17,6 @@ from app.modules.auth.schemas import (
 from app.modules.auth.service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _cookie_is_secure(settings: Settings) -> bool:
-    if settings.auth_cookie_secure is not None:
-        return settings.auth_cookie_secure
-    return settings.environment.lower() in {"prod", "production"}
-
-
-def _set_session_cookie(response: Response, token: str, settings: Settings) -> None:
-    response.set_cookie(
-        key=settings.auth_cookie_name,
-        value=token,
-        max_age=settings.auth_session_ttl_seconds,
-        httponly=True,
-        secure=_cookie_is_secure(settings),
-        samesite="lax",
-        path="/",
-    )
-
-
-def _clear_session_cookie(response: Response, settings: Settings) -> None:
-    response.delete_cookie(
-        key=settings.auth_cookie_name,
-        httponly=True,
-        secure=_cookie_is_secure(settings),
-        samesite="lax",
-        path="/",
-    )
 
 
 @router.post(
@@ -71,7 +44,7 @@ def register(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AccountResponse:
     account, token = service.register(payload.email, payload.code, payload.password)
-    _set_session_cookie(response, token, settings)
+    set_session_cookie(response, token, settings)
     return AccountResponse(account=account)
 
 
@@ -87,7 +60,7 @@ def login(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AccountResponse:
     account, token = service.login(payload.email, payload.password)
-    _set_session_cookie(response, token, settings)
+    set_session_cookie(response, token, settings)
     return AccountResponse(account=account)
 
 
@@ -101,7 +74,7 @@ def get_session(
     token = request.cookies.get(settings.auth_cookie_name)
     account = service.get_session_account(token)
     if token and account is None:
-        _clear_session_cookie(response, settings)
+        clear_session_cookie(response, settings)
     return SessionResponse(authenticated=account is not None, account=account)
 
 
@@ -117,7 +90,7 @@ def logout(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> MessageResponse:
     service.logout(request.cookies.get(settings.auth_cookie_name))
-    _clear_session_cookie(response, settings)
+    clear_session_cookie(response, settings)
     return MessageResponse(message="已退出登录。")
 
 

@@ -3,7 +3,11 @@ import { platformPaths, type PlatformPath, type PlatformRoute } from "./platform
 
 type PlaceholderPath = Exclude<
   PlatformPath,
-  "/market" | "/agents" | "/sessions" | "/settings"
+  | typeof platformPaths.market
+  | typeof platformPaths.mySkills
+  | typeof platformPaths.sessions
+  | typeof platformPaths.settings
+  | typeof platformPaths.securitySettings
 >;
 
 const pageContent: Record<PlaceholderPath, { title: string; icon: PlatformIconName }> = {

@@ -17,16 +17,17 @@ def update_user_profile(
     user_id: int,
     *,
     nickname: str,
-    avatar_url: str | None,
+    avatar_key: str | None,
 ) -> User | None:
-    """保存昵称及可选头像 URL，并返回提交后的用户资料。"""
+    """保存昵称和头像对象键，并返回提交后的用户资料。"""
 
     user = session.scalar(select(User).where(User.id == user_id))
     if user is None:
         return None
     user.nickname = nickname
-    if avatar_url is not None:
-        user.avatar_url = avatar_url
+    if avatar_key is not None:
+        user.avatar_key = avatar_key
+        user.avatar_url = None
     session.commit()
     session.refresh(user)
     return user

@@ -6,6 +6,7 @@ export const platformPaths = {
   tools: "/tools",
   workspace: "/workspace",
   settings: "/settings",
+  securitySettings: "/settings/security",
   chat: "/chat",
   login: "/login",
 } as const;

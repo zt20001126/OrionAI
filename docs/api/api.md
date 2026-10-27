@@ -6,7 +6,7 @@
 - **请求与响应：** JSON；请求体不接受未定义字段。
 - **Snowflake ID：** 会话、消息和技能响应中的 ID 以十进制字符串返回，避免 JavaScript 整数精度损失；技能添加请求的 `skill_id` 也使用十进制字符串，路径参数使用十进制 ID。
 - **邮箱：** 去除首尾空格并转为小写，最多 254 个字符。
-- **密码：** 注册和重置为 8–128 个字符；登录为 1–128 个字符。
+- **密码：** 注册和重置为 8–128 个字符；登录为 1–128 个字符；已登录用户修改密码为 8–64 个字符，不能仅由空格组成，前后空格会作为密码内容保留。
 - **认证：** 登录或注册成功后，服务端设置 `orionai_session` Cookie。Cookie 为 `HttpOnly`、`SameSite=Lax`、`Path=/`，默认有效 7 天；production 环境默认启用 `Secure`。客户端请求需携带 Cookie。
 - **来源校验：** `POST`、`PATCH` 等状态变更接口若收到 `Origin`，其主机必须与请求 `Host` 一致，否则返回 `403`。
 - **错误格式：** 业务错误为 `{"detail":"错误说明"}`；请求字段校验失败返回 FastAPI 的 `422` 校验详情。
@@ -36,6 +36,8 @@
 | `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户的技能 | Cookie |
 | `GET` | `/api/v1/users/me` | 读取当前用户个人资料 | Cookie |
 | `PATCH` | `/api/v1/users/me` | 更新当前用户昵称和头像 | Cookie |
+| `POST` | `/api/v1/users/me/password/code` | 向当前用户绑定邮箱发送修改密码验证码 | Cookie |
+| `PUT` | `/api/v1/users/me/password` | 验证验证码并修改当前用户密码 | Cookie |
 | `GET` | `/api/v1/task-results/{task_result_id}/image` | 读取本人已完成的私有图片结果 | Cookie |
 
 ## 接口详情
@@ -157,7 +159,7 @@
 
 ### 当前用户个人资料 API
 
-以下接口要求有效的 `orionai_session` Cookie。资料只针对当前登录用户，不接受用户 ID。新账号和已有账号的默认头像为 `/avatar/default_avatar.png`；用户上传头像后，`avatar_url` 为 OSS 图片的公开访问 URL。
+以下接口要求有效的 `orionai_session` Cookie。资料只针对当前登录用户，不接受用户 ID。新账号和已有账号未设置头像时返回项目静态资源 `/avatar/default_avatar.png`；默认头像地址不写入用户记录。用户上传头像后，`avatar_url` 为根据数据库中的 OSS 对象键生成的公开访问 URL。
 
 `GET /api/v1/users/me` 返回当前个人资料：
 
@@ -171,9 +173,25 @@
 }
 ```
 
-`PATCH /api/v1/users/me` 使用 `multipart/form-data`，字段为 `nickname`（必填，去除首尾空格后 1–20 个字符）和可选 `avatar` 文件。头像支持 PNG、JPEG、WebP，最大 5 MiB；服务端会检查文件签名及 MIME 一致性。成功返回更新后的同一资料结构。上传头像会写入 OSS 并设置该对象为公共读，数据库保存 OSS 公开 URL；没有上传新头像时，现有头像 URL 保持不变。
+`PATCH /api/v1/users/me` 使用 `multipart/form-data`，字段为 `nickname`（必填，去除首尾空格后 1–20 个字符）和可选 `avatar` 文件。头像支持 PNG、JPEG、WebP，最大 2 MiB；服务端会重新检查文件签名、MIME 和大小。成功返回更新后的同一资料结构。上传头像会写入当前用户独立目录下的 OSS，并设置对象级公共读；数据库仅保存 `avatar_key`，响应中的 `avatar_url` 根据该键生成。头像上传和昵称保存在同一请求中，数据库提交失败时会尝试删除新对象；替换成功后会尽力清理旧对象。没有上传新头像时，现有头像保持不变；未设置头像时使用项目默认图片。
 
 PATCH 请求沿用 `Origin` 与 `Host` 同源校验。错误：`401` 未登录；`403` 请求来源无效；`422` 昵称或头像不符合约束；`503` 数据库或 OSS 服务不可用。
+
+### 当前用户修改密码 API
+
+`POST /api/v1/users/me/password/code` 不接收邮箱参数，只向 Cookie 当前用户绑定的邮箱发送验证码。验证码为 6 位数字，有效期 5 分钟，同用途 60 秒内不可重发，最多输错 5 次；新验证码保存成功后旧验证码立即失效。Redis 只保存验证码摘要，验证由原子 Lua 脚本消费。邮件或 Redis 服务错误返回 `503`，限流返回 `429`。
+
+`PUT /api/v1/users/me/password` 请求体只接受以下字段，不接受用户 ID 或邮箱：
+
+```json
+{
+  "code": "123456",
+  "new_password": "new-example-password",
+  "password_confirmation": "new-example-password"
+}
+```
+
+密码长度为 8–64 个字符，两次输入必须完全一致；全空格密码无效，前后空格不会被清理。新密码不能与当前密码相同。成功时更新 scrypt 哈希并清除响应 Cookie；服务端会话同时因密码哈希指纹变化而失效，用户需要重新登录。错误：`400` 验证码无效、过期或已使用；`401` 未登录；`403` 来源无效；`422` 密码规则不符；`429` 验证码请求过于频繁；`503` 依赖服务不可用。
 
 ### 会话与消息 API
 

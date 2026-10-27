@@ -11,14 +11,19 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.infrastructure.email_sender import EmailDeliveryError, send_auth_code_email
-from app.infrastructure.redis.auth_state import AuthSession
+from backend.app.infrastructure.email.email_sender import EmailDeliveryError, send_auth_code_email
+from app.infrastructure.redis.auth_state import (
+    CODE_TTL_SECONDS,
+    PASSWORD_CHANGE_CODE_TTL_SECONDS,
+    AuthSession,
+)
 from app.modules.auth import repository
 from app.modules.auth.errors import (
     AccountExistsError,
     AuthUnavailableError,
     InvalidCodeError,
     InvalidCredentialsError,
+    PasswordPolicyError,
     RateLimitError,
 )
 from app.modules.auth.models import User
@@ -40,7 +45,13 @@ GENERIC_RESET_CODE_MESSAGE = "如果邮箱已注册，验证码将发送到邮�
 class AuthStateStore(Protocol):
     def start_code_cooldown(self, account: str, purpose: str) -> bool: ...
 
-    def save_code(self, account: str, purpose: str, digest: str) -> None: ...
+    def save_code(
+        self,
+        account: str,
+        purpose: str,
+        digest: str,
+        ttl_seconds: int = CODE_TTL_SECONDS,
+    ) -> None: ...
 
     def consume_code(self, account: str, purpose: str, digest: str) -> bool: ...
 
@@ -118,27 +129,21 @@ class AuthService:
             return GENERIC_RESET_CODE_MESSAGE
         if purpose == "register" and user is not None:
             raise AccountExistsError
-        if not self._settings.auth_code_pepper:
-            raise AuthUnavailableError
-
-        code = f"{secrets.randbelow(1_000_000):06d}"
-        digest = _verification_digest(self._settings.auth_code_pepper, purpose, account, code)
-        try:
-            if not self._state_store.start_code_cooldown(account, purpose):
-                raise RateLimitError
-            self._state_store.save_code(account, purpose, digest)
-        except RedisError as error:
-            raise AuthUnavailableError from error
-
-        try:
-            send_auth_code_email(self._settings, account, code, purpose)
-        except EmailDeliveryError as error:
-            try:
-                self._state_store.delete_code(account, purpose)
-            except RedisError as redis_error:
-                raise AuthUnavailableError from redis_error
-            raise AuthUnavailableError from error
+        self._send_email_code(account, purpose)
         return "验证码已发送。" if purpose == "register" else GENERIC_RESET_CODE_MESSAGE
+
+    def request_password_change_code(self, account: str) -> str:
+        """向当前认证用户的绑定邮箱发送限时修改密码验证码。"""
+
+        account = normalize_email(account)
+        if self._get_user(account) is None:
+            raise InvalidCredentialsError
+        self._send_email_code(
+            account,
+            "password_change",
+            ttl_seconds=PASSWORD_CHANGE_CODE_TTL_SECONDS,
+        )
+        return "验证码已发送。"
 
     def register(self, account: str, code: str, password: str) -> tuple[str, str]:
         account = normalize_email(account)
@@ -212,6 +217,23 @@ class AuthService:
             self._session.rollback()
             raise AuthUnavailableError from error
 
+    def change_password(self, account: str, code: str, new_password: str) -> None:
+        """验证当前用户邮箱验证码并更新密码哈希，使旧会话指纹失效。"""
+
+        if not 8 <= len(new_password) <= 64 or not new_password.strip():
+            raise PasswordPolicyError("密码长度须为 8 到 64 个字符，且不能仅由空格组成。")
+        user = self._get_user(normalize_email(account))
+        if user is None:
+            raise InvalidCredentialsError
+        if verify_password(new_password, user.password_hash):
+            raise PasswordPolicyError("新密码不能与当前密码相同。")
+        self._consume_code(user.account, "password_change", code)
+        try:
+            repository.update_password(self._session, user, hash_password(new_password))
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise AuthUnavailableError from error
+
     def _get_user(self, account: str) -> User | None:
         try:
             return repository.get_user(self._session, account)
@@ -227,6 +249,34 @@ class AuthService:
             if not self._state_store.consume_code(account, purpose, digest):
                 raise InvalidCodeError
         except RedisError as error:
+            raise AuthUnavailableError from error
+
+    def _send_email_code(
+        self,
+        account: str,
+        purpose: str,
+        *,
+        ttl_seconds: int = CODE_TTL_SECONDS,
+    ) -> None:
+        if not self._settings.auth_code_pepper:
+            raise AuthUnavailableError
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        digest = _verification_digest(self._settings.auth_code_pepper, purpose, account, code)
+        try:
+            if not self._state_store.start_code_cooldown(account, purpose):
+                raise RateLimitError
+            self._state_store.save_code(account, purpose, digest, ttl_seconds)
+        except RedisError as error:
+            raise AuthUnavailableError from error
+
+        try:
+            send_auth_code_email(self._settings, account, code, purpose)
+        except EmailDeliveryError as error:
+            try:
+                self._state_store.delete_code(account, purpose)
+            except RedisError as redis_error:
+                raise AuthUnavailableError from redis_error
             raise AuthUnavailableError from error
 
     def _create_session(self, user: User) -> str:

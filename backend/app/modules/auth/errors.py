@@ -15,6 +15,11 @@ class InvalidCredentialsError(AuthError):
         super().__init__(401, "邮箱或密码错误。")
 
 
+class PasswordPolicyError(AuthError):
+    def __init__(self, detail: str) -> None:
+        super().__init__(422, detail)
+
+
 class AccountExistsError(AuthError):
     def __init__(self) -> None:
         super().__init__(409, "该邮箱已注册。")

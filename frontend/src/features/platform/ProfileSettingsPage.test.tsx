@@ -70,7 +70,11 @@ describe("ProfileSettingsPage", () => {
   });
 
   it("saves the nickname and selected avatar together", async () => {
-    const updatedProfile = { ...defaultProfile, nickname: "新昵称", avatar_url: "https://oss.example/avatar.png" };
+    const updatedProfile = {
+      ...defaultProfile,
+      nickname: "新昵称",
+      avatar_url: "https://oss.example/avatar.png",
+    };
     vi.mocked(updateUserProfile).mockResolvedValue(updatedProfile);
     render(<ProfileSettingsPage />);
     await screen.findByRole("heading", { name: "个人设置" });
@@ -88,6 +92,21 @@ describe("ProfileSettingsPage", () => {
       "src",
       "https://oss.example/avatar.png",
     );
+  });
+
+  it("rejects avatar files larger than two MiB before sending them", async () => {
+    render(<ProfileSettingsPage />);
+    await screen.findByRole("heading", { name: "个人设置" });
+    const oversizedAvatar = new File([new Uint8Array(2 * 1024 * 1024 + 1)], "large.png", {
+      type: "image/png",
+    });
+
+    fireEvent.change(screen.getByLabelText("选择头像文件"), {
+      target: { files: [oversizedAvatar] },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("不能超过 2 MiB");
+    expect(updateUserProfile).not.toHaveBeenCalled();
   });
 
   it("limits the nickname to 20 characters", async () => {

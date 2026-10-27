@@ -4,7 +4,7 @@ import { AuthPage } from "../features/auth/AuthPage";
 import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlaceholderPage } from "../features/platform/PlaceholderPage";
-import { ProfileSettingsPage } from "../features/platform/ProfileSettingsPage";
+import { SettingsPage } from "../features/platform/SettingsPage";
 import { SkillMarketPage } from "../features/platform/SkillMarketPage";
 import { ConversationPage } from "../features/conversations/ConversationPage";
 import { SessionsPage } from "../features/conversations/SessionsPage";
@@ -17,6 +17,7 @@ import {
   type PlatformRoute,
 } from "../features/platform/platformData";
 import { getSession, logout } from "../features/auth/authApi";
+import { getUserProfile, type UserProfile } from "../features/platform/profileApi";
 
 type AppPath = PlatformRoute | typeof platformPaths.login;
 
@@ -26,28 +27,84 @@ function getCurrentPath(): string {
 
 export default function App() {
   const [account, setAccount] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [pathname, setPathname] = useState(getCurrentPath);
+  const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false);
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const navigate = useCallback((path: AppPath, replace = false) => {
-    const method = replace ? "replaceState" : "pushState";
-    if (window.location.pathname !== path) {
-      window.history[method]({}, "", path);
-    }
-    setPathname(path);
-  }, []);
+  const navigate = useCallback(
+    (path: AppPath, replace = false) => {
+      const isSettingsPath =
+        pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
+      if (
+        isSettingsPath &&
+        path !== pathname &&
+        hasUnsavedSettings &&
+        !window.confirm("当前设置有尚未保存的更改，确定离开吗？")
+      ) {
+        return;
+      }
+
+      const method = replace ? "replaceState" : "pushState";
+      if (window.location.pathname !== path) {
+        window.history[method]({}, "", path);
+      }
+      setPathname(path);
+    },
+    [hasUnsavedSettings, pathname],
+  );
 
   useEffect(() => {
     function handlePopState() {
-      setPathname(getCurrentPath());
+      const nextPath = getCurrentPath();
+      const isSettingsPath =
+        pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
+      if (
+        isSettingsPath &&
+        nextPath !== pathname &&
+        hasUnsavedSettings &&
+        !window.confirm("当前设置有尚未保存的更改，确定离开吗？")
+      ) {
+        window.history.pushState({}, "", pathname);
+        return;
+      }
+      setPathname(nextPath);
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [hasUnsavedSettings, pathname]);
+
+  useEffect(() => {
+    if (!hasUnsavedSettings) return;
+    function warnBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [hasUnsavedSettings]);
+
+  useEffect(() => {
+    if (!account) return;
+
+    let isActive = true;
+    void getUserProfile()
+      .then((profile) => {
+        if (isActive) setUserProfile(profile);
+      })
+      .catch(() => {
+        if (isActive) setUserProfile(null);
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [account]);
 
   useEffect(() => {
     let isActive = true;
@@ -90,8 +147,11 @@ export default function App() {
     setIsLoggingOut(true);
     try {
       await logout();
+      setHasUnsavedSettings(false);
       setAccount(null);
-      navigate(platformPaths.login, true);
+      setUserProfile(null);
+      window.history.replaceState({}, "", platformPaths.login);
+      setPathname(platformPaths.login);
     } catch {
       setLogoutError("退出失败，请检查连接后重试。");
     } finally {
@@ -101,9 +161,22 @@ export default function App() {
 
   function handleAuthenticated(authenticatedAccount: string) {
     setSessionError(null);
+    setAuthSuccessMessage(null);
     setLogoutError(null);
+    setHasUnsavedSettings(false);
+    setUserProfile(null);
     setAccount(authenticatedAccount);
     navigate(platformPaths.market, true);
+  }
+
+  function handlePasswordChanged(message: string) {
+    setUserProfile(null);
+    setHasUnsavedSettings(false);
+    setSessionError(null);
+    setAuthSuccessMessage(message);
+    setAccount(null);
+    window.history.replaceState({}, "", platformPaths.login);
+    setPathname(platformPaths.login);
   }
 
   if (isRestoringSession) {
@@ -126,7 +199,13 @@ export default function App() {
   }
 
   if (!account) {
-    return <AuthPage initialMessage={sessionError} onAuthenticated={handleAuthenticated} />;
+    return (
+      <AuthPage
+        initialMessage={sessionError}
+        initialSuccessMessage={authSuccessMessage}
+        onAuthenticated={handleAuthenticated}
+      />
+    );
   }
 
   const safePathname: PlatformRoute = isPlatformPath(pathname) ? pathname : platformPaths.market;
@@ -135,7 +214,21 @@ export default function App() {
     if (safePathname === platformPaths.market) return <SkillMarketPage />;
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
-    if (safePathname === platformPaths.settings) return <ProfileSettingsPage />;
+    if (
+      safePathname === platformPaths.settings ||
+      safePathname === platformPaths.securitySettings
+    ) {
+      return (
+        <SettingsPage
+          account={account}
+          onDirtyChange={setHasUnsavedSettings}
+          onNavigate={navigate}
+          onPasswordChanged={handlePasswordChanged}
+          onProfileUpdated={setUserProfile}
+          pathname={safePathname}
+        />
+      );
+    }
     if (isConversationPath(safePathname)) {
       return <ConversationPage conversationId={conversationId} onNavigate={navigate} />;
     }
@@ -145,8 +238,10 @@ export default function App() {
   return (
     <PlatformLayout
       account={account}
+      avatarUrl={userProfile?.avatar_url}
       isLoggingOut={isLoggingOut}
       logoutError={logoutError}
+      nickname={userProfile?.nickname}
       onLogout={() => void handleLogout()}
       onNavigate={navigate}
       pathname={safePathname}

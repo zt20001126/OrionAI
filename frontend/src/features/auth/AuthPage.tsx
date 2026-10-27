@@ -14,6 +14,7 @@ type AuthView = "login" | "register" | "password_reset";
 
 interface AuthPageProps {
   initialMessage?: string | null;
+  initialSuccessMessage?: string | null;
   onAuthenticated: (account: string) => void;
 }
 
@@ -23,7 +24,11 @@ const viewContent: Record<AuthView, { title: string; subtitle: string }> = {
   password_reset: { title: "重置密码", subtitle: "通过邮箱验证码设置新密码。" },
 };
 
-export function AuthPage({ initialMessage, onAuthenticated }: AuthPageProps) {
+export function AuthPage({
+  initialMessage,
+  initialSuccessMessage,
+  onAuthenticated,
+}: AuthPageProps) {
   const [view, setView] = useState<AuthView>("login");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -32,7 +37,7 @@ export function AuthPage({ initialMessage, onAuthenticated }: AuthPageProps) {
   const [cooldown, setCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialSuccessMessage ?? null);
   const [error, setError] = useState<string | null>(initialMessage ?? null);
 
   useEffect(() => {

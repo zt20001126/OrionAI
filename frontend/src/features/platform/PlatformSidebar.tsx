@@ -5,7 +5,9 @@ import { navigationItems, platformPaths, type PlatformRoute } from "./platformDa
 
 interface PlatformSidebarProps {
   account: string;
+  avatarUrl?: string | null;
   isLoggingOut: boolean;
+  nickname?: string | null;
   onLogout: () => void;
   onNavigate: (path: PlatformRoute) => void;
   pathname: PlatformRoute;
@@ -13,7 +15,9 @@ interface PlatformSidebarProps {
 
 export function PlatformSidebar({
   account,
+  avatarUrl,
   isLoggingOut,
+  nickname,
   onLogout,
   onNavigate,
   pathname,
@@ -71,7 +75,9 @@ export function PlatformSidebar({
         <div className="sidebar-account">
           <ProfileMenu
             account={account}
+            avatarUrl={avatarUrl}
             isLoggingOut={isLoggingOut}
+            nickname={nickname}
             onLogout={onLogout}
             onNavigate={onNavigate}
             triggerLabel="侧边栏用户菜单"

@@ -20,19 +20,25 @@ def send_auth_code_email(settings: Settings, account: str, code: str, purpose: s
     ):
         raise EmailDeliveryError("SMTP 尚未完成配置。")
 
-    purpose_label = "注册" if purpose == "register" else "重置密码"
+    purpose_label = {
+        "register": "注册",
+        "password_reset": "重置密码",
+        "password_change": "修改密码",
+    }.get(purpose, "账号验证")
+    expiry_label = "5 分钟" if purpose == "password_change" else "10 分钟"
     message = EmailMessage()
     message["Subject"] = f"OrionAI {purpose_label}验证码"
     message["From"] = formataddr((settings.smtp_from_name, settings.smtp_from_email))
     message["To"] = account
     message.set_content(
-        f"你的 OrionAI {purpose_label}验证码是：{code}\n验证码 10 分钟内有效，请勿向他人透露。"
+        f"你的 OrionAI {purpose_label}验证码是：{code}\n"
+        f"验证码 {expiry_label}内有效，请勿向他人透露。"
     )
     message.add_alternative(
         "<html><body>"
         f"<p>你的 OrionAI {purpose_label}验证码是：</p>"
         f"<p style='font-size:28px;font-weight:bold;letter-spacing:6px'>{code}</p>"
-        "<p>验证码 10 分钟内有效，请勿向他人透露。</p>"
+        f"<p>验证码 {expiry_label}内有效，请勿向他人透露。</p>"
         "</body></html>",
         subtype="html",
     )

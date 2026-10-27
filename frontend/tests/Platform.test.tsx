@@ -104,6 +104,18 @@ function mockSession(
         json: async () => ({ authenticated: account !== null, account }),
       } as Response;
     }
+    if (path === "/api/v1/users/me") {
+      return {
+        ok: true,
+        json: async () => ({
+          nickname: "示例用户",
+          account: "person@example.com",
+          avatar_url: "/avatar/default_avatar.png",
+          created_at: "2025-03-10T14:26:08+08:00",
+          last_login_at: null,
+        }),
+      } as Response;
+    }
     if (path.endsWith("/logout")) {
       return { ok: true, json: async () => ({ message: "已退出登录。" }) } as Response;
     }
@@ -136,7 +148,7 @@ describe("OrionAI platform", () => {
     expect(
       await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" }),
     ).toBeInTheDocument();
-    expect(window.location.pathname).toBe("/market");
+    await waitFor(() => expect(window.location.pathname).toBe("/market"));
     expect(screen.getByRole("link", { name: /技能市场/ })).toHaveAttribute("aria-current", "page");
     expect(await screen.findByRole("heading", { name: "简历助手" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文献助手" })).toBeInTheDocument();
@@ -151,6 +163,27 @@ describe("OrionAI platform", () => {
     expect(
       await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" }),
     ).toBeInTheDocument();
+  });
+
+  it("warns before switching settings with unsaved profile changes", async () => {
+    vi.stubGlobal("fetch", mockSession());
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => false),
+    );
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" });
+    fireEvent.click(screen.getByRole("button", { name: "更多用户选项" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "个人设置" }));
+
+    const nicknameInput = await screen.findByRole("textbox", { name: "用户昵称" });
+    fireEvent.change(nicknameInput, { target: { value: "待保存昵称" } });
+    fireEvent.click(screen.getByRole("button", { name: "安全设置" }));
+
+    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(window.location.pathname).toBe("/settings");
+    expect(nicknameInput).toHaveValue("待保存昵称");
   });
 
   it("filters database skills by search and category", async () => {
@@ -236,7 +269,7 @@ describe("OrionAI platform", () => {
     vi.stubGlobal("fetch", mockSession(null));
     render(<App />);
     expect(await screen.findByRole("heading", { name: "登录 OrionAI" })).toBeInTheDocument();
-    expect(window.location.pathname).toBe("/login");
+    await waitFor(() => expect(window.location.pathname).toBe("/login"));
   });
 
   it("returns to login after logout", async () => {

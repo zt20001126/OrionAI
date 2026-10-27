@@ -9,9 +9,11 @@ import { platformPaths, type PlatformRoute } from "./platformData";
 
 interface PlatformLayoutProps {
   account: string;
+  avatarUrl?: string | null;
   children: ReactNode;
   isLoggingOut: boolean;
   logoutError: string | null;
+  nickname?: string | null;
   onLogout: () => void;
   onNavigate: (path: PlatformRoute) => void;
   pathname: PlatformRoute;
@@ -19,9 +21,11 @@ interface PlatformLayoutProps {
 
 export function PlatformLayout({
   account,
+  avatarUrl,
   children,
   isLoggingOut,
   logoutError,
+  nickname,
   onLogout,
   onNavigate,
   pathname,
@@ -35,17 +39,21 @@ export function PlatformLayout({
         ? "我的技能"
         : pathname === platformPaths.sessions
           ? "会话记录"
-        : pathname === platformPaths.settings
-          ? "个人设置"
-          : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
-            ? "通用对话助手"
-            : "OrionAI";
+          : pathname === platformPaths.settings
+            ? "个人设置"
+            : pathname === platformPaths.securitySettings
+              ? "安全设置"
+              : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
+                ? "通用对话助手"
+                : "OrionAI";
 
   return (
     <div className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}`}>
       <PlatformSidebar
         account={account}
+        avatarUrl={avatarUrl}
         isLoggingOut={isLoggingOut}
+        nickname={nickname}
         onLogout={onLogout}
         onNavigate={onNavigate}
         pathname={pathname}
@@ -65,7 +73,9 @@ export function PlatformLayout({
             </button>
             <ProfileMenu
               account={account}
+              avatarUrl={avatarUrl}
               isLoggingOut={isLoggingOut}
+              nickname={nickname}
               onLogout={onLogout}
               onNavigate={onNavigate}
               triggerLabel="更多用户选项"

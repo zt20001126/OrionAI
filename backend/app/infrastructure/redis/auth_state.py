@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from redis import Redis
 
 CODE_TTL_SECONDS = 600
+PASSWORD_CHANGE_CODE_TTL_SECONDS = 300
 CODE_COOLDOWN_SECONDS = 60
 CODE_MAX_ATTEMPTS = 5
 VERIFY_CODE_SCRIPT = """
@@ -48,11 +49,19 @@ class RedisAuthStateStore:
             )
         )
 
-    def save_code(self, account: str, purpose: str, digest: str) -> None:
+    def save_code(
+        self,
+        account: str,
+        purpose: str,
+        digest: str,
+        ttl_seconds: int = CODE_TTL_SECONDS,
+    ) -> None:
+        if ttl_seconds <= 0:
+            raise ValueError("验证码有效期必须大于 0。")
         key = self._code_key("code", account, purpose)
         with self._client.pipeline(transaction=True) as pipeline:
             pipeline.hset(key, mapping={"digest": digest, "attempts": "0"})
-            pipeline.expire(key, CODE_TTL_SECONDS)
+            pipeline.expire(key, ttl_seconds)
             pipeline.execute()
 
     def consume_code(self, account: str, purpose: str, digest: str) -> bool:

@@ -8,6 +8,16 @@ export interface UserProfile {
   last_login_at: string | null;
 }
 
+export interface PasswordChangePayload {
+  code: string;
+  new_password: string;
+  password_confirmation: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
@@ -48,4 +58,22 @@ export async function updateUserProfile(
     body: formData,
   });
   return parseResponse<UserProfile>(response);
+}
+
+export async function sendPasswordChangeCode(): Promise<MessageResponse> {
+  const response = await fetch("/api/v1/users/me/password/code", {
+    method: "POST",
+    credentials: "include",
+  });
+  return parseResponse<MessageResponse>(response);
+}
+
+export async function changePassword(payload: PasswordChangePayload): Promise<MessageResponse> {
+  const response = await fetch("/api/v1/users/me/password", {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return parseResponse<MessageResponse>(response);
 }

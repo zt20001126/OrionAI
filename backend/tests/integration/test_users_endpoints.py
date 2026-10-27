@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 import pytest
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -89,6 +89,7 @@ def users_client() -> Iterator[tuple[TestClient, dict[str, Any]]]:
         "session_factory": session_factory,
         "storage": storage,
         "fail_commit": False,
+        "authenticated": True,
     }
     test_app = create_app(lifespan=_test_lifespan)
 
@@ -106,6 +107,8 @@ def users_client() -> Iterator[tuple[TestClient, dict[str, Any]]]:
             session.close()
 
     def override_current_user() -> User:
+        if not state["authenticated"]:
+            raise HTTPException(status_code=401, detail="请先登录。")
         return state["current_user"]
 
     def override_users_service(
@@ -146,7 +149,7 @@ def test_profile_returns_current_users_saved_fields_and_default_avatar(
     assert state["storage"].uploaded_keys == []
 
 
-def test_profile_update_saves_nickname_and_public_oss_url(
+def test_profile_update_saves_avatar_key_and_returns_oss_url(
     users_client: tuple[TestClient, dict[str, Any]],
 ) -> None:
     client, state = users_client
@@ -174,7 +177,12 @@ def test_profile_update_saves_nickname_and_public_oss_url(
         saved_user = session.scalar(select(User).where(User.id == state["current_user"].id))
         assert saved_user is not None
         assert saved_user.nickname == "新昵称"
-        assert saved_user.avatar_url == payload["avatar_url"]
+        assert saved_user.avatar_key == storage.uploaded_keys[0]
+        assert saved_user.avatar_url is None
+
+    refreshed_profile = client.get("/api/v1/users/me")
+    assert refreshed_profile.status_code == 200
+    assert refreshed_profile.json()["avatar_url"] == payload["avatar_url"]
 
 
 def test_profile_update_rejects_invalid_image_without_uploading(
@@ -191,6 +199,22 @@ def test_profile_update_rejects_invalid_image_without_uploading(
     assert response.status_code == 422
     assert state["storage"].uploaded_keys == []
     assert client.get("/api/v1/users/me").json()["nickname"] == "profile-owner"
+
+
+def test_profile_update_rejects_avatar_over_two_mib(
+    users_client: tuple[TestClient, dict[str, Any]],
+) -> None:
+    client, state = users_client
+    oversized_png = PNG_BYTES + b"0" * (2 * 1024 * 1024)
+
+    response = client.patch(
+        "/api/v1/users/me",
+        data={"nickname": "新昵称"},
+        files={"avatar": ("portrait.png", oversized_png, "image/png")},
+    )
+
+    assert response.status_code == 422
+    assert state["storage"].uploaded_keys == []
 
 
 def test_profile_update_rejects_nickname_over_limit_without_uploading(
@@ -229,21 +253,22 @@ def test_database_failure_removes_the_newly_uploaded_avatar(
         saved_user = session.scalar(select(User).where(User.id == state["current_user"].id))
         assert saved_user is not None
         assert saved_user.nickname is None
-        assert saved_user.avatar_url == DEFAULT_USER_AVATAR_URL
+        assert saved_user.avatar_key is None
+        assert saved_user.avatar_url is None
 
 
 def test_successful_avatar_replacement_deletes_the_previous_oss_object(
     users_client: tuple[TestClient, dict[str, Any]],
 ) -> None:
     client, state = users_client
-    old_key = "users/1/avatars/old.png"
-    old_url = state["storage"].build_public_url(old_key)
-    state["current_user"].avatar_url = old_url
+    old_key = f"users/{state['current_user'].id}/avatars/old.png"
+    state["current_user"].avatar_key = old_key
     state["storage"].objects[old_key] = (b"old-image", "image/png", True)
     with state["session_factory"]() as session:
         saved_user = session.get(User, state["current_user"].id)
         assert saved_user is not None
-        saved_user.avatar_url = old_url
+        saved_user.avatar_key = old_key
+        saved_user.avatar_url = None
         session.commit()
 
     response = client.patch(
@@ -255,3 +280,14 @@ def test_successful_avatar_replacement_deletes_the_previous_oss_object(
     assert response.status_code == 200
     assert old_key in state["storage"].deleted_keys
     assert old_key not in state["storage"].objects
+
+
+def test_profile_update_requires_authentication(
+    users_client: tuple[TestClient, dict[str, Any]],
+) -> None:
+    client, state = users_client
+    state["authenticated"] = False
+
+    response = client.patch("/api/v1/users/me", data={"nickname": "未授权"})
+
+    assert response.status_code == 401
