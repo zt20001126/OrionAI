@@ -27,6 +27,19 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     smtp_from_name: str = "OrionAI"
     smtp_use_ssl: bool = True
+    aliyun_oss_access_key_id: SecretStr = Field(
+        default=SecretStr(""), description="阿里云 OSS AccessKey ID，不得写入日志。"
+    )
+    aliyun_oss_access_key_secret: SecretStr = Field(
+        default=SecretStr(""), description="阿里云 OSS AccessKey Secret，不得写入日志。"
+    )
+    aliyun_oss_endpoint: str = Field(
+        default="", description="阿里云 OSS Bucket 所在地域的 Endpoint。"
+    )
+    aliyun_oss_bucket: str = Field(default="", description="阿里云 OSS Bucket 名称。")
+    aliyun_oss_object_prefix: str = Field(
+        default="orionai", description="OrionAI 对象键使用的 OSS 根前缀。"
+    )
     deepseek_api_key: SecretStr = Field(
         default=SecretStr(""), description="DeepSeek API 密钥，不得写入日志。"
     )
@@ -55,6 +68,18 @@ class Settings(BaseSettings):
         if value == "":
             return None
         return value
+
+    @property
+    def aliyun_oss_configured(self) -> bool:
+        """判断 OSS 凭据和目标 Bucket 是否齐全；该状态不影响应用启动。"""
+        return all(
+            (
+                self.aliyun_oss_access_key_id.get_secret_value().strip(),
+                self.aliyun_oss_access_key_secret.get_secret_value().strip(),
+                self.aliyun_oss_endpoint.strip(),
+                self.aliyun_oss_bucket.strip(),
+            )
+        )
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
