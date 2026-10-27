@@ -597,7 +597,6 @@ export function ConversationPage({ conversationId, onNavigate }: ConversationPag
               >
                 {message.role === "assistant" && text && (
                   <div className="conversation-message__bubble">
-                    <div className="conversation-message__label">通用对话助手</div>
                     <div className="conversation-message__markdown">
                       <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>
                         {text}

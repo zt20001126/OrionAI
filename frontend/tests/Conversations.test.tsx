@@ -519,6 +519,9 @@ describe("OrionAI conversations", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "计划" })).toBeInTheDocument();
+    expect(
+      document.querySelector(".conversation-message__bubble .conversation-message__label"),
+    ).toBeNull();
     expect(screen.getByText("清晰", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("inline code", { selector: "code" })).toBeInTheDocument();
     expect(screen.getByRole("list").querySelectorAll("li")).toHaveLength(2);

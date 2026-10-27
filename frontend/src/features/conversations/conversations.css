@@ -309,13 +309,6 @@
   opacity: 0.75;
 }
 
-.conversation-message__label {
-  margin-bottom: var(--space-1);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
-  font-weight: 550;
-}
-
 .conversation-message__text {
   margin: 0;
   color: var(--color-text);
