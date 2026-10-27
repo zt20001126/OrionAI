@@ -19,7 +19,9 @@ export function PlatformSidebar({
   pathname,
 }: PlatformSidebarProps) {
   const displayName = getDisplayName(account);
-  const activePath = pathname.startsWith(`${platformPaths.chat}`) ? platformPaths.agents : pathname;
+  const activePath = pathname.startsWith(`${platformPaths.chat}`)
+    ? platformPaths.mySkills
+    : pathname;
 
   return (
     <aside className="platform-sidebar" aria-label="平台侧边栏">

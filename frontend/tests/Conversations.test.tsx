@@ -78,6 +78,28 @@ function createBackend(options?: {
         } as Response;
       }
 
+      if (url.pathname === "/api/v1/users/me/skills" && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [
+              {
+                id: "373284764594991100",
+                code: "general_chat",
+                name: "通用对话助手",
+                description: "支持日常问答和多轮对话",
+                type: "agent",
+                status: "published",
+                created_at: createdAt,
+                added_at: createdAt,
+                is_added: true,
+              },
+            ],
+          }),
+        } as Response;
+      }
+
       if (url.pathname === "/api/conversations" && method === "POST") {
         const conversation: ConversationSummary = {
           id: createdConversationId,
@@ -237,7 +259,7 @@ describe("OrionAI conversations", () => {
     vi.stubGlobal("fetch", backend.fetchMock);
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /通用对话助手/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "使用" }));
     expect(await screen.findByText("有什么问题，尽管问我。")).toBeInTheDocument();
 
     const messageInput = screen.getByRole("textbox", { name: "发送消息" });
@@ -247,9 +269,7 @@ describe("OrionAI conversations", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
 
     expect(await screen.findByText("已回答：你好")).toBeInTheDocument();
-    expect(
-      await screen.findByRole("button", { name: /首条消息自动标题/ }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /首条消息自动标题/ })).toBeInTheDocument();
     expect(messageInput).toHaveFocus();
     expect(window.location.pathname).toBe(`/chat/${createdConversationId}`);
     expect(

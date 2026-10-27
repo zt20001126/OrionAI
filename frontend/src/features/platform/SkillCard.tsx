@@ -1,29 +1,42 @@
+import type { ReactNode } from "react";
+
 import { PlatformIcon } from "./PlatformIcon";
-import type { DemoSkill } from "./platformData";
+import type { MarketSkill } from "./skillApi";
 
 interface SkillCardProps {
-  onView: (skill: DemoSkill) => void;
-  skill: DemoSkill;
+  actions: ReactNode;
+  onView: (skill: MarketSkill) => void;
+  skill: MarketSkill;
 }
 
-export function SkillCard({ onView, skill }: SkillCardProps) {
+/** 展示数据库中的单项技能，并将详情查看交由页面处理。 */
+export function SkillCard({ actions, onView, skill }: SkillCardProps) {
+  const category = skill.type === "agent" ? "智能体" : "工具";
+  const icon = skill.type === "agent" ? "knowledge" : "tools";
+  const status = skill.status === "disabled" ? "已停用" : skill.is_added ? "已添加" : "可添加";
+
   return (
     <article className="skill-card">
-      <div className={`skill-card__icon skill-card__icon--${skill.icon}`}>
-        <PlatformIcon name={skill.icon} size={25} />
+      <div className={`skill-card__icon skill-card__icon--${icon}`}>
+        <PlatformIcon name={icon} size={25} />
       </div>
-      <span className="skill-card__category">{skill.category}</span>
+      <span className="skill-card__category">
+        {category} · {status}
+      </span>
       <h3>{skill.name}</h3>
       <p>{skill.description}</p>
-      <button
-        aria-label={`查看 ${skill.name} 详情`}
-        className="skill-card__action"
-        onClick={() => onView(skill)}
-        type="button"
-      >
-        查看
-        <PlatformIcon name="arrow" size={16} />
-      </button>
+      <div className="skill-card__actions">
+        <button
+          aria-label={`查看 ${skill.name} 详情`}
+          className="skill-card__action"
+          onClick={() => onView(skill)}
+          type="button"
+        >
+          查看详情
+          <PlatformIcon name="arrow" size={16} />
+        </button>
+        {actions}
+      </div>
     </article>
   );
 }

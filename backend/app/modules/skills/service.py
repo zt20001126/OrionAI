@@ -33,15 +33,23 @@ class SkillsService:
         *,
         skill_type: str | None,
         keyword: str | None,
+        include_disabled: bool = False,
         page: int,
         page_size: int,
     ) -> SkillPageResponse:
+        """查询技能市场。
+
+        Step 1: 将搜索、类型和停用状态筛选条件传给 Repository。
+        Step 2: 将查询结果转换为 API 响应 DTO。
+        """
+
         try:
             rows, total = repository.list_market_skills(
                 self._session,
                 user.id,
                 skill_type=skill_type,
                 keyword=keyword.strip() if keyword else None,
+                include_disabled=include_disabled,
                 page=page,
                 page_size=page_size,
             )

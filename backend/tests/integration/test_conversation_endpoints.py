@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -17,6 +17,7 @@ from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
 from app.modules.conversations.models import Conversation
+from app.modules.skills.models import Skill, UserSkill
 
 
 class ScriptedAgent:
@@ -88,6 +89,24 @@ def conversation_client() -> Iterator[
         session.commit()
         session.refresh(owner)
         session.refresh(other_user)
+        general_chat = Skill(
+            code="general_chat",
+            name="通用对话助手",
+            description="支持日常问答和多轮对话",
+            type="agent",
+            status="published",
+        )
+        session.add(general_chat)
+        session.flush()
+        session.add_all(
+            [
+                UserSkill(user_id=owner.id, skill_id=general_chat.id),
+                UserSkill(user_id=other_user.id, skill_id=general_chat.id),
+            ]
+        )
+        session.commit()
+        session.refresh(owner)
+        session.refresh(other_user)
 
     users = {"current": owner, "other": other_user}
     agent = ScriptedAgent(
@@ -153,6 +172,39 @@ def test_conversation_endpoints_require_login() -> None:
         response = client.get("/api/conversations")
 
     assert response.status_code == 401
+
+
+def test_chat_requires_general_chat_to_be_added_before_use(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, users, agent, title_generator, session_factory = conversation_client
+    with session_factory() as session:
+        skill_id = session.scalar(select(Skill.id).where(Skill.code == "general_chat"))
+        assert skill_id is not None
+        session.execute(
+            delete(UserSkill).where(
+                UserSkill.user_id == users["current"].id,
+                UserSkill.skill_id == skill_id,
+            )
+        )
+        session.commit()
+
+    conversation_id = client.post("/api/conversations").json()["id"]
+    response = client.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"message": "你好"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "请先将通用对话助手添加到我的技能后再使用。"
+    assert agent.calls == []
+    assert title_generator.messages == []
 
 
 def test_chat_persists_messages_and_resumes_waiting_questions(

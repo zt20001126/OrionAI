@@ -31,8 +31,8 @@ export function PlatformLayout({
   const pageTitle =
     pathname === platformPaths.market
       ? "技能市场"
-      : pathname === platformPaths.agents
-        ? "我的智能体"
+      : pathname === platformPaths.mySkills
+        ? "我的技能"
         : pathname === platformPaths.sessions
           ? "会话记录"
           : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)

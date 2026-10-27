@@ -36,6 +36,7 @@ from app.modules.conversations.title import (
     ConversationTitleGenerator,
     fallback_conversation_title,
 )
+from app.modules.skills import repository as skills_repository
 
 logger = logging.getLogger(__name__)
 MAX_PAGE_SIZE = 100
@@ -135,6 +136,7 @@ class ConversationService:
             conversation_id,
             for_update=True,
         )
+        self._require_general_chat_skill(user.id)
         self._ensure_not_waiting(conversation.id)
         try:
             should_generate_title = (
@@ -172,6 +174,7 @@ class ConversationService:
         """验证当前待答题卡并在原 Checkpointer 线程继续运行。"""
 
         conversation = self._get_conversation_safely(user.id, conversation_id)
+        self._require_general_chat_skill(user.id)
         latest_message = self._get_latest_message_safely(conversation.id)
         question_payload = self._pending_questions(latest_message)
         try:
@@ -412,6 +415,22 @@ class ConversationService:
         except SQLAlchemyError:
             self._session.rollback()
             raise ConversationUnavailableError from None
+
+    def _require_general_chat_skill(self, user_id: int) -> None:
+        """只有已添加且仍发布通用对话助手的用户可以运行对话 Agent。"""
+
+        try:
+            is_added = skills_repository.user_has_skill_code(
+                self._session,
+                user_id,
+                skills_repository.GENERAL_CHAT_SKILL_CODE,
+            )
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise ConversationUnavailableError from None
+        if not is_added:
+            self._session.rollback()
+            raise ConversationConflictError("请先将通用对话助手添加到我的技能后再使用。")
 
     def _ensure_not_waiting(self, conversation_id: int) -> None:
         latest_message = self._get_latest_message_safely(conversation_id)

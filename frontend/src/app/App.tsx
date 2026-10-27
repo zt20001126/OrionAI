@@ -5,9 +5,9 @@ import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlaceholderPage } from "../features/platform/PlaceholderPage";
 import { SkillMarketPage } from "../features/platform/SkillMarketPage";
-import { AgentsPage } from "../features/agents/AgentsPage";
 import { ConversationPage } from "../features/conversations/ConversationPage";
 import { SessionsPage } from "../features/conversations/SessionsPage";
+import { MySkillsPage } from "../features/skills/MySkillsPage";
 import {
   getConversationId,
   isConversationPath,
@@ -132,7 +132,7 @@ export default function App() {
   const conversationId = getConversationId(safePathname);
   const page = (() => {
     if (safePathname === platformPaths.market) return <SkillMarketPage />;
-    if (safePathname === platformPaths.agents) return <AgentsPage onNavigate={navigate} />;
+    if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
     if (isConversationPath(safePathname)) {
       return <ConversationPage conversationId={conversationId} onNavigate={navigate} />;

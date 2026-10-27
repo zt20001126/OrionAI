@@ -12,6 +12,12 @@ describe("OrionAI authentication page", () => {
   it("restores an anonymous session and logs in with a cookie-backed request", async () => {
     const fetchMock = vi.fn().mockImplementation(async (input: RequestInfo | URL) => {
       const path = String(input);
+      if (path.startsWith("/api/v1/skills")) {
+        return {
+          ok: true,
+          json: async () => ({ items: [], total: 0, page: 1, page_size: 100 }),
+        } as Response;
+      }
       if (path.endsWith("/session")) {
         return {
           ok: true,

@@ -27,6 +27,11 @@
 | `GET` | `/api/conversations/{id}/messages` | 分页读取会话消息 | Cookie |
 | `POST` | `/api/conversations/{id}/messages` | 发送文本并获取回答或题卡 | Cookie |
 | `POST` | `/api/conversations/{id}/answers` | 提交题卡选项并恢复对话 | Cookie |
+| `GET` | `/api/v1/skills` | 分页查询技能市场 | Cookie |
+| `GET` | `/api/v1/skills/{skill_id}` | 查询已发布技能详情 | Cookie |
+| `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加技能 | Cookie |
+| `POST` | `/api/v1/users/me/skills` | 添加已发布技能 | Cookie |
+| `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户的技能 | Cookie |
 
 ## 接口详情
 
@@ -149,6 +154,8 @@
 
 以下接口均要求有效的 `orionai_session` Cookie。写入接口沿用 `Origin` 与 `Host` 同源校验。会话查询始终限制在当前用户范围；不存在或不属于当前用户的会话统一返回 `404`。列表接口支持 `limit`（默认 50，范围 1–100）和 `offset`（默认 0）。
 
+发送消息和恢复题卡前，当前用户必须已将 `general_chat` 添加到“我的技能”；未添加时返回 `409`。
+
 `POST /api/conversations` 创建空会话，成功返回 `201`，字段包含字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`；首条用户消息发送前标题为空；首条用户消息提交后，根据其内容自动生成标题；模型失败或超时时使用首条消息的简短摘要。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
 
 `GET /api/conversations/{id}/messages` 按消息 `id` 升序返回 `items`。消息内容使用 JSON `parts` 数组，例如：
@@ -169,9 +176,16 @@
 
 答案题目 ID 集合必须与当前题卡完全相同，选项值必须为该题的有效标签；无待答题卡返回 `409`，答案不匹配返回 `422`。模型或 Checkpointer 暂不可用时返回 `503`，错误文本不会包含底层服务异常。
 
+### 技能市场 API
+
+以下接口要求有效的 `orionai_session` Cookie。`GET /api/v1/skills` 支持 `type`、`keyword`、`page`、`page_size` 和 `include_disabled`；默认只返回已发布技能，传 `include_disabled=true` 时也返回已停用技能。停用技能可查看列表说明，但详情接口仍返回 `404`，且不能添加到用户技能列表。技能响应中的 Snowflake `id` 使用十进制字符串。
+
+`GET /api/v1/users/me/skills` 只返回当前用户已添加且仍发布的技能。添加技能时，`POST /api/v1/users/me/skills` 的请求体使用 `{"skill_id":"十进制 Snowflake ID"}`；重复添加返回 `409`，不存在或已停用的技能返回 `404`。删除当前用户自己的关联使用 `DELETE /api/v1/users/me/skills/{skill_id}`。
+
 ## 实现位置
 
 - 路由与 Cookie：[`backend/app/modules/auth/router.py`](../../backend/app/modules/auth/router.py)
 - 请求与响应模型：[`backend/app/modules/auth/schemas.py`](../../backend/app/modules/auth/schemas.py)
 - 认证业务：[`backend/app/modules/auth/service.py`](../../backend/app/modules/auth/service.py)
 - 会话路由与业务：[`backend/app/modules/conversations/router.py`](../../backend/app/modules/conversations/router.py)、[`backend/app/modules/conversations/service.py`](../../backend/app/modules/conversations/service.py)
+- 技能路由与业务：[`backend/app/modules/skills/router.py`](../../backend/app/modules/skills/router.py)、[`backend/app/modules/skills/service.py`](../../backend/app/modules/skills/service.py)

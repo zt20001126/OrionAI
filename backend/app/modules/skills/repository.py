@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 
 from app.modules.skills.models import Skill, UserSkill
 
+GENERAL_CHAT_SKILL_CODE = "general_chat"
 GENERAL_CHAT = {
-    "code": "general_chat",
+    "code": GENERAL_CHAT_SKILL_CODE,
     "name": "通用对话助手",
     "description": "支持日常问答和多轮对话",
     "type": "agent",
@@ -24,12 +25,13 @@ def list_market_skills(
     *,
     skill_type: str | None,
     keyword: str | None,
+    include_disabled: bool = False,
     page: int,
     page_size: int,
 ) -> tuple[list[tuple[Skill, bool]], int]:
-    """分页查询已发布技能，并通过单次外连接获取用户添加状态。"""
+    """分页查询技能，并通过单次外连接获取用户添加状态。"""
 
-    filters = [Skill.status == "published"]
+    filters = [] if include_disabled else [Skill.status == "published"]
     if skill_type is not None:
         filters.append(Skill.type == skill_type)
     if keyword:
@@ -101,6 +103,21 @@ def user_has_skill(session: Session, user_id: int, skill_id: int) -> bool:
         )
         is not None
     )
+
+
+def user_has_skill_code(session: Session, user_id: int, skill_code: str) -> bool:
+    """检查用户是否已添加指定代码且仍发布的技能。"""
+
+    statement = (
+        select(UserSkill.id)
+        .join(Skill, UserSkill.skill_id == Skill.id)
+        .where(
+            UserSkill.user_id == user_id,
+            Skill.code == skill_code,
+            Skill.status == "published",
+        )
+    )
+    return session.scalar(statement) is not None
 
 
 def add_user_skill(session: Session, user_id: int, skill_id: int) -> UserSkill:

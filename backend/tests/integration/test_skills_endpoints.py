@@ -110,6 +110,11 @@ def test_market_lists_published_skills_with_user_state_and_filters(
     assert items["test_tool"]["is_added"] is False
     assert "test_hidden" not in items
 
+    catalog = client.get("/api/v1/skills", params={"include_disabled": True}).json()
+    catalog_items = {item["code"]: item for item in catalog["items"]}
+    assert catalog["total"] == 3
+    assert catalog_items["test_hidden"]["status"] == "disabled"
+
     filtered_by_type = client.get("/api/v1/skills", params={"type": "tool"})
     assert [item["code"] for item in filtered_by_type.json()["items"]] == ["test_tool"]
 

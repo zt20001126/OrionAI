@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, Path, Query, Response
 from app.modules.auth.dependencies import validate_origin
 from app.modules.skills.dependencies import CurrentUser, SkillsServiceDependency
 from app.modules.skills.schemas import (
-    AddSkillRequest,
     MAX_SNOWFLAKE_ID,
+    AddSkillRequest,
     MySkillsResponse,
     SkillPageResponse,
     SkillResponse,
@@ -25,6 +25,10 @@ def list_market_skills(
     service: SkillsServiceDependency,
     skill_type: Annotated[SkillType | None, Query(alias="type")] = None,
     keyword: Annotated[str | None, Query(max_length=100)] = None,
+    include_disabled: Annotated[
+        bool,
+        Query(description="是否同时返回已停用技能；停用技能仍不可添加。"),
+    ] = False,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> SkillPageResponse:
@@ -34,6 +38,7 @@ def list_market_skills(
         user,
         skill_type=skill_type,
         keyword=keyword,
+        include_disabled=include_disabled,
         page=page,
         page_size=page_size,
     )
