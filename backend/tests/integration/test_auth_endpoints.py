@@ -15,7 +15,7 @@ from app.core.application import create_app
 from app.core.config import Settings
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
-from backend.app.infrastructure.email.email_sender import EmailDeliveryError
+from app.infrastructure.email.email_sender import EmailDeliveryError
 from app.infrastructure.redis.auth_state import AuthSession
 from app.modules.auth import service as auth_service_module
 from app.modules.auth.dependencies import get_current_user

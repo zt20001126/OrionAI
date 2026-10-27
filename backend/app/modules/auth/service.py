@@ -11,7 +11,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from backend.app.infrastructure.email.email_sender import EmailDeliveryError, send_auth_code_email
+from app.infrastructure.email.email_sender import EmailDeliveryError, send_auth_code_email
 from app.infrastructure.redis.auth_state import (
     CODE_TTL_SECONDS,
     PASSWORD_CHANGE_CODE_TTL_SECONDS,
