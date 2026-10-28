@@ -6,7 +6,6 @@
 
 .resume-page__header,
 .resume-page__actions,
-.resume-page__footer,
 .resume-editor__heading,
 .resume-entry-actions,
 .resume-photo-field__row,
@@ -371,14 +370,6 @@
   font-size: var(--font-size-xl);
 }
 
-.resume-page__footer {
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-top: var(--space-5);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
 .resume-assistant-link {
   display: inline-flex;
   align-items: center;
@@ -473,11 +464,6 @@
   .resume-save-state {
     grid-column: 1 / -1;
   }
-
-  .resume-page__footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
 }
 
 /* 工作台采用独立滚动面板，避免内容增长推动整页变高。 */
@@ -494,7 +480,6 @@
 
 .resume-page__header,
 .resume-tabs,
-.resume-page__footer,
 .resume-alert {
   flex: 0 0 auto;
 }
@@ -634,11 +619,6 @@
   overflow: visible;
   transform-origin: top left;
   box-shadow: var(--shadow-subtle);
-}
-
-.resume-page__footer {
-  justify-content: space-between;
-  margin-top: var(--space-2);
 }
 
 .resume-workbench__assistant .conversation-page--embedded {
@@ -915,11 +895,6 @@
 
   .resume-save-state {
     width: 100%;
-  }
-
-  .resume-page__footer {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .resume-workbench__assistant .conversation-panel__header {

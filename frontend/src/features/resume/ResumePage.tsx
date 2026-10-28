@@ -249,7 +249,7 @@ export function ResumePage({
     <main className="resume-page" aria-labelledby="resume-page-title">
       <header className="resume-page__header">
         <div>
-          <h1 id="resume-page-title">简历</h1>
+          <h1 id="resume-page-title">简历助手</h1>
           <p>整理经历，实时预览并导出一份清晰的简历。</p>
         </div>
         <div className="resume-page__actions">
@@ -363,11 +363,6 @@ export function ResumePage({
           onResumeSaved={handleAssistantResumeSaved}
         />
       </div>
-
-      <footer className="resume-page__footer">
-        <span>简历仅对你本人可见</span>
-        <span>编辑内容会即时同步到预览</span>
-      </footer>
     </main>
   );
 }
