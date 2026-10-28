@@ -7,6 +7,8 @@ type PlaceholderPath = Exclude<
   | typeof platformPaths.mySkills
   | typeof platformPaths.sessions
   | typeof platformPaths.resume
+  | typeof platformPaths.reminders
+  | typeof platformPaths.reminderCreate
   | typeof platformPaths.settings
   | typeof platformPaths.securitySettings
 >;

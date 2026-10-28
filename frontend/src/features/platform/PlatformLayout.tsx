@@ -45,13 +45,17 @@ export function PlatformLayout({
           ? "会话记录"
           : pathname === platformPaths.resume
             ? "简历助手"
-            : pathname === platformPaths.settings
-              ? "个人设置"
-              : pathname === platformPaths.securitySettings
-                ? "安全设置"
-                : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
-                  ? "对话助手"
-                  : "OrionAI";
+            : pathname === platformPaths.reminders || pathname === platformPaths.reminderCreate
+              ? pathname === platformPaths.reminderCreate
+                ? "新建提醒"
+                : "提醒助手"
+              : pathname === platformPaths.settings
+                ? "个人设置"
+                : pathname === platformPaths.securitySettings
+                  ? "安全设置"
+                  : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
+                    ? "对话助手"
+                    : "OrionAI";
 
   function toggleSidebar() {
     const nextCollapsed = !sidebarCollapsed;

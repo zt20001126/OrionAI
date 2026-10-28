@@ -2,7 +2,12 @@ import { createConversation } from "../conversations/conversationApi";
 import { platformPaths, type PlatformRoute } from "./platformData";
 import type { MarketSkill } from "./skillApi";
 
-const RUNNABLE_SKILL_CODES = new Set(["general_chat", "image_agent", "resume_assistant"]);
+const RUNNABLE_SKILL_CODES = new Set([
+  "general_chat",
+  "image_agent",
+  "resume_assistant",
+  "reminder",
+]);
 
 /** 当前前端已接入使用入口的技能编码。 */
 export function canLaunchSkill(skillCode: string): boolean {
@@ -20,6 +25,10 @@ export async function launchSkill(
   }
   if (skill.code === "resume_assistant") {
     onNavigate(platformPaths.resume);
+    return;
+  }
+  if (skill.code === "reminder") {
+    onNavigate(platformPaths.reminders);
     return;
   }
 

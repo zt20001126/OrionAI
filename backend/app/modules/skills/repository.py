@@ -31,6 +31,13 @@ RESUME_ASSISTANT = {
     "type": "agent",
     "status": "published",
 }
+REMINDER_TOOL = {
+    "code": "reminder",
+    "name": "提醒助手",
+    "description": "创建定时提醒，并通过账号邮箱接收通知。",
+    "type": "tool",
+    "status": "published",
+}
 
 
 def list_market_skills(
@@ -244,6 +251,32 @@ def ensure_resume_assistant_skill(session: Session) -> None:
             skill.status = "published"
             skill.name = values["name"]
             skill.description = values["description"]
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()
+
+
+def ensure_reminder_tool_skill(session: Session) -> None:
+    """幂等发布提醒助手工具条目，不覆盖管理员对已存在条目的配置。"""
+
+    values = REMINDER_TOOL.copy()
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    else:
+        if session.scalar(select(Skill.id).where(Skill.code == REMINDER_TOOL["code"])) is None:
+            session.add(Skill(**values))
         session.commit()
         return
     session.execute(statement)

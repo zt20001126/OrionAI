@@ -19,7 +19,7 @@ backend/tests/            后端测试
 deploy/docker/            前后端开发镜像
 deploy/nginx/             Nginx 配置预留目录
 docs/                     架构与开发文档
-docker-compose.yml        后端、PostgreSQL、Redis
+docker-compose.yml        后端、提醒 Celery Worker/Beat、PostgreSQL、Redis
 AGENTS.md                 Codex 项目开发约束
 ~~~
 
@@ -71,14 +71,16 @@ docker compose up -d --build
 
 Compose 启用 Uvicorn 热重载并监视 `.py` 和 `.md` 文件。后端代码通过目录挂载同步到容器，日常修改 Python、Agent 或 Prompt 文件不需要重新构建；依赖或 `pyproject.toml` 变化时再执行 `--build`。
 
-Compose 只启动后端、PostgreSQL 和 Redis。前端在另一个终端单独运行：
+Compose 启动后端、PostgreSQL、Redis、提醒 Celery Worker 和 Beat。前端在另一个终端单独运行：
 
 ~~~powershell
 Set-Location frontend
 npm run dev
 ~~~
 
-Compose 文件中的服务按 `backend`、`postgres`、`redis` 顺序排列。后端依赖数据库和 Redis 的健康检查，实际启动时会等它们就绪；后端容器启动时会先执行 Alembic 迁移。
+Compose 文件中的 API、Worker 和 Beat 均等待 PostgreSQL 与 Redis 健康检查；仅 API 容器在启动 Uvicorn 前执行 Alembic 迁移。提醒扫描由 Celery Beat 每 30 秒触发，Beat 必须保持单实例。提醒规则和执行状态以 PostgreSQL 为准，Redis 仅作为 Celery broker。
+
+Compose 默认给 API、提醒 Worker 和 Beat 分配不同的 Snowflake worker ID。若增加 Worker 容器，需在该服务配置中为每个同时运行的进程设置唯一 `SNOWFLAKE_WORKER_ID`；不要横向扩展 Beat。
 
 打开 http://localhost:5173 查看前端，http://localhost:8000/api/health 检查后端，http://localhost:8000/docs 查看 FastAPI 自动生成的接口文档。停止 Compose 服务：
 

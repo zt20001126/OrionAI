@@ -22,7 +22,7 @@ def _normalize_postgres_url_for_runtime(raw_url: str, *, in_container: bool) -> 
 
 
 class Settings(BaseSettings):
-    """应用运行配置，影响 API、认证、对话模型及 Agent 执行边界。"""
+    """应用配置，控制 API、Agent、SMTP 和后台提醒 Worker 的运行行为。"""
 
     app_name: str = "OrionAI"
     environment: str = "development"
@@ -48,6 +48,35 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     smtp_from_name: str = "OrionAI"
     smtp_use_ssl: bool = True
+    smtp_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=120,
+        description="单次 SMTP 连接和发送调用超时；提醒任务租约应大于此值。",
+    )
+    reminder_task_queue: str = Field(
+        default="reminders",
+        min_length=1,
+        description="Celery 提醒邮件任务队列名称，Worker 应监听此队列。",
+    )
+    reminder_scan_interval_seconds: int = Field(
+        default=30,
+        ge=5,
+        le=3600,
+        description="Celery Beat 扫描到期提醒和待投递执行的间隔秒数。",
+    )
+    reminder_scan_batch_size: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+        description="单次数据库扫描认领的提醒或执行上限。",
+    )
+    reminder_sending_lease_seconds: int = Field(
+        default=120,
+        ge=30,
+        le=3600,
+        description="恢复异常 sending 执行前等待的租约秒数，须大于 SMTP 超时。",
+    )
     aliyun_oss_access_key_id: SecretStr = Field(
         default=SecretStr(""), description="阿里云 OSS AccessKey ID，不得写入日志。"
     )
@@ -113,8 +142,11 @@ class Settings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def normalize_database_urls_for_compose(self) -> Settings:
-        """让同一组宿主机 DSN 可供本地后端和 Docker Compose 容器使用。"""
+    def validate_and_normalize_runtime_settings(self) -> Settings:
+        """校验发送租约并归一化 Compose 容器中的数据库 DSN。"""
+
+        if self.reminder_sending_lease_seconds <= self.smtp_timeout_seconds:
+            raise ValueError("提醒发送租约必须长于 SMTP 超时时间。")
 
         in_container = Path("/.dockerenv").is_file()
         self.database_url = _normalize_postgres_url_for_runtime(

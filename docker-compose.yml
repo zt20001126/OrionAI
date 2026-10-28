@@ -49,6 +49,73 @@ services:
       timeout: 3s
       retries: 5
 
+  celery-worker:
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    command:
+      - python
+      - -m
+      - celery
+      - -A
+      - app.core.celery_app:celery_app
+      - worker
+      - --loglevel=INFO
+      - --queues=reminders
+      - --pool=solo
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in the project .env}
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SNOWFLAKE_WORKER_ID: "2"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    command:
+      - python
+      - -m
+      - celery
+      - -A
+      - app.core.celery_app:celery_app
+      - beat
+      - --loglevel=INFO
+      - --schedule=/tmp/orionai-celerybeat-schedule
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in the project .env}
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SNOWFLAKE_WORKER_ID: "3"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:17-alpine
     entrypoint: ["/bin/sh", "/postgres-entrypoint.sh"]

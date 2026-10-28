@@ -4,6 +4,7 @@ from app.api.health import router as health_router
 from app.modules.auth.router import router as auth_router
 from app.modules.conversations.router import router as conversations_router
 from app.modules.image_generation.router import router as image_result_router
+from app.modules.reminders.router import router as reminders_router
 from app.modules.resume.router import router as resume_router
 from app.modules.skills.router import router as skills_router
 from app.modules.users.router import router as users_router
@@ -16,3 +17,4 @@ api_router.include_router(skills_router)
 api_router.include_router(users_router)
 api_router.include_router(image_result_router)
 api_router.include_router(resume_router)
+api_router.include_router(reminders_router)

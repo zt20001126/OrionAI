@@ -11,6 +11,7 @@ import { ConversationPage } from "../features/conversations/ConversationPage";
 import { SessionsPage } from "../features/conversations/SessionsPage";
 import { MySkillsPage } from "../features/skills/MySkillsPage";
 import { ResumePage } from "../features/resume/ResumePage";
+import { ReminderPage } from "../features/reminders/ReminderPage";
 import {
   getConversationId,
   isConversationPath,
@@ -386,6 +387,15 @@ function AppContent() {
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
     if (safePathname === platformPaths.resume) {
       return <ResumePage onDirtyChange={setHasUnsavedResume} onNavigate={navigate} />;
+    }
+    if (safePathname === platformPaths.reminders || safePathname === platformPaths.reminderCreate) {
+      return (
+        <ReminderPage
+          key={safePathname}
+          mode={safePathname === platformPaths.reminderCreate ? "create" : "list"}
+          onNavigate={navigate}
+        />
+      );
     }
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
     if (

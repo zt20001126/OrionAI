@@ -8,6 +8,7 @@ from app.infrastructure.database.base import Base
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.conversations import models as conversation_models  # noqa: F401
 from app.modules.image_generation import models as image_generation_models  # noqa: F401
+from app.modules.reminders import models as reminder_models  # noqa: F401
 from app.modules.resume import models as resume_models  # noqa: F401
 from app.modules.skills import models as skills_models  # noqa: F401
 

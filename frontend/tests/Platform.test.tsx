@@ -141,6 +141,56 @@ afterEach(() => {
 });
 
 describe("OrionAI platform", () => {
+  it("opens the reminder creation route and returns to the list with browser back", async () => {
+    window.history.replaceState({}, "", "/reminders");
+    const sessionFetch = mockSession();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).startsWith("/api/v1/reminders")) {
+        return {
+          ok: true,
+          json: async () => ({ items: [], total: 0, limit: 100, offset: 0 }),
+        } as Response;
+      }
+      return sessionFetch(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "我的提醒" })).toBeInTheDocument();
+    const entries = new Map<number, { path: string; state: unknown }>();
+    const rememberCurrentEntry = () => {
+      const state = window.history.state as { __orionHistoryIndex?: number };
+      if (typeof state.__orionHistoryIndex === "number") {
+        entries.set(state.__orionHistoryIndex, {
+          path: window.location.pathname,
+          state: window.history.state,
+        });
+      }
+    };
+    rememberCurrentEntry();
+
+    fireEvent.click(screen.getByRole("button", { name: "新建提醒" }));
+    expect(await screen.findByRole("heading", { name: "新建提醒" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/reminders/new");
+    expect(screen.queryByRole("heading", { name: "我的提醒" })).not.toBeInTheDocument();
+    rememberCurrentEntry();
+
+    vi.spyOn(window.history, "go").mockImplementation((delta = 0) => {
+      const current = window.history.state as { __orionHistoryIndex?: number };
+      if (typeof current.__orionHistoryIndex !== "number") return;
+      const target = entries.get(current.__orionHistoryIndex + delta);
+      if (!target) return;
+      window.history.replaceState(target.state, "", target.path);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: target.state }));
+    });
+
+    window.history.go(-1);
+    expect(await screen.findByRole("heading", { name: "我的提醒" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/reminders");
+    expect(screen.queryByRole("heading", { name: "新建提醒" })).not.toBeInTheDocument();
+  });
+
   it("shows the skill market after restoring an authenticated session", async () => {
     vi.stubGlobal("fetch", mockSession());
 
@@ -276,9 +326,9 @@ describe("OrionAI platform", () => {
     vi.stubGlobal("fetch", mockSession());
     render(<App />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "添加到我的技能" }));
+    fireEvent.click(await screen.findByRole("button", { name: "添加技能" }));
     await waitFor(() => {
-      expect(screen.getAllByRole("button", { name: "已在我的技能" })).toHaveLength(2);
+      expect(screen.getByRole("button", { name: "运行入口未接入" })).toBeInTheDocument();
     });
     expect(await screen.findByText("已添加「文档处理工具」到我的技能。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "我的技能" }));

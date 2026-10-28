@@ -5,6 +5,8 @@ export const platformPaths = {
   resume: "/resume",
   knowledge: "/knowledge",
   tools: "/tools",
+  reminders: "/reminders",
+  reminderCreate: "/reminders/new",
   settings: "/settings",
   securitySettings: "/settings/security",
   chat: "/chat",

@@ -322,18 +322,19 @@ CREATE INDEX ix_reminder_executions_stale
 
 1. 读取当前 UTC 时间。
 2. 查询 status=active 且 next_run_at <= now 的提醒，按 next_run_at、id 排序，使用 FOR UPDATE SKIP LOCKED 和 LIMIT。
-3. 对单次提醒，以其 next_run_at 作为 scheduled_at 插入 pending execution；随后将 reminders.next_run_at 置空。冲突时按唯一约束读取已有记录，不重复建行。
+3. 对单次提醒，以其 next_run_at 作为 scheduled_at 插入 pending execution；发送进入终态后才清空 next_run_at。扫描重复命中时由唯一约束复用现有执行记录，不重复建行。保留当前计划可让尚未开始的单次提醒继续展示和编辑。
 4. 对周期提醒，按本地规则计算不晚于 now 的计划，并依据“仅补发最近一次遗漏”折叠过期计划：最多为该提醒创建一条最近遗漏执行记录，next_run_at 更新为严格晚于 now 的下一次；结束日期后设置 completed、next_run_at=NULL。
-5. 插入 execution 与更新 reminder.next_run_at/status 必须在同一 PostgreSQL 事务中提交。
-6. 事务提交后，将 pending execution ID 投递给 Celery。投递失败只记录带 reminder_id/execution_id 的告警，不回滚已提交的业务事务。
-7. 后续每轮扫描同时重新投递仍为 pending 的 execution，覆盖数据库提交成功但 Redis 投递失败、Redis 重启丢失消息的情况。重复消息由 Worker 的数据库认领保证无副作用。
+5. 在同一轮扫描中，锁定 started_at 早于租约阈值的 sending executions，将其计入一次恢复尝试并转为 retry_wait；超过最大尝试次数则转 failed。Worker 崩溃与 SMTP 结果不明时不能当作确定发送失败处理，需保留重复窗口语义。
+6. 插入 execution、更新 reminder.next_run_at/status、恢复过期 sending 必须在 PostgreSQL 事务中提交；不持有这些锁调用 Redis 或 SMTP。
+7. 事务提交后，将 pending execution ID 和 next_retry_at <= now 的 retry_wait ID 投递给 Celery。投递失败只记录带 reminder_id/execution_id 的告警，不回滚已提交的业务事务。
+8. 后续每轮扫描重新投递仍为 pending 的 execution 和到期 retry_wait，覆盖数据库提交成功但 Redis 投递失败、Redis 重启丢失消息的情况。重复消息由 Worker 的数据库认领保证无副作用。
 
 提醒行锁使同一轮不会被另一个扫描 Worker 同时更新；execution 唯一约束保护重复 Beat 触发和异常重试。不要在持有数据库事务/行锁期间连接 SMTP 或执行 Redis 网络调用。
 
 ### 7.3 单次与周期 next_run_at
 
 - 创建时计算首个有效未来计划，并设置 active。
-- 单次计划在扫描创建执行记录时清空 next_run_at；执行终态后 reminder 标记 completed。数据库事务失败时二者都不生效。
+- 单次计划在扫描创建执行记录后保留当前 next_run_at；执行 accepted/failed 终态时清空计划并将 reminder 标记 completed。数据库事务失败时执行状态与提醒状态都不生效。
 - 周期计划扫描创建当前 execution，并在同一事务推进 next_run_at。
 - 修改计划时重新计算 next_run_at，清除旧的未开始执行，并增加 version。
 - 暂停保留当前下一次计划；恢复时按照当前时区和已确认的停机补发规则计算。
@@ -666,7 +667,7 @@ backend/app/modules/reminders/
 
 ### 12.2 配置与启动
 
-Celery 和 Beat 使用现有 REDIS_URL，新增队列、扫描间隔、批量上限、重试次数、租约超时等非秘密配置；SMTP_HOST、SMTP_PORT、SMTP_USERNAME、SMTP_PASSWORD、SMTP_FROM_EMAIL、SMTP_USE_SSL 由 Compose 传递。当前 Compose 显式传 SMTP host/user/password/from，端口和 SSL 依赖 Settings 默认值；未来如需覆盖，应显式加入 Compose 和 .env.example。
+Celery 和 Beat 使用现有 REDIS_URL。队列名、扫描间隔、批量上限、重试策略、发送租约、SMTP 端口、SSL 模式和调用超时均使用代码中的默认配置，不要求添加到 .env；SMTP_HOST、SMTP_USERNAME、SMTP_PASSWORD、SMTP_FROM_EMAIL 等部署相关连接信息由 Compose 传递。Beat 扫描间隔默认为 30 秒；若需调整固定运行策略，直接修改 Settings 或 reminders 常量及相应测试。
 
 建议启动顺序：
 1. PostgreSQL、Redis healthcheck 通过。
