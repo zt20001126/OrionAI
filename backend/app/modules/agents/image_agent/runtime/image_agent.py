@@ -22,6 +22,7 @@ from app.agent.schemas import (
     AgentResponse,
     AgentStreamEvent,
     AgentStreamResult,
+    AgentTextDelta,
     QuestionPayload,
 )
 from app.core.config import Settings
@@ -105,11 +106,49 @@ class ImageAgent:
         runnable_config: RunnableConfig | None = None,
         message_id: str | None = None,
     ) -> AsyncIterator[AgentStreamEvent]:
-        response = await self.ainvoke(
-            request,
-            runnable_config=runnable_config,
-            message_id=message_id,
-        )
+        normalized = self._normalize_request(request)
+        config = self._prepare_config(runnable_config)
+        configurable = dict(config.get("configurable") or {})
+        configurable["stream_response"] = True
+        config["configurable"] = configurable
+        streamed_text = ""
+        result: Mapping[str, Any] | None = None
+        try:
+            async for chunk in self._graph.astream(
+                {"messages": [HumanMessage(content=normalized.message, id=message_id)]},
+                config=config,
+                stream_mode=["custom", "values"],
+                version="v2",
+            ):
+                if chunk.get("type") == "custom":
+                    data = chunk.get("data")
+                    if (
+                        isinstance(data, dict)
+                        and data.get("type") == "text_delta"
+                        and isinstance(data.get("content"), str)
+                    ):
+                        streamed_text += data["content"]
+                        yield AgentTextDelta(content=data["content"])
+                elif chunk.get("type") == "values" and isinstance(chunk.get("data"), Mapping):
+                    result = chunk["data"]
+        except AgentError:
+            raise
+        except Exception as error:
+            logger.warning("image_agent_stream_failed error_type=%s", type(error).__name__)
+            raise AgentExecutionError(
+                "图片助手执行失败，请稍后重试。", code="image_agent_failed"
+            ) from None
+
+        if result is None:
+            raise AgentExecutionError("图片助手未生成有效回答。", code="missing_image_answer")
+        response = self._response_from_result(result)
+        normalized_streamed_text = streamed_text.strip()
+        if response.answer and response.answer.startswith(normalized_streamed_text):
+            remaining_text = response.answer[len(normalized_streamed_text) :]
+        else:
+            remaining_text = response.answer or ""
+        if remaining_text:
+            yield AgentTextDelta(content=remaining_text)
         yield AgentStreamResult(response=response)
 
     @staticmethod

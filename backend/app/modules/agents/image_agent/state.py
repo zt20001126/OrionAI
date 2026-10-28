@@ -13,6 +13,6 @@ class ImageAgentState(ConversationState, total=False):
     image_prompt: str
     generation_options: dict[str, Any]
     awaiting_image_size: bool
-    task_result_id: str
-    image_result_id: str
-    answer: str
+    task_result_id: str | None
+    image_result_id: str | None
+    answer: str | None

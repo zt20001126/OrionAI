@@ -323,6 +323,7 @@ export function ConversationPage({
     (streamedOutput.conversationId === conversationId || (!conversationId && pendingText !== null))
       ? streamedOutput
       : null;
+  const displayedImageResultIds = new Set<string>();
 
   useEffect(() => {
     return () => activeStreamControllerRef.current?.abort();
@@ -882,7 +883,13 @@ export function ConversationPage({
                 const isCurrentQuestion = pendingQuestion?.messageId === message.id;
                 const text = messageText(message);
                 const imageResults = message.content.parts.filter(
-                  (part): part is ImageResultContentPart => part.type === "image_result",
+                  (part): part is ImageResultContentPart => {
+                    if (part.type !== "image_result") return false;
+                    // 旧会话可能已经把同一图片写进多条消息，只展示首次生成记录。
+                    if (displayedImageResultIds.has(part.task_result_id)) return false;
+                    displayedImageResultIds.add(part.task_result_id);
+                    return true;
+                  },
                 );
                 const previousQuestionPart = getQuestionPart(visibleMessages[index - 1]);
                 const questionAnswerItems =

@@ -30,9 +30,13 @@ async def image_result_node(state: ImageAgentState) -> dict[str, Any]:
         task_result_id = payload.get("task_result_id")
         if task_result_id != state.get("task_result_id") or not str(task_result_id).isdigit():
             raise AgentExecutionError("图片生成结果标识无效。", code="invalid_image_result_id")
+        answer = _combine_answer(
+            state.get("answer"),
+            "图片已生成并保存到本次会话。",
+        )
         return {
-            "messages": [AIMessage(content="图片已生成并保存到本次会话。")],
-            "answer": "图片已生成并保存到本次会话。",
+            "messages": [AIMessage(content=answer)],
+            "answer": answer,
             "image_result_id": str(task_result_id),
         }
     summary = payload.get("summary")
@@ -41,4 +45,11 @@ async def image_result_node(state: ImageAgentState) -> dict[str, Any]:
         if isinstance(summary, str) and summary.strip()
         else "图片生成暂时失败，请稍后重试。"
     )
-    return {"messages": [AIMessage(content=safe_summary[:2_000])], "answer": safe_summary[:2_000]}
+    answer = _combine_answer(state.get("answer"), safe_summary[:2_000])
+    return {"messages": [AIMessage(content=answer)], "answer": answer, "image_result_id": None}
+
+
+def _combine_answer(prefix: str | None, result: str) -> str:
+    """将生成前已流式展示的模型回复与生图结果合并为同一条消息。"""
+
+    return "\n\n".join(part for part in (prefix.strip() if prefix else "", result) if part)
