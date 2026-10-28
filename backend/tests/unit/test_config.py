@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.core.config import Settings
+from app.core.config import Settings, _normalize_postgres_url_for_runtime
 
 
 @pytest.mark.parametrize(
@@ -33,3 +33,16 @@ def test_settings_reads_tokenhub_environment_variable_aliases(
     assert settings.tokenhub_api_key.get_secret_value() == "test-tokenhub-key"
     assert settings.tokenhub_base_url == "https://tokenhub.test"
     assert settings.tokenhub_configured
+
+
+def test_database_urls_use_compose_service_address_only_in_container() -> None:
+    database_url = "postgresql+psycopg://orionai:orionai@localhost:5434/orionai"
+    checkpoint_url = "postgresql://orionai:orionai@localhost:5434/checkpoint"
+
+    assert _normalize_postgres_url_for_runtime(database_url, in_container=True) == (
+        "postgresql+psycopg://orionai:orionai@postgres:5432/orionai"
+    )
+    assert _normalize_postgres_url_for_runtime(checkpoint_url, in_container=True) == (
+        "postgresql://orionai:orionai@postgres:5432/checkpoint"
+    )
+    assert _normalize_postgres_url_for_runtime(database_url, in_container=False) == database_url

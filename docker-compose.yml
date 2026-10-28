@@ -9,7 +9,8 @@ services:
       - alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-include '*.md'
     environment:
       ENVIRONMENT: development
-      DATABASE_URL: postgresql+psycopg://orionai:orionai@postgres:5432/orionai
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in the project .env}
+      CHECKPOINT_DATABASE_URL: ${CHECKPOINT_DATABASE_URL:?CHECKPOINT_DATABASE_URL must be set in the project .env}
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: '["http://localhost:5173"]'
       AUTH_CODE_PEPPER: ${AUTH_CODE_PEPPER:-}
@@ -50,16 +51,18 @@ services:
 
   postgres:
     image: postgres:17-alpine
+    entrypoint: ["/bin/sh", "/postgres-entrypoint.sh"]
+    command: ["postgres"]
     environment:
       POSTGRES_DB: orionai
-      POSTGRES_USER: orionai
-      POSTGRES_PASSWORD: orionai
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in the project .env}
     ports:
       - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deploy/docker/postgres-entrypoint.sh:/postgres-entrypoint.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U orionai -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
       retries: 10

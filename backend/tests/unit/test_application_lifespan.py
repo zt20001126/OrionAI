@@ -1,9 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
 
 import pytest
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from app.core.application import create_agent_lifespan
 from app.core.config import Settings
@@ -34,6 +32,7 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
 ) -> None:
     settings = Settings(
         database_url="postgresql+psycopg://test:test@localhost/test",
+        checkpoint_database_url="postgresql://checkpointer:secret@localhost/checkpoint",
         deepseek_api_key="test-key",
         deepseek_model="test-model",
     )
@@ -43,18 +42,14 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
     agent = object()
 
     @asynccontextmanager
-    async def fake_checkpointer_context(url: str) -> AsyncIterator[FakeCheckpointer]:
-        observed_urls.append(url)
+    async def fake_open_checkpointer(
+        _settings: Settings,
+    ) -> AsyncIterator[FakeCheckpointer]:
+        observed_urls.append(_settings.checkpoint_database_url)
+        await checkpointer.setup()
         yield checkpointer
 
-    def fake_from_conn_string(url: str) -> Any:
-        return fake_checkpointer_context(url)
-
-    monkeypatch.setattr(
-        AsyncPostgresSaver,
-        "from_conn_string",
-        staticmethod(fake_from_conn_string),
-    )
+    monkeypatch.setattr("app.core.application.open_checkpointer", fake_open_checkpointer)
     monkeypatch.setattr(
         OpenAICompatibleChatModelProvider,
         "create_chat_model",
@@ -64,6 +59,8 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         "app.core.application.create_basic_conversation_agent",
         lambda *, chat_model, checkpointer: agent,
     )
+    resume_agent = object()
+    monkeypatch.setattr("app.core.application.ResumeAgent", lambda **_kwargs: resume_agent)
     monkeypatch.setattr(
         "app.core.application.ensure_general_chat_skill",
         lambda session: seed_sessions.append(session),
@@ -82,13 +79,14 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         assert len(seed_sessions) == 2
         assert application.state.conversation_agent is agent
         assert application.state.agent_registry.get("image_agent") is image_agent
+        assert application.state.agent_registry.get("resume_assistant") is resume_agent
         assert isinstance(
             application.state.conversation_title_generator,
             ModelConversationTitleGenerator,
         )
         assert application.state.conversation_title_generator._timeout_seconds == 8
 
-    assert observed_urls == ["postgresql://test:test@localhost/test"]
+    assert observed_urls == [settings.checkpoint_database_url]
     assert not hasattr(application.state, "conversation_agent")
     assert not hasattr(application.state, "agent_registry")
     assert not hasattr(application.state, "conversation_title_generator")

@@ -1,10 +1,24 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy.engine import make_url
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _normalize_postgres_url_for_runtime(raw_url: str, *, in_container: bool) -> str:
+    """容器内将宿主机 localhost 地址改为 Compose PostgreSQL 服务地址。"""
+
+    if not in_container or not raw_url.strip():
+        return raw_url
+    parsed_url = make_url(raw_url)
+    if parsed_url.host not in {"localhost", "127.0.0.1"}:
+        return raw_url
+    return parsed_url.set(host="postgres", port=5432).render_as_string(hide_password=False)
 
 
 class Settings(BaseSettings):
@@ -14,7 +28,14 @@ class Settings(BaseSettings):
     environment: str = "development"
     api_prefix: str = "/api"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
-    database_url: str = "postgresql+psycopg://orionai:orionai@localhost:5432/orionai"
+    database_url: str = Field(
+        default="postgresql+psycopg://localhost:5432/orionai",
+        description="业务数据 PostgreSQL 连接；凭据应通过环境变量配置。",
+    )
+    checkpoint_database_url: str = Field(
+        default="",
+        description="LangGraph Checkpointer 专用 PostgreSQL 连接；不得复用业务数据库地址。",
+    )
     redis_url: str = "redis://localhost:6379/0"
     auth_code_pepper: str = ""
     auth_cookie_name: str = "orionai_session"
@@ -90,6 +111,19 @@ class Settings(BaseSettings):
         if value == "":
             return None
         return value
+
+    @model_validator(mode="after")
+    def normalize_database_urls_for_compose(self) -> Settings:
+        """让同一组宿主机 DSN 可供本地后端和 Docker Compose 容器使用。"""
+
+        in_container = Path("/.dockerenv").is_file()
+        self.database_url = _normalize_postgres_url_for_runtime(
+            self.database_url, in_container=in_container
+        )
+        self.checkpoint_database_url = _normalize_postgres_url_for_runtime(
+            self.checkpoint_database_url, in_container=in_container
+        )
+        return self
 
     @property
     def aliyun_oss_configured(self) -> bool:

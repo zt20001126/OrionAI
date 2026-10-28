@@ -7,12 +7,12 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.agent import create_basic_conversation_agent
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
+from app.infrastructure.database.checkpointer import open_checkpointer
 from app.infrastructure.database.session import SessionLocal
 from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModelProvider
 from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
@@ -52,9 +52,7 @@ def create_agent_lifespan(
         except ModelProviderError:
             logger.exception("conversation_agent_provider_configuration_failed")
             raise
-        database_url = settings.database_url.replace("postgresql+psycopg://", "postgresql://", 1)
-        async with AsyncPostgresSaver.from_conn_string(database_url) as checkpointer:
-            await checkpointer.setup()
+        async with open_checkpointer(settings) as checkpointer:
             with SessionLocal() as session:
                 try:
                     ensure_general_chat_skill(session)

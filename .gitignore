@@ -39,3 +39,6 @@ Thumbs.db
 
 # Docker 本地数据
 .deploy-data/
+
+# 数据库迁移备份（禁止提交）
+backups/checkpointer_migration/
