@@ -4,13 +4,14 @@ import { useToast } from "../../components/ToastProvider";
 import { SkillCard } from "../platform/SkillCard";
 import { SkillDetailsDialog } from "../platform/SkillDetailsDialog";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
-import { createConversation, getConversationErrorMessage } from "../conversations/conversationApi";
+import { getConversationErrorMessage } from "../conversations/conversationApi";
 import {
   listMySkills,
   removeSkillFromMySkills,
   type MarketSkill,
   type MySkill,
 } from "../platform/skillApi";
+import { canLaunchSkill, launchSkill } from "../platform/skillUsage";
 
 interface MySkillsPageProps {
   onNavigate: (path: PlatformRoute) => void;
@@ -22,9 +23,6 @@ type MySkillsLoadState =
   | { error: string; requestVersion: number; status: "error" };
 
 const EMPTY_MY_SKILLS: MySkill[] = [];
-const GENERAL_CHAT_SKILL_CODE = "general_chat";
-const IMAGE_AGENT_SKILL_CODE = "image_agent";
-const RESUME_ASSISTANT_SKILL_CODE = "resume_assistant";
 
 /** 当前用户的技能页，只展示已添加且仍可用的技能。 */
 export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
@@ -92,17 +90,7 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
   async function handleUseSkill(skill: MySkill) {
     setStartingSkillIds((current) => new Set(current).add(skill.id));
     try {
-      if (skill.code === GENERAL_CHAT_SKILL_CODE) {
-        onNavigate(platformPaths.chat);
-        return;
-      }
-      if (skill.code === RESUME_ASSISTANT_SKILL_CODE) {
-        onNavigate(platformPaths.resume);
-        return;
-      }
-
-      const conversation = await createConversation(skill.code);
-      onNavigate(`${platformPaths.chat}/${conversation.id}`);
+      await launchSkill(skill, onNavigate);
     } catch (error) {
       showToast("error", getConversationErrorMessage(error));
     } finally {
@@ -156,35 +144,24 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
                 actions={
                   <>
                     <button
-                      className="button button--primary"
-                      disabled={
-                        startingSkillIds.has(skill.id) ||
-                        ![
-                          GENERAL_CHAT_SKILL_CODE,
-                          IMAGE_AGENT_SKILL_CODE,
-                          RESUME_ASSISTANT_SKILL_CODE,
-                        ].includes(skill.code)
-                      }
-                      onClick={() => void handleUseSkill(skill)}
-                      type="button"
-                    >
-                      {startingSkillIds.has(skill.id)
-                        ? "正在启动…"
-                        : [
-                              GENERAL_CHAT_SKILL_CODE,
-                              IMAGE_AGENT_SKILL_CODE,
-                              RESUME_ASSISTANT_SKILL_CODE,
-                            ].includes(skill.code)
-                          ? "使用"
-                          : "运行入口未接入"}
-                    </button>
-                    <button
                       className="button button--outline"
                       disabled={removingSkillIds.has(skill.id)}
                       onClick={() => void handleRemoveSkill(skill)}
                       type="button"
                     >
                       {removingSkillIds.has(skill.id) ? "移除中…" : "移除"}
+                    </button>
+                    <button
+                      className="button button--primary"
+                      disabled={startingSkillIds.has(skill.id) || !canLaunchSkill(skill.code)}
+                      onClick={() => void handleUseSkill(skill)}
+                      type="button"
+                    >
+                      {startingSkillIds.has(skill.id)
+                        ? "正在启动…"
+                        : canLaunchSkill(skill.code)
+                          ? "使用"
+                          : "运行入口未接入"}
                     </button>
                   </>
                 }

@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useToast } from "../../components/ToastProvider";
+import { getConversationErrorMessage } from "../conversations/conversationApi";
 import { PlatformIcon } from "./PlatformIcon";
 import { SkillCard } from "./SkillCard";
 import { SkillDetailsDialog } from "./SkillDetailsDialog";
+import { skillCategories, type PlatformRoute, type SkillCategory } from "./platformData";
 import { addSkillToMySkills, listMarketSkills, type MarketSkill } from "./skillApi";
-import { skillCategories, type SkillCategory } from "./platformData";
+import { canLaunchSkill, launchSkill } from "./skillUsage";
+
+interface SkillMarketPageProps {
+  onNavigate: (path: PlatformRoute) => void;
+}
 
 type MarketLoadState =
   | { requestVersion: number; status: "loading" }
@@ -15,13 +21,14 @@ type MarketLoadState =
 const EMPTY_SKILLS: MarketSkill[] = [];
 
 /** 技能市场页面，负责加载数据库技能并协调搜索、分类和详情弹窗。 */
-export function SkillMarketPage() {
+export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<SkillCategory>("全部");
   const [selectedSkill, setSelectedSkill] = useState<MarketSkill | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [addingSkillIds, setAddingSkillIds] = useState<Set<string>>(() => new Set());
+  const [startingSkillIds, setStartingSkillIds] = useState<Set<string>>(() => new Set());
   const [loadState, setLoadState] = useState<MarketLoadState>({
     requestVersion: 0,
     status: "loading",
@@ -81,6 +88,21 @@ export function SkillMarketPage() {
       );
     } finally {
       setAddingSkillIds((current) => {
+        const next = new Set(current);
+        next.delete(skill.id);
+        return next;
+      });
+    }
+  }
+
+  async function handleUseSkill(skill: MarketSkill) {
+    setStartingSkillIds((current) => new Set(current).add(skill.id));
+    try {
+      await launchSkill(skill, onNavigate);
+    } catch (error) {
+      showToast("error", getConversationErrorMessage(error));
+    } finally {
+      setStartingSkillIds((current) => {
         const next = new Set(current);
         next.delete(skill.id);
         return next;
@@ -180,8 +202,17 @@ export function SkillMarketPage() {
                       暂不可添加
                     </button>
                   ) : skill.is_added ? (
-                    <button className="button button--secondary" disabled type="button">
-                      已在我的技能
+                    <button
+                      className="button button--primary"
+                      disabled={startingSkillIds.has(skill.id) || !canLaunchSkill(skill.code)}
+                      onClick={() => void handleUseSkill(skill)}
+                      type="button"
+                    >
+                      {startingSkillIds.has(skill.id)
+                        ? "正在启动…"
+                        : canLaunchSkill(skill.code)
+                          ? "使用"
+                          : "运行入口未接入"}
                     </button>
                   ) : (
                     <button
@@ -190,7 +221,7 @@ export function SkillMarketPage() {
                       onClick={() => void handleAddSkill(skill)}
                       type="button"
                     >
-                      {addingSkillIds.has(skill.id) ? "添加中…" : "添加到我的技能"}
+                      {addingSkillIds.has(skill.id) ? "添加中…" : "添加技能"}
                     </button>
                   )
                 }

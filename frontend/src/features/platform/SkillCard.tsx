@@ -83,14 +83,18 @@ export function SkillCard({ actions, onView, skill }: SkillCardProps) {
   return (
     <article className="skill-card">
       <div className="skill-card__header">
-        <div className={`skill-card__icon skill-card__icon--${visual.tone}`}>
-          <PlatformIcon name={visual.icon} size={22} />
+        <div className="skill-card__identity">
+          <div className={`skill-card__icon skill-card__icon--${visual.tone}`}>
+            <PlatformIcon name={visual.icon} size={22} />
+          </div>
+          <div className="skill-card__heading">
+            <h3>{skill.name}</h3>
+            <span className="skill-card__type">{category}</span>
+          </div>
         </div>
         <span className={`skill-card__status skill-card__status--${statusClass}`}>{status}</span>
       </div>
       <div className="skill-card__content">
-        <h3>{skill.name}</h3>
-        <span className="skill-card__type">{category}</span>
         <p>{skill.description}</p>
       </div>
       <div className="skill-card__actions">

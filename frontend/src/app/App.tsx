@@ -382,7 +382,7 @@ function AppContent() {
   const safePathname: PlatformRoute = isPlatformPath(pathname) ? pathname : platformPaths.market;
   const conversationId = getConversationId(safePathname);
   const page = (() => {
-    if (safePathname === platformPaths.market) return <SkillMarketPage />;
+    if (safePathname === platformPaths.market) return <SkillMarketPage onNavigate={navigate} />;
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
     if (safePathname === platformPaths.resume) {
       return <ResumePage onDirtyChange={setHasUnsavedResume} onNavigate={navigate} />;
