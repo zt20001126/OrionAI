@@ -21,7 +21,7 @@ from app.agent.schemas import (
     QuestionPayload,
 )
 from app.modules.agents.resume_agent.graph import RESUME_AGENT_CODE, build_resume_agent_graph
-from app.modules.agents.resume_agent.tools import create_resume_tools
+from app.modules.agents.resume_agent.tool import create_resume_tools
 from app.modules.resume.schemas import JobResumeSnapshot
 
 logger = logging.getLogger(__name__)

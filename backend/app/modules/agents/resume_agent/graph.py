@@ -22,9 +22,9 @@ from app.agent.nodes.output import output_node
 from app.agent.nodes.tool import _is_question_message, create_tool_node
 from app.agent.tools.builtin.ask_user_questions import ask_user_questions
 from app.agent.tools.registry import ToolRegistry
+from app.modules.agents.resume_agent.confirmation import build_optimization_question
 from app.modules.agents.resume_agent.prompts.loader import load_resume_agent_prompt
 from app.modules.agents.resume_agent.state import ResumeAgentState
-from app.modules.agents.resume_agent.tools import build_optimization_question
 
 RESUME_AGENT_CODE = "resume_assistant"
 STAGE_TOOL = "stage_resume_optimization"
@@ -97,8 +97,7 @@ def _create_resume_input_node(resume_writer: Callable[[int, dict[str, Any]], str
             answer = {
                 "saved": "已按你的确认保存优化内容。",
                 "resume_changed": (
-                    "简历在生成候选后已有更新，未覆盖新内容。"
-                    "请重新读取后再生成候选。"
+                    "简历在生成候选后已有更新，未覆盖新内容。请重新读取后再生成候选。"
                 ),
                 "invalid_candidate": "候选内容校验失败，简历没有变化。请重新生成候选。",
                 "unavailable": "保存暂时失败，简历没有变化，请稍后重试。",
