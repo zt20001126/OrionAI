@@ -347,23 +347,32 @@
   width: fit-content;
   max-width: 100%;
   margin: var(--space-2) 0 0;
+}
+
+.conversation-image-result a {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
   overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  border-radius: var(--radius-control);
+}
+
+.conversation-image-result a:focus-visible {
+  outline: var(--focus-ring);
 }
 
 .conversation-image-result img {
   display: block;
   width: auto;
-  max-width: min(100%, 720px);
-  max-height: 720px;
+  max-width: min(100%, 240px);
+  max-height: 240px;
   object-fit: contain;
 }
 
 .conversation-image-result__status {
   margin: var(--space-2) 0 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
 }
 

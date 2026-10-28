@@ -696,6 +696,12 @@ describe("OrionAI conversations", () => {
     expect(document.querySelector(".conversation-panel__header h1")?.textContent).toBe("图片助手");
     const image = screen.getByRole("img", { name: "图片助手生成的商品图片" });
     expect(image).toHaveAttribute("src", "/api/v1/task-results/9007199254740994/image");
+    const bubble = image.closest(".conversation-message__bubble");
+    expect(bubble).toContainElement(screen.getByText("图片已生成并保存到本次会话。"));
+    expect(screen.getByRole("link", { name: "查看生成图片原图" })).toHaveAttribute(
+      "href",
+      "/api/v1/task-results/9007199254740994/image",
+    );
     fireEvent.error(image);
     expect(screen.getByText("生成图片暂时无法显示。")).toHaveAttribute("role", "status");
   });

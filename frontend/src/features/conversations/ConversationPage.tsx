@@ -72,7 +72,14 @@ function ImageResult({ part }: { part: ImageResultContentPart }) {
   }
   return (
     <figure className="conversation-image-result">
-      <img alt="图片助手生成的商品图片" onError={() => setHasError(true)} src={part.image_url} />
+      <a
+        aria-label="查看生成图片原图"
+        href={part.image_url}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <img alt="图片助手生成的商品图片" onError={() => setHasError(true)} src={part.image_url} />
+      </a>
     </figure>
   );
 }
@@ -894,22 +901,24 @@ export function ConversationPage({
                     className={`conversation-message conversation-message--${message.role}${questionAnswerItems ? " conversation-message--question-answers" : ""}`}
                     key={message.id}
                   >
-                    {message.role === "assistant" && text && (
+                    {/* 助手的一条消息共用一个气泡，文字和图片按内容顺序展示。 */}
+                    {message.role === "assistant" && (text || imageResults.length > 0) && (
                       <div className="conversation-message__bubble">
-                        <div className="conversation-message__markdown">
-                          <ReactMarkdown
-                            components={markdownComponents}
-                            remarkPlugins={[remarkGfm]}
-                          >
-                            {text}
-                          </ReactMarkdown>
-                        </div>
+                        {text && (
+                          <div className="conversation-message__markdown">
+                            <ReactMarkdown
+                              components={markdownComponents}
+                              remarkPlugins={[remarkGfm]}
+                            >
+                              {text}
+                            </ReactMarkdown>
+                          </div>
+                        )}
+                        {imageResults.map((part) => (
+                          <ImageResult key={part.task_result_id} part={part} />
+                        ))}
                       </div>
                     )}
-                    {message.role === "assistant" &&
-                      imageResults.map((part) => (
-                        <ImageResult key={part.task_result_id} part={part} />
-                      ))}
                     {message.role === "user" &&
                       text &&
                       (questionAnswerItems ? (
