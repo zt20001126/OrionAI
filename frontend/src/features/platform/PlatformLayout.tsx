@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import "./platform.css";
 
@@ -6,6 +6,8 @@ import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
 import { PlatformIcon } from "./PlatformIcon";
 import { platformPaths, type PlatformRoute } from "./platformData";
+
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "orionai:platform-sidebar-collapsed";
 
 interface PlatformLayoutProps {
   account: string;
@@ -32,6 +34,8 @@ export function PlatformLayout({
     pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
   const isSessionsPage = pathname === platformPaths.sessions;
   const isResumePage = pathname === platformPaths.resume;
+  const [sidebarPreference, setSidebarPreference] = useState(readSidebarPreference);
+  const sidebarCollapsed = sidebarPreference ?? isResumePage;
   const pageTitle =
     pathname === platformPaths.market
       ? "技能市场"
@@ -49,9 +53,19 @@ export function PlatformLayout({
                   ? "对话助手"
                   : "OrionAI";
 
+  function toggleSidebar() {
+    const nextCollapsed = !sidebarCollapsed;
+    setSidebarPreference(nextCollapsed);
+    try {
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(nextCollapsed));
+    } catch {
+      // Keep the current session usable when browser storage is unavailable.
+    }
+  }
+
   return (
     <div
-      className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}${isSessionsPage ? " platform-shell--sessions" : ""}`}
+      className={`platform-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}${isSessionsPage ? " platform-shell--sessions" : ""}`}
     >
       <PlatformSidebar
         account={account}
@@ -61,6 +75,8 @@ export function PlatformLayout({
         onLogout={onLogout}
         onNavigate={onNavigate}
         pathname={pathname}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleSidebar}
       />
 
       <div
@@ -100,4 +116,13 @@ export function PlatformLayout({
       </div>
     </div>
   );
+}
+
+function readSidebarPreference(): boolean | null {
+  try {
+    const preference = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+    return preference === "true" ? true : preference === "false" ? false : null;
+  } catch {
+    return null;
+  }
 }

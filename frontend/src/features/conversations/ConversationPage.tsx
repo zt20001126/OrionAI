@@ -41,6 +41,12 @@ interface ConversationPageProps {
   onNavigate: (path: PlatformRoute) => void;
 }
 
+const RESUME_ASSISTANT_PROMPTS = [
+  { label: "优化简历表达", prompt: "请帮我优化简历表达，让内容更清晰专业。" },
+  { label: "改写项目经历", prompt: "请帮我改写简历中的项目经历，突出我的贡献和成果。" },
+  { label: "匹配岗位要求", prompt: "请根据目标岗位要求分析我的简历匹配度。" },
+] as const;
+
 function getPendingQuestion(messages: ConversationMessage[]): {
   messageId: string;
   part: QuestionContentPart;
@@ -833,18 +839,25 @@ export function ConversationPage({
                     {skillCode === "image_agent"
                       ? "描述商品和画面效果，开始生成图片。"
                       : skillCode === "resume_assistant"
-                        ? "可以请我分析已保存简历、讨论求职方向或准备面试。"
+                        ? "可以请我分析简历、讨论求职方向或优化内容。"
                         : "有什么问题，尽管问我。"}
                   </p>
                   {embedded && (
-                    <button
-                      className="button button--outline"
-                      disabled={isCreatingConversation}
-                      onClick={() => void handleCreateConversation()}
-                      type="button"
-                    >
-                      {isCreatingConversation ? "正在创建…" : "新建简历对话"}
-                    </button>
+                    <div aria-label="快捷提问" className="conversation-empty__suggestions">
+                      {RESUME_ASSISTANT_PROMPTS.map(({ label, prompt }) => (
+                        <button
+                          className="conversation-empty__suggestion"
+                          key={label}
+                          onClick={() => {
+                            setDraft(prompt);
+                            window.requestAnimationFrame(() => composerInputRef.current?.focus());
+                          }}
+                          type="button"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

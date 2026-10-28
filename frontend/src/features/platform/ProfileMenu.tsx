@@ -12,6 +12,8 @@ interface ProfileMenuProps {
   onNavigate: (path: PlatformPath) => void;
   triggerLabel: string;
   variant?: "default" | "sidebar";
+  tooltipLabel?: string;
+  collapsed?: boolean;
 }
 
 export function ProfileMenu({
@@ -23,6 +25,8 @@ export function ProfileMenu({
   onNavigate,
   triggerLabel,
   variant = "default",
+  tooltipLabel,
+  collapsed = false,
 }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPresent, setIsPresent] = useState(false);
@@ -86,9 +90,10 @@ export function ProfileMenu({
         aria-label={triggerLabel}
         aria-controls={isPresent ? menuId : undefined}
         className={`profile-menu__trigger${variant === "sidebar" ? " profile-menu__trigger--sidebar" : ""}`}
+        data-tooltip={tooltipLabel}
         onClick={isOpen ? closeMenu : openMenu}
         ref={triggerRef}
-        title={variant === "sidebar" ? account : undefined}
+        title={variant === "sidebar" && !collapsed ? account : undefined}
         type="button"
       >
         <UserAvatar account={account} avatarUrl={avatarUrl} key={avatarUrl || "default-avatar"} />

@@ -21,7 +21,9 @@ export type PlatformIconName =
   | "calendar"
   | "clock"
   | "history"
-  | "plus";
+  | "plus"
+  | "collapse"
+  | "expand";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -161,6 +163,18 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
         </>
       )}
       {name === "plus" && <path d="M12 5v14M5 12h14" />}
+      {name === "collapse" && (
+        <>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+          <path d="M9 5v14m3-4 3-3-3-3" />
+        </>
+      )}
+      {name === "expand" && (
+        <>
+          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+          <path d="M9 5v14m6-4-3-3 3-3" />
+        </>
+      )}
     </svg>
   );
 }

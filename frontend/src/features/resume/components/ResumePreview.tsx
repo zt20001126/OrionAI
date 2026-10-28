@@ -13,27 +13,28 @@ export function ResumePreview({
   photoUrl: string | null;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const paperRef = useRef<HTMLElement>(null);
   const [scale, setScale] = useState(1);
+  const [contentHeight, setContentHeight] = useState(A4_HEIGHT_PX);
   const { basic_info: info } = draft.content;
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
 
-    const updateScale = (width: number) => {
-      setScale(Math.min(1, width / A4_WIDTH_PX));
+    const updateMeasurements = () => {
+      setScale(Math.min(1, viewport.clientWidth / A4_WIDTH_PX));
+      setContentHeight(Math.max(A4_HEIGHT_PX, paperRef.current?.scrollHeight ?? A4_HEIGHT_PX));
     };
-    updateScale(viewport.clientWidth);
+    updateMeasurements();
 
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) updateScale(entry.contentRect.width);
-    });
+    const observer = new ResizeObserver(updateMeasurements);
     observer.observe(viewport);
+    if (paperRef.current) observer.observe(paperRef.current);
     return () => observer.disconnect();
   }, []);
 
-  const paperHeight = A4_HEIGHT_PX * scale;
+  const paperHeight = contentHeight * scale;
 
   return (
     <aside aria-label="简历预览" className="resume-preview-panel">
@@ -49,6 +50,7 @@ export function ResumePreview({
         >
           <article
             className="resume-paper"
+            ref={paperRef}
             style={{
               color: "var(--color-text)",
               fontSize: `${draft.style_config.font_size_pt}pt`,
