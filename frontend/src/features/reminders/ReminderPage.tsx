@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 
 import { useToast } from "../../components/ToastProvider";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
@@ -37,20 +37,14 @@ type ReminderLoadState =
   | { status: "error"; requestVersion: number; message: string };
 
 type HistoryLoadState =
+  | { status: "idle" }
   | { status: "loading" }
   | {
       status: "success";
-      reminderId: string;
       items: ReminderExecution[];
       total: number;
     }
-  | { status: "error"; reminderId: string; message: string };
-
-interface HistorySelection {
-  reminderId: string;
-  title: string;
-  timezone: string;
-}
+  | { status: "error"; message: string };
 
 const REPEAT_LABELS: Record<ReminderRepeatType, string> = {
   once: "单次",
@@ -75,6 +69,15 @@ const EXECUTION_STATUS_LABELS: Record<ReminderExecutionStatus, string> = {
   cancelled: "未发送",
 };
 
+const EXECUTION_STATUS_MARKS: Record<ReminderExecutionStatus, string> = {
+  pending: "○",
+  sending: "↻",
+  retry_wait: "↻",
+  accepted: "✓",
+  failed: "!",
+  cancelled: "—",
+};
+
 /** 提醒助手列表与独立新建路由，共用编辑、执行历史和 API 状态。 */
 export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
   const { confirm, showToast } = useToast();
@@ -89,8 +92,7 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [busyReminderId, setBusyReminderId] = useState<string | null>(null);
-  const [historySelection, setHistorySelection] = useState<HistorySelection | null>(null);
-  const [historyState, setHistoryState] = useState<HistoryLoadState>({ status: "loading" });
+  const [expandedReminderId, setExpandedReminderId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isCreatePage) return;
@@ -116,40 +118,10 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
     return () => controller.abort();
   }, [isCreatePage, reloadVersion]);
 
-  useEffect(() => {
-    if (!historySelection) return;
-    const controller = new AbortController();
-    listReminderExecutions(historySelection.reminderId, controller.signal)
-      .then((response) => {
-        if (controller.signal.aborted) return;
-        setHistoryState({
-          status: "success",
-          reminderId: historySelection.reminderId,
-          items: response.items,
-          total: response.total,
-        });
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setHistoryState({
-          status: "error",
-          reminderId: historySelection.reminderId,
-          message: error instanceof Error ? error.message : "执行历史加载失败，请稍后重试。",
-        });
-      });
-    return () => controller.abort();
-  }, [historySelection]);
-
   const currentLoadState =
     loadState.status === "loading" || loadState.requestVersion !== reloadVersion
       ? { status: "loading" as const }
       : loadState;
-  const currentHistoryState =
-    !historySelection ||
-    historyState.status === "loading" ||
-    historyState.reminderId !== historySelection.reminderId
-      ? { status: "loading" as const }
-      : historyState;
   const reminders = currentLoadState.status === "success" ? currentLoadState.items : [];
   const isEmpty = currentLoadState.status === "success" && currentLoadState.items.length === 0;
   const allowedPastDate =
@@ -160,7 +132,7 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
       ? String(editingReminder.repeat_config.start_date ?? "")
       : undefined;
   function openCreateForm() {
-    setHistorySelection(null);
+    setExpandedReminderId(null);
     void onNavigate(platformPaths.reminderCreate);
   }
 
@@ -251,12 +223,8 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
     }
   }
 
-  function openHistory(reminder: Reminder) {
-    setHistorySelection({
-      reminderId: reminder.id,
-      title: reminder.title,
-      timezone: reminder.timezone,
-    });
+  function toggleHistory(reminderId: string) {
+    setExpandedReminderId((currentId) => (currentId === reminderId ? null : reminderId));
   }
 
   async function handleLoadMoreReminders() {
@@ -301,14 +269,13 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
       <div className="reminders-page reminders-page--create">
         <header className="reminders-create-heading">
           <button
-            aria-label="返回我的提醒"
-            className="button button--outline reminders-back-button"
+            className="reminders-back-link"
             disabled={isSaving}
             onClick={leaveCreatePage}
             type="button"
           >
             <PlatformIcon name="arrow" size={16} />
-            返回
+            返回提醒列表
           </button>
           <h1 id="reminder-page-title">新建提醒</h1>
         </header>
@@ -371,14 +338,15 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
             </button>
           </div>
         ) : (
-          <div className="reminders-list">
+          <div className="reminders-list" role="list">
             {reminders.map((reminder) => (
-              <ReminderRow
+              <ReminderListItem
                 busy={busyReminderId === reminder.id}
+                expanded={expandedReminderId === reminder.id}
                 key={reminder.id}
                 onCancel={() => void handleCancel(reminder)}
                 onEdit={() => openEditForm(reminder)}
-                onHistory={() => openHistory(reminder)}
+                onToggleHistory={() => toggleHistory(reminder.id)}
                 onPause={() => void handlePause(reminder)}
                 onResume={() => void handleResume(reminder)}
                 reminder={reminder}
@@ -423,132 +391,185 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
         </section>
       )}
 
-      {historySelection && (
-        <section aria-labelledby="reminder-history-title" className="reminder-history-section">
-          <div className="reminders-section__heading">
-            <div>
-              <h2 id="reminder-history-title">执行历史</h2>
-              <p>{historySelection.title}</p>
-            </div>
-            <button
-              className="button button--outline"
-              onClick={() => setHistorySelection(null)}
-              type="button"
-            >
-              收起历史
-            </button>
-          </div>
-          {currentHistoryState.status === "loading" ? (
-            <div className="reminders-message" role="status">
-              正在加载执行历史…
-            </div>
-          ) : currentHistoryState.status === "error" ? (
-            <div className="reminders-message reminders-message--error" role="alert">
-              <span>{currentHistoryState.message}</span>
-              <button
-                className="button button--outline"
-                onClick={() => setHistorySelection({ ...historySelection })}
-                type="button"
-              >
-                重试
-              </button>
-            </div>
-          ) : currentHistoryState.items.length === 0 ? (
-            <div className="reminders-message" role="status">
-              还没有执行记录。
-            </div>
-          ) : (
-            <div className="reminder-history-list">
-              {currentHistoryState.items.map((execution) => (
-                <ExecutionRow
-                  execution={execution}
-                  key={execution.id}
-                  timezone={historySelection.timezone}
-                />
-              ))}
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }
 
-interface ReminderRowProps {
+interface ReminderListItemProps {
   busy: boolean;
+  expanded: boolean;
   onCancel: () => void;
   onEdit: () => void;
-  onHistory: () => void;
+  onToggleHistory: () => void;
   onPause: () => void;
   onResume: () => void;
   reminder: Reminder;
 }
 
-/** 单条提醒列表行，根据状态展示可执行的管理动作。 */
-function ReminderRow({
+/** 单条提醒及其历史共用一个列表项，历史请求和结果按提醒隔离。 */
+function ReminderListItem({
   busy,
+  expanded,
   onCancel,
   onEdit,
-  onHistory,
+  onToggleHistory,
   onPause,
   onResume,
   reminder,
-}: ReminderRowProps) {
+}: ReminderListItemProps) {
+  const historyPanelId = useId();
+  const [historyState, setHistoryState] = useState<HistoryLoadState>({ status: "idle" });
+  const [retryVersion, setRetryVersion] = useState(0);
+
+  function toggleHistory() {
+    if (!expanded) setHistoryState({ status: "loading" });
+    onToggleHistory();
+  }
+
+  function retryHistory() {
+    setHistoryState({ status: "loading" });
+    setRetryVersion((version) => version + 1);
+  }
+
+  useEffect(() => {
+    if (!expanded) return;
+    const controller = new AbortController();
+    listReminderExecutions(reminder.id, controller.signal)
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        setHistoryState({ status: "success", items: response.items, total: response.total });
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setHistoryState({
+          status: "error",
+          message: error instanceof Error ? error.message : "执行历史加载失败，请稍后重试。",
+        });
+      });
+    return () => controller.abort();
+  }, [expanded, reminder.id, retryVersion]);
+
+  const currentHistoryState =
+    expanded && historyState.status === "idle" ? { status: "loading" as const } : historyState;
+
   const statusClass = `reminder-status reminder-status--${reminder.status}`;
+  const nextRun = formatNextRun(reminder);
   return (
-    <article className="reminder-row">
-      <div className="reminder-row__main">
-        <div className="reminder-row__title-line">
-          <h3>{reminder.title}</h3>
-          <span className={statusClass}>{STATUS_LABELS[reminder.status]}</span>
+    <div className="reminder-list-item" role="listitem">
+      <article className="reminder-row">
+        <div className="reminder-row__main">
+          <div className="reminder-row__title-line">
+            <h3>{reminder.title}</h3>
+            <span className={statusClass}>{STATUS_LABELS[reminder.status]}</span>
+          </div>
+          <p className="reminder-row__content">{reminder.content}</p>
+          <div className="reminder-row__meta">
+            <span>{REPEAT_LABELS[reminder.repeat_type]}</span>
+            {nextRun && <span>{nextRun}</span>}
+          </div>
         </div>
-        <p className="reminder-row__content">{reminder.content}</p>
-        <div className="reminder-row__meta">
-          <span>{REPEAT_LABELS[reminder.repeat_type]}</span>
-          <span>{formatNextRun(reminder)}</span>
+        <div className="reminder-row__actions">
+          {(reminder.status === "active" || reminder.status === "paused") && (
+            <button className="button button--outline" disabled={busy} onClick={onEdit} type="button">
+              编辑
+            </button>
+          )}
+          {reminder.status === "active" && reminder.repeat_type !== "once" && (
+            <button
+              className="button button--outline"
+              disabled={busy}
+              onClick={onPause}
+              type="button"
+            >
+              暂停
+            </button>
+          )}
+          {reminder.status === "paused" && (
+            <button
+              className="button button--outline"
+              disabled={busy}
+              onClick={onResume}
+              type="button"
+            >
+              恢复
+            </button>
+          )}
+          {(reminder.status === "active" || reminder.status === "paused") && (
+            <button
+              className="button button--outline"
+              disabled={busy}
+              onClick={onCancel}
+              type="button"
+            >
+              取消
+            </button>
+          )}
+          <button
+            aria-controls={historyPanelId}
+            aria-expanded={expanded}
+            className="button button--secondary"
+            onClick={toggleHistory}
+            type="button"
+          >
+            {expanded ? "收起历史" : "执行历史"}
+          </button>
+        </div>
+      </article>
+
+      <div
+        aria-hidden={!expanded}
+        aria-labelledby={`${historyPanelId}-title`}
+        className={`reminder-history-disclosure${expanded ? " is-expanded" : ""}`}
+        id={historyPanelId}
+        inert={!expanded}
+        role="region"
+      >
+        <div className="reminder-history-disclosure__clip">
+          <div className="reminder-history-panel">
+            <div className="reminder-history-panel__heading">
+              <h4 id={`${historyPanelId}-title`}>执行历史</h4>
+              {currentHistoryState.status === "success" && (
+                <span>
+                  {currentHistoryState.total > currentHistoryState.items.length
+                    ? `显示最近 ${currentHistoryState.items.length} 条，共 ${currentHistoryState.total} 条`
+                    : `${currentHistoryState.items.length} 条记录`}
+                </span>
+              )}
+            </div>
+            {currentHistoryState.status === "idle" || currentHistoryState.status === "loading" ? (
+              <div className="reminder-history-feedback" role="status">
+                正在加载执行历史…
+              </div>
+            ) : currentHistoryState.status === "error" ? (
+              <div className="reminder-history-feedback reminder-history-feedback--error" role="alert">
+                <span>{currentHistoryState.message}</span>
+                <button
+                  className="button button--secondary"
+                  onClick={retryHistory}
+                  type="button"
+                >
+                  重试
+                </button>
+              </div>
+            ) : currentHistoryState.items.length === 0 ? (
+              <div className="reminder-history-feedback" role="status">
+                还没有执行记录。
+              </div>
+            ) : (
+              <div className="reminder-history-list">
+                {currentHistoryState.items.map((execution) => (
+                  <ExecutionRow
+                    execution={execution}
+                    key={execution.id}
+                    timezone={reminder.timezone}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-      <div className="reminder-row__actions">
-        {(reminder.status === "active" || reminder.status === "paused") && (
-          <button className="button button--outline" disabled={busy} onClick={onEdit} type="button">
-            编辑
-          </button>
-        )}
-        {reminder.status === "active" && reminder.repeat_type !== "once" && (
-          <button
-            className="button button--outline"
-            disabled={busy}
-            onClick={onPause}
-            type="button"
-          >
-            暂停
-          </button>
-        )}
-        {reminder.status === "paused" && (
-          <button
-            className="button button--outline"
-            disabled={busy}
-            onClick={onResume}
-            type="button"
-          >
-            恢复
-          </button>
-        )}
-        {(reminder.status === "active" || reminder.status === "paused") && (
-          <button
-            className="button button--outline"
-            disabled={busy}
-            onClick={onCancel}
-            type="button"
-          >
-            取消
-          </button>
-        )}
-        <button className="button button--secondary" onClick={onHistory} type="button">
-          执行历史
-        </button>
-      </div>
-    </article>
+    </div>
   );
 }
 
@@ -556,30 +577,58 @@ function ReminderRow({
 function ExecutionRow({ execution, timezone }: { execution: ReminderExecution; timezone: string }) {
   return (
     <article className="reminder-execution-row">
-      <div>
-        <strong>{EXECUTION_STATUS_LABELS[execution.status]}</strong>
-        <span>{formatDateTime(execution.scheduled_at, timezone)}</span>
+      <div className="reminder-execution-row__summary">
+        <span
+          aria-hidden="true"
+          className={`reminder-execution-status-mark reminder-execution-status-mark--${execution.status}`}
+        >
+          {EXECUTION_STATUS_MARKS[execution.status]}
+        </span>
+        <strong className={`reminder-execution-status reminder-execution-status--${execution.status}`}>
+          {EXECUTION_STATUS_LABELS[execution.status]}
+        </strong>
+        <span>
+          <small>计划执行时间</small>
+          <time dateTime={execution.scheduled_at}>{formatDateTime(execution.scheduled_at, timezone)}</time>
+        </span>
       </div>
-      <div>
-        <span>重试 {execution.retry_count} 次</span>
-        {execution.recipient_email_masked && <span>{execution.recipient_email_masked}</span>}
-        {execution.error_message && (
-          <span className="reminder-execution-row__error">{execution.error_message}</span>
-        )}
+      <div className="reminder-execution-row__details">
+        <span>
+          <small>实际开始</small>
+          {execution.started_at ? (
+            <time dateTime={execution.started_at}>{formatDateTime(execution.started_at, timezone)}</time>
+          ) : (
+            "尚未开始"
+          )}
+        </span>
+        <span>
+          <small>实际结束</small>
+          {execution.finished_at ? (
+            <time dateTime={execution.finished_at}>{formatDateTime(execution.finished_at, timezone)}</time>
+          ) : (
+            execution.started_at ? "执行中" : "尚未开始"
+          )}
+        </span>
+        <span>
+          <small>收件邮箱</small>
+          {execution.recipient_email_masked ?? "未记录"}
+        </span>
+        <span>
+          <small>重试次数</small>
+          {execution.retry_count} 次
+        </span>
       </div>
-      <small>
-        {execution.started_at
-          ? `开始 ${formatDateTime(execution.started_at, timezone)}`
-          : "尚未开始发送"}
-        {execution.finished_at ? ` · 结束 ${formatDateTime(execution.finished_at, timezone)}` : ""}
-      </small>
+      {execution.error_message && (
+        <p className="reminder-execution-row__error">失败原因：{execution.error_message}</p>
+      )}
     </article>
   );
 }
 
-function formatNextRun(reminder: Reminder): string {
+function formatNextRun(reminder: Reminder): string | null {
+  if (reminder.status === "completed" && reminder.repeat_type === "once") return null;
   if (!reminder.next_run_at) return "暂无下一次计划";
-  return `${formatDateTime(reminder.next_run_at, reminder.timezone)} · ${reminder.timezone}`;
+  return `下次执行 ${formatDateTime(reminder.next_run_at, reminder.timezone)} · ${reminder.timezone}`;
 }
 
 function formatDateTime(value: string, timezone?: string): string {

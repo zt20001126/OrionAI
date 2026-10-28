@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "../src/components/ToastProvider";
 import { ReminderPage } from "../src/features/reminders/ReminderPage";
-import type { Reminder } from "../src/features/reminders/reminderApi";
+import type { Reminder, ReminderExecution } from "../src/features/reminders/reminderApi";
 import { platformPaths, type PlatformRoute } from "../src/features/platform/platformData";
 
 afterEach(() => {
@@ -212,6 +212,117 @@ describe("提醒助手管理页", () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("offset=1");
   });
 
+  it("在对应提醒下内联展开历史，切换提醒时隔离数据并允许收起", async () => {
+    const first = makeReminder("reminder-a", "第一条提醒");
+    const second = makeReminder("reminder-b", "第二条提醒");
+    const firstExecution = makeExecution("execution-a", "a***@example.com");
+    const secondExecution = makeExecution("execution-b", "b***@example.com");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith("/api/v1/reminders?") && !path.includes("/executions")) {
+        return response(page([first, second]));
+      }
+      if (path.startsWith(`/api/v1/reminders/${first.id}/executions`)) {
+        return response(page([firstExecution]));
+      }
+      if (path.startsWith(`/api/v1/reminders/${second.id}/executions`)) {
+        return response(page([secondExecution]));
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderReminderApp();
+    expect(await screen.findByRole("heading", { name: first.title })).toBeInTheDocument();
+    const [firstItem, secondItem] = screen.getAllByRole("listitem");
+    expect(firstItem).toBeDefined();
+    expect(secondItem).toBeDefined();
+
+    fireEvent.click(within(firstItem as HTMLElement).getByRole("button", { name: "执行历史" }));
+    expect(await within(firstItem as HTMLElement).findByText(firstExecution.recipient_email_masked!))
+      .toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByText("计划执行时间")).toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByText("实际开始")).toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByText("实际结束")).toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByText("重试次数")).toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByText("2 次")).toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByText("失败原因：邮件服务暂时不可用。"))
+      .toBeInTheDocument();
+    expect(within(secondItem as HTMLElement).queryByText(firstExecution.recipient_email_masked!))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(within(secondItem as HTMLElement).getByRole("button", { name: "执行历史" }));
+    expect(await within(secondItem as HTMLElement).findByText(secondExecution.recipient_email_masked!))
+      .toBeInTheDocument();
+    expect(within(firstItem as HTMLElement).getByRole("button", { name: "执行历史" }))
+      .toHaveAttribute("aria-expanded", "false");
+    expect(within(secondItem as HTMLElement).getByRole("button", { name: "收起历史" }))
+      .toHaveAttribute("aria-expanded", "true");
+    expect(within(secondItem as HTMLElement).queryByText(firstExecution.recipient_email_masked!))
+      .not.toBeInTheDocument();
+
+    fireEvent.click(within(secondItem as HTMLElement).getByRole("button", { name: "收起历史" }));
+    expect(within(secondItem as HTMLElement).getByRole("button", { name: "执行历史" }))
+      .toHaveAttribute("aria-expanded", "false");
+    expect(within(secondItem as HTMLElement).queryByRole("region", { name: "执行历史" }))
+      .not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`${first.id}/executions`)))
+      .toBe(true);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`${second.id}/executions`)))
+      .toBe(true);
+  });
+
+  it("已完成的单次提醒不显示下次执行时间，但仍可查看历史", async () => {
+    const completed = makeReminder("reminder-completed", "已完成的提醒", {
+      next_run_at: null,
+      status: "completed",
+    });
+    vi.stubGlobal("fetch", vi.fn(async () => response(page([completed]))));
+
+    renderReminderApp();
+    const reminderHeading = await screen.findByRole("heading", { name: completed.title });
+    const reminderItem = reminderHeading.closest('[role="listitem"]');
+    expect(reminderItem).not.toBeNull();
+    expect(within(reminderItem as HTMLElement).getByText("已完成")).toBeInTheDocument();
+    expect(within(reminderItem as HTMLElement).queryByText(/下次执行|暂无下一次计划/))
+      .not.toBeInTheDocument();
+    expect(within(reminderItem as HTMLElement).getByRole("button", { name: "执行历史" }))
+      .toBeInTheDocument();
+  });
+
+  it("执行历史显示空状态，加载失败时可重试", async () => {
+    let executionRequestCount = 0;
+    const reminder = makeReminder("reminder-history-state", "状态提醒");
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith("/api/v1/reminders?") && !path.includes("/executions")) {
+        return response(page([reminder]));
+      }
+      if (path.includes("/executions")) {
+        executionRequestCount += 1;
+        if (executionRequestCount === 1) {
+          return response({ detail: "服务暂不可用" }, 503);
+        }
+        return response(page([]));
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderReminderApp();
+    const reminderHeading = await screen.findByRole("heading", { name: reminder.title });
+    const reminderItem = reminderHeading.closest('[role="listitem"]') as HTMLElement;
+    fireEvent.click(within(reminderItem).getByRole("button", { name: "执行历史" }));
+    expect(await within(reminderItem).findByRole("alert")).toHaveTextContent(
+      "提醒服务暂时不可用，请稍后重试。",
+    );
+
+    fireEvent.click(within(reminderItem).getByRole("button", { name: "重试" }));
+    expect(await within(reminderItem).findByText("还没有执行记录。"))
+      .toBeInTheDocument();
+    expect(executionRequestCount).toBe(2);
+  });
+
   it("保留提醒编辑路径和更新 API", async () => {
     let saved = makeReminder("373284764594991103", "原提醒");
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -264,7 +375,7 @@ function ReminderRouteHarness() {
   );
 }
 
-function page(items: Reminder[], total = items.length, offset = 0) {
+function page<T>(items: T[], total = items.length, offset = 0) {
   return { items, total, limit: 100, offset };
 }
 
@@ -292,5 +403,20 @@ function makeReminder(id: string, title: string, overrides: Partial<Reminder> = 
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,
+  };
+}
+
+function makeExecution(id: string, recipientEmail: string): ReminderExecution {
+  return {
+    id,
+    scheduled_at: "2026-10-29T09:00:00Z",
+    status: "failed",
+    retry_count: 2,
+    next_retry_at: null,
+    recipient_email_masked: recipientEmail,
+    error_message: "邮件服务暂时不可用。",
+    started_at: "2026-10-29T09:00:03Z",
+    finished_at: "2026-10-29T09:00:06Z",
+    created_at: "2026-10-29T09:00:00Z",
   };
 }
