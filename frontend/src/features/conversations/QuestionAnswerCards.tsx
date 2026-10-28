@@ -67,28 +67,54 @@ export function CompletedQuestionCard({ questions }: CompletedQuestionCardProps)
 }
 
 export function QuestionAnswerCard({ items }: QuestionAnswerCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const detailsId = useId();
+
   return (
     <section aria-label={`我的回答，共 ${items.length} 题`} className="question-answer-card">
-      <h2 className="question-answer-card__heading">
-        <span aria-hidden="true">✓</span>
-        我的回答 · 共 {items.length} 题
-      </h2>
-      <ol className="question-answer-card__list">
-        {items.map((item, index) => (
-          <li className="question-answer-card__item" key={item.question_id}>
-            <div className="question-answer-card__question">
-              <span className="question-answer-card__number">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <p>{item.question}</p>
-            </div>
-            <p className="question-answer-card__answer">
-              <strong>我的选择：</strong>
-              <span>{item.answer}</span>
-            </p>
-          </li>
-        ))}
-      </ol>
+      <button
+        aria-controls={detailsId}
+        aria-expanded={isExpanded}
+        className="question-answer-card__toggle"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        type="button"
+      >
+        <span aria-hidden="true" className="completed-question-card__status-icon">
+          <svg viewBox="0 0 20 20" fill="none">
+            <path d="m4.5 10.2 3.4 3.3 7.6-7.3" />
+          </svg>
+        </span>
+        <span className="completed-question-card__heading">
+          <strong>我的回答已提交</strong>
+          <span>共 {items.length} 题</span>
+        </span>
+        <PlatformIcon name="chevron" size={18} />
+      </button>
+
+      <div
+        aria-hidden={!isExpanded}
+        className={`question-answer-card__details${isExpanded ? " is-expanded" : ""}`}
+        id={detailsId}
+      >
+        <div className="question-answer-card__details-inner">
+          <ol className="question-answer-card__list">
+            {items.map((item, index) => (
+              <li className="question-answer-card__item" key={item.question_id}>
+                <div className="question-answer-card__question">
+                  <span className="question-answer-card__number">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <p>{item.question}</p>
+                </div>
+                <p className="question-answer-card__answer">
+                  <strong>我的选择：</strong>
+                  <span>{item.answer}</span>
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
     </section>
   );
 }
