@@ -3,7 +3,7 @@ FROM node:24-alpine
 WORKDIR /workspace/frontend
 
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,id=orionai-npm,target=/root/.npm,sharing=locked npm ci
 
 COPY frontend/ ./
 

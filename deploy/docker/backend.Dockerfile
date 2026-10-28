@@ -28,11 +28,26 @@ requirements = (
 subprocess.check_call([sys.executable, "-m", "pip", "install", *requirements])
 PY
 
-# PDF 导出使用锁定版本的 Chromium；字体支持简体中文简历。
-RUN python -m playwright install --with-deps chromium \
+# Playwright 的系统依赖单独成层，避免后续浏览器或字体下载失败时丢失该层缓存。
+RUN --mount=type=cache,id=orionai-apt-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=orionai-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && cp /etc/apt/apt.conf.d/docker-clean /tmp/orionai-docker-clean \
+    && rm -f /etc/apt/apt.conf.d/docker-clean \
+    && python -m playwright install-deps chromium \
+    && mv /tmp/orionai-docker-clean /etc/apt/apt.conf.d/docker-clean
+
+# PDF 渲染使用默认无头模式，只安装 Chromium headless shell。
+RUN python -m playwright install --only-shell chromium
+
+# 简历模板使用 Noto CJK；独立成层，取包失败时不会重装 Playwright 依赖和浏览器。
+RUN --mount=type=cache,id=orionai-apt-archives,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=orionai-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    cp /etc/apt/apt.conf.d/docker-clean /tmp/orionai-docker-clean \
+    && rm -f /etc/apt/apt.conf.d/docker-clean \
     && apt-get update \
     && apt-get install -y --no-install-recommends fonts-noto-cjk \
-    && rm -rf /var/lib/apt/lists/*
+    && mv /tmp/orionai-docker-clean /etc/apt/apt.conf.d/docker-clean
 
 COPY backend/app ./app
 COPY backend/migrations ./migrations
