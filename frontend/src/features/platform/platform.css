@@ -163,46 +163,12 @@
   margin-top: auto;
 }
 
-.workspace-link {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
-  cursor: pointer;
-  text-align: left;
-  transition:
-    border-color var(--motion-fast),
-    background-color var(--motion-fast);
-}
-
-.workspace-link:hover {
-  border-color: var(--color-brand-line);
-  background: var(--color-brand-soft);
-}
-
-.workspace-link__avatar {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  border-radius: var(--radius-control);
-  color: var(--color-text-secondary);
-  background: var(--color-surface-muted);
-  place-items: center;
-}
-
-.workspace-link__copy,
 .profile-menu__trigger-copy {
   display: grid;
   min-width: 0;
   gap: var(--space-1);
 }
 
-.workspace-link__copy strong,
 .profile-menu__trigger-copy strong {
   overflow: hidden;
   color: var(--color-text-label);
@@ -212,7 +178,6 @@
   white-space: nowrap;
 }
 
-.workspace-link__copy small,
 .profile-menu__trigger-copy small {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
@@ -341,7 +306,6 @@
 
 .platform-sidebar--collapsed .platform-brand > span,
 .platform-sidebar--collapsed .platform-navigation__item > span,
-.platform-sidebar--collapsed .workspace-link__copy,
 .platform-sidebar--collapsed .profile-menu__trigger-copy,
 .platform-sidebar--collapsed .profile-menu__trigger--sidebar > .platform-icon {
   display: none;
@@ -359,13 +323,6 @@
 
 .platform-sidebar--collapsed .platform-sidebar__footer {
   justify-items: center;
-}
-
-.platform-sidebar--collapsed .workspace-link {
-  width: 44px;
-  height: 44px;
-  justify-content: center;
-  padding: var(--space-1);
 }
 
 .platform-sidebar--collapsed .sidebar-account {
@@ -1569,7 +1526,6 @@
 
 .platform-navigation__item:focus-visible,
 .platform-brand:focus-visible,
-.workspace-link:focus-visible,
 .profile-menu__trigger:focus-visible,
 .profile-menu__item:focus-visible,
 .notification-button:focus-visible,

@@ -84,8 +84,6 @@ export function PlatformLayout({
       >
         <header className="platform-topbar">
           <div className="platform-topbar__context">
-            <span>工作空间</span>
-            <PlatformIcon name="chevron" size={14} />
             <strong>{pageTitle}</strong>
           </div>
           <div className="platform-topbar__actions">

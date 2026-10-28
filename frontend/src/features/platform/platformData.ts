@@ -5,7 +5,6 @@ export const platformPaths = {
   resume: "/resume",
   knowledge: "/knowledge",
   tools: "/tools",
-  workspace: "/workspace",
   settings: "/settings",
   securitySettings: "/settings/security",
   chat: "/chat",

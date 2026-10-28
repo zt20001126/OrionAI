@@ -80,20 +80,6 @@ export function PlatformSidebar({
       </nav>
 
       <div className="platform-sidebar__footer">
-        <button
-          data-tooltip="个人空间"
-          className="workspace-link"
-          onClick={() => onNavigate(platformPaths.workspace)}
-          type="button"
-        >
-          <span className="workspace-link__avatar" aria-hidden="true">
-            <PlatformIcon name="workspace" size={18} />
-          </span>
-          <span className="workspace-link__copy">
-            <strong>个人空间</strong>
-            <small>当前工作空间</small>
-          </span>
-        </button>
         <div className="sidebar-account">
           <ProfileMenu
             account={account}

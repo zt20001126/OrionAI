@@ -4,7 +4,6 @@ export type PlatformIconName =
   | "sessions"
   | "knowledge"
   | "tools"
-  | "workspace"
   | "settings"
   | "logout"
   | "search"
@@ -70,12 +69,6 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
         <>
           <path d="M14.5 6.2a5 5 0 0 0-6.4 6.4l-4.2 4.2a2 2 0 0 0 2.8 2.8l4.2-4.2a5 5 0 0 0 6.4-6.4l-3.1 3.1-2.8-2.8 3.1-3.1Z" />
           <path d="m16.4 15.7 3.2 3.2" />
-        </>
-      )}
-      {name === "workspace" && (
-        <>
-          <rect x="4" y="5" width="16" height="14" rx="2" />
-          <path d="M8 9h8M8 12h8M8 15h4" />
         </>
       )}
       {name === "settings" && (
