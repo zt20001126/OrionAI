@@ -79,14 +79,39 @@ class ResumeAgent:
         runnable_config: RunnableConfig | None = None,
         message_id: str | None = None,
     ) -> AsyncIterator[AgentStreamEvent]:
-        response = await self.ainvoke(
-            request,
-            runnable_config=runnable_config,
-            message_id=message_id,
-        )
-        if response.status == "completed" and response.answer:
-            yield AgentTextDelta(content=response.answer)
-        yield AgentStreamResult(response=response)
+        normalized = self._normalize_request(request)
+        config = self._prepare_config(runnable_config)
+        human_message = HumanMessage(content=normalized.message, id=message_id)
+        streamed_text = False
+        try:
+            stream = await self._graph.astream_events(
+                {"messages": [human_message]},
+                config=config,
+                version="v3",
+            )
+            async with stream:
+                async for message in stream.messages:
+                    if message.node != "agent_node":
+                        continue
+                    async for content in message.text:
+                        if content:
+                            streamed_text = True
+                            yield AgentTextDelta(content=content)
+
+                result = await stream.output()
+
+            response = self._response_from_result(result or {})
+            # 输入节点直接生成的确认答复不会经过模型节点，保留其单段文本输出。
+            if response.status == "completed" and response.answer and not streamed_text:
+                yield AgentTextDelta(content=response.answer)
+            yield AgentStreamResult(response=response)
+        except AgentInputError:
+            raise
+        except Exception as error:
+            logger.warning("resume_agent_execution_failed error_type=%s", type(error).__name__)
+            raise AgentExecutionError(
+                "简历助手执行失败，请稍后重试。", code="resume_agent_failed"
+            ) from None
 
     @staticmethod
     def _normalize_request(request: AgentRequest | str | Mapping[str, Any]) -> AgentRequest:

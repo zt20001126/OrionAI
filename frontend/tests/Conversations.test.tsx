@@ -203,6 +203,40 @@ function createBackend(options?: {
         } as Response;
       }
 
+      if (url.pathname === "/api/resume" && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            exists: false,
+            content: {
+              basic_info: {
+                name: "",
+                phone: "",
+                email: "",
+                intended_position: "",
+                work_experience_years: null,
+                photo_id: null,
+              },
+              educations: [],
+              skills: {
+                type: "doc",
+                content: [{ type: "paragraph", content: [] }],
+              },
+              works: [],
+              projects: [],
+            },
+            style_config: {
+              font_size_pt: 10,
+              line_height: 1.4,
+              section_spacing_pt: 12,
+              page_margin_mm: { top: 14, right: 14, bottom: 14, left: 14 },
+              heading_color: "#2563eb",
+            },
+          }),
+        } as Response;
+      }
+
       if (url.pathname === "/api/v1/users/me/skills" && method === "GET") {
         return {
           ok: true,
@@ -493,6 +527,40 @@ describe("OrionAI conversations", () => {
       expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
     });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows streamed resume assistant text before the turn ends", async () => {
+    window.history.replaceState({}, "", "/resume");
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: false, addListener: vi.fn(), removeListener: vi.fn() })),
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    let releaseEnd!: () => void;
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve;
+    });
+    const backend = createBackend({ streamEndGate: endGate });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "简历助手实时流式" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+
+    expect(await screen.findByText("已回答：简历助手实时流式")).toBeInTheDocument();
+    expect(screen.getByText("助手正在生成…")).toBeInTheDocument();
+    releaseEnd();
+    await waitFor(() => {
+      expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
+    });
   });
 
   it("marks partial streamed text as incomplete after switching conversations", async () => {
