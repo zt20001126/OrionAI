@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import or_, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.modules.conversations.models import Conversation, Message
@@ -36,6 +36,15 @@ def list_conversations(
         .offset(offset)
     )
     return list(session.scalars(statement))
+
+
+def count_conversations(session: Session, user_id: int) -> int:
+    """统计指定用户可访问的会话数量。"""
+
+    statement = select(func.count()).select_from(Conversation).where(
+        Conversation.user_id == user_id
+    )
+    return session.scalar(statement) or 0
 
 
 def get_conversation(

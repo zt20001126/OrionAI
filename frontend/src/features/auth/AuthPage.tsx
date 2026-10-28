@@ -39,11 +39,14 @@ export function AuthPage({
   const [cooldown, setCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
-  const [message, setMessage] = useState<string | null>(initialSuccessMessage ?? null);
 
   useEffect(() => {
     if (initialMessage) showToast("error", initialMessage);
   }, [initialMessage, showToast]);
+
+  useEffect(() => {
+    if (initialSuccessMessage) showToast("success", initialSuccessMessage);
+  }, [initialSuccessMessage, showToast]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -57,17 +60,15 @@ export function AuthPage({
     setPassword("");
     setPasswordConfirmation("");
     setCooldown(0);
-    setMessage(null);
   }
 
   async function handleRequestCode() {
-    setMessage(null);
     setIsRequestingCode(true);
     try {
       const purpose: AuthPurpose = view === "register" ? "register" : "password_reset";
       const result = await requestEmailCode(email, purpose);
       setCooldown(60);
-      setMessage(result.message);
+      showToast("success", result.message);
     } catch (requestError) {
       if (requestError instanceof ApiError && requestError.status === 429) {
         setCooldown(60);
@@ -80,7 +81,6 @@ export function AuthPage({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setMessage(null);
     setIsSubmitting(true);
     try {
       if (view === "login") {
@@ -92,7 +92,7 @@ export function AuthPage({
       } else {
         const result = await resetPassword(email, code, password, passwordConfirmation);
         changeView("login");
-        setMessage(result.message);
+        showToast("success", result.message);
       }
     } catch (submitError) {
       showToast("error", getErrorMessage(submitError));
@@ -152,11 +152,6 @@ export function AuthPage({
             <p className="auth-subtitle">{content.subtitle}</p>
           </div>
 
-          {message && (
-            <p className="form-message success-message" role="status">
-              {message}
-            </p>
-          )}
           <form
             aria-busy={isSubmitting}
             className="auth-form"

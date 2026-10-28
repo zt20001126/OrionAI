@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { useToast } from "../../components/ToastProvider";
 import { SkillCard } from "../platform/SkillCard";
 import { SkillDetailsDialog } from "../platform/SkillDetailsDialog";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
@@ -27,10 +28,10 @@ const RESUME_ASSISTANT_SKILL_CODE = "resume_assistant";
 
 /** 当前用户的技能页，只展示已添加且仍可用的技能。 */
 export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
+  const { showToast } = useToast();
   const [reloadVersion, setReloadVersion] = useState(0);
   const [removingSkillIds, setRemovingSkillIds] = useState<Set<string>>(() => new Set());
   const [startingSkillIds, setStartingSkillIds] = useState<Set<string>>(() => new Set());
-  const [actionError, setActionError] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<MarketSkill | null>(null);
   const [loadState, setLoadState] = useState<MySkillsLoadState>({
     requestVersion: 0,
@@ -59,7 +60,6 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
   const skills = !isLoading && loadState.status === "success" ? loadState.items : EMPTY_MY_SKILLS;
 
   async function handleRemoveSkill(skill: MySkill) {
-    setActionError(null);
     setRemovingSkillIds((current) => new Set(current).add(skill.id));
     try {
       await removeSkillFromMySkills(skill.id);
@@ -72,8 +72,14 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
           items: current.items.filter((item) => item.id !== skill.id),
         };
       });
+      showToast("success", `已从我的技能移除「${skill.name}」。`);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "移除技能失败，请稍后重试。");
+      showToast(
+        "error",
+        error instanceof Error && error.message === "网络连接异常，请检查网络后重试。"
+          ? "网络连接异常，请检查网络后重试。"
+          : "移除技能失败，请稍后重试。",
+      );
     } finally {
       setRemovingSkillIds((current) => {
         const next = new Set(current);
@@ -84,7 +90,6 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
   }
 
   async function handleUseSkill(skill: MySkill) {
-    setActionError(null);
     setStartingSkillIds((current) => new Set(current).add(skill.id));
     try {
       if (skill.code === GENERAL_CHAT_SKILL_CODE) {
@@ -99,11 +104,7 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
       const conversation = await createConversation(skill.code);
       onNavigate(`${platformPaths.chat}/${conversation.id}`);
     } catch (error) {
-      setActionError(
-        error instanceof Error
-          ? getConversationErrorMessage(error)
-          : "无法启动此技能，请稍后重试。",
-      );
+      showToast("error", getConversationErrorMessage(error));
     } finally {
       setStartingSkillIds((current) => {
         const next = new Set(current);
@@ -131,12 +132,6 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
             {isLoading ? "加载中" : loadError ? "加载失败" : `${skills.length} 项技能`}
           </span>
         </div>
-
-        {actionError && (
-          <p className="platform-global-error" role="alert">
-            {actionError}
-          </p>
-        )}
 
         {isLoading ? (
           <div className="market-no-results" role="status">

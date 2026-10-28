@@ -1,8 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProfileSettingsPage } from "./ProfileSettingsPage";
 import { getUserProfile, updateUserProfile, type UserProfile } from "./profileApi";
+import { ToastProvider } from "../../components/ToastProvider";
 
 vi.mock("./profileApi", () => ({
   getUserProfile: vi.fn(),
@@ -19,6 +21,10 @@ const defaultProfile: UserProfile = {
 
 afterEach(cleanup);
 
+function renderWithToast(ui: ReactNode) {
+  return render(<ToastProvider>{ui}</ToastProvider>);
+}
+
 beforeEach(() => {
   vi.mocked(getUserProfile).mockResolvedValue(defaultProfile);
   vi.mocked(updateUserProfile).mockResolvedValue(defaultProfile);
@@ -34,7 +40,7 @@ beforeEach(() => {
 
 describe("ProfileSettingsPage", () => {
   it("shows the default avatar and keeps account and timestamps read-only", async () => {
-    render(<ProfileSettingsPage />);
+    renderWithToast(<ProfileSettingsPage />);
 
     expect(await screen.findByRole("heading", { name: "个人设置" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "示例用户 的头像" })).toHaveAttribute(
@@ -48,7 +54,7 @@ describe("ProfileSettingsPage", () => {
   });
 
   it("previews an avatar locally and discards it when cancelled", async () => {
-    render(<ProfileSettingsPage />);
+    renderWithToast(<ProfileSettingsPage />);
     await screen.findByRole("heading", { name: "个人设置" });
     const file = new File(["image-bytes"], "avatar.png", { type: "image/png" });
 
@@ -76,7 +82,7 @@ describe("ProfileSettingsPage", () => {
       avatar_url: "https://oss.example/avatar.png",
     };
     vi.mocked(updateUserProfile).mockResolvedValue(updatedProfile);
-    render(<ProfileSettingsPage />);
+    renderWithToast(<ProfileSettingsPage />);
     await screen.findByRole("heading", { name: "个人设置" });
     const avatar = new File(["image-bytes"], "avatar.png", { type: "image/png" });
 
@@ -95,7 +101,7 @@ describe("ProfileSettingsPage", () => {
   });
 
   it("rejects avatar files larger than two MiB before sending them", async () => {
-    render(<ProfileSettingsPage />);
+    renderWithToast(<ProfileSettingsPage />);
     await screen.findByRole("heading", { name: "个人设置" });
     const oversizedAvatar = new File([new Uint8Array(2 * 1024 * 1024 + 1)], "large.png", {
       type: "image/png",
@@ -110,7 +116,7 @@ describe("ProfileSettingsPage", () => {
   });
 
   it("limits the nickname to 20 characters", async () => {
-    render(<ProfileSettingsPage />);
+    renderWithToast(<ProfileSettingsPage />);
     await screen.findByRole("heading", { name: "个人设置" });
 
     const nicknameInput = screen.getByRole("textbox", { name: "用户昵称" });
@@ -123,13 +129,13 @@ describe("ProfileSettingsPage", () => {
 
   it("keeps edits available and shows an error if saving fails", async () => {
     vi.mocked(updateUserProfile).mockRejectedValue(new Error("OSS 暂时不可用。"));
-    render(<ProfileSettingsPage />);
+    renderWithToast(<ProfileSettingsPage />);
     await screen.findByRole("heading", { name: "个人设置" });
     const nicknameInput = screen.getByRole("textbox", { name: "用户昵称" });
     fireEvent.change(nicknameInput, { target: { value: "待保存昵称" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("OSS 暂时不可用。");
+    expect(await screen.findByRole("alert")).toHaveTextContent("个人资料保存失败，请稍后重试。");
     expect(nicknameInput).toHaveValue("待保存昵称");
   });
 });

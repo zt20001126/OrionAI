@@ -10,6 +10,7 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { useToast } from "../../components/ToastProvider";
 import { PlatformIcon } from "../platform/PlatformIcon";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { ConversationHistory } from "./ConversationHistory";
@@ -266,6 +267,7 @@ export function ConversationPage({
   onResumeSaved,
   onNavigate,
 }: ConversationPageProps) {
+  const { showToast } = useToast();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [skillCode, setSkillCode] = useState(embedded ? "resume_assistant" : "general_chat");
   const [conversationTitle, setConversationTitle] = useState<string | null>(null);
@@ -438,10 +440,7 @@ export function ConversationPage({
       setHistoryRefreshKey((current) => current + 1);
       onConversationIdChange?.(conversation.id);
     } catch (requestError) {
-      setErrorState({
-        conversationId,
-        message: getConversationErrorMessage(requestError),
-      });
+      showToast("error", getConversationErrorMessage(requestError));
     } finally {
       setIsCreatingConversation(false);
     }
@@ -586,10 +585,7 @@ export function ConversationPage({
       setStreamedOutput((current) =>
         current ? { ...current, status: streamCompleted ? "completed" : "failed" } : current,
       );
-      setErrorState({
-        conversationId: activeConversationId,
-        message: getConversationErrorMessage(requestError),
-      });
+      showToast("error", getConversationErrorMessage(requestError));
       if (activeConversationId) {
         try {
           await refreshMessages(activeConversationId);
@@ -673,10 +669,7 @@ export function ConversationPage({
       setStreamedOutput((current) =>
         current ? { ...current, status: streamCompleted ? "completed" : "failed" } : current,
       );
-      setErrorState({
-        conversationId,
-        message: getConversationErrorMessage(requestError),
-      });
+      showToast("error", getConversationErrorMessage(requestError));
       try {
         await refreshMessages(conversationId);
       } catch {
@@ -733,7 +726,7 @@ export function ConversationPage({
       ? "图片助手"
       : skillCode === "resume_assistant"
         ? "简历助手"
-        : "通用对话助手";
+        : "对话助手";
 
   return (
     <div className={`conversation-page${embedded ? " conversation-page--embedded" : ""}`}>

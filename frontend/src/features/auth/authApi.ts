@@ -1,3 +1,5 @@
+import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+
 export type AuthPurpose = "register" | "password_reset";
 
 export interface AuthSession {
@@ -9,7 +11,6 @@ export interface AccountResponse {
   account: string;
 }
 
-const MAX_USER_FACING_ERROR_LENGTH = 180;
 const SERVICE_UNAVAILABLE_STATUS = 503;
 
 export class ApiError extends Error {
@@ -48,20 +49,7 @@ function getUserFacingErrorMessage(payload: unknown, status: number): string {
     payload && typeof payload === "object" && "detail" in payload
       ? (payload.detail as unknown)
       : null;
-  if (typeof detail !== "string") return "请求失败，请稍后重试。";
-
-  const message = detail.trim();
-  const containsTechnicalDetails = /(?:traceback|stack trace|exception|error:)/i.test(message);
-  if (
-    !message ||
-    message.length > MAX_USER_FACING_ERROR_LENGTH ||
-    /[\r\n]/.test(message) ||
-    containsTechnicalDetails
-  ) {
-    return "请求失败，请稍后重试。";
-  }
-
-  return message;
+  return getSafeErrorDetail(detail, "请求失败，请稍后重试。");
 }
 
 export function getSession(): Promise<AuthSession> {

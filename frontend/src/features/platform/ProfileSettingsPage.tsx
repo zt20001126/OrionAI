@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
+import { useToast } from "../../components/ToastProvider";
+import { ApiError } from "../auth/authApi";
 import { PlatformIcon } from "./PlatformIcon";
 import { getUserProfile, updateUserProfile, type UserProfile } from "./profileApi";
 
@@ -19,6 +21,7 @@ export function ProfileSettingsPage({
   onDirtyChange,
   onProfileUpdated,
 }: ProfileSettingsPageProps) {
+  const { showToast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [nickname, setNickname] = useState("");
   const [selectedAvatar, setSelectedAvatar] = useState<File | null>(null);
@@ -27,8 +30,7 @@ export function ProfileSettingsPage({
   const [isSaving, setIsSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadRevision, setLoadRevision] = useState(0);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [avatarValidationError, setAvatarValidationError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -75,14 +77,13 @@ export function ProfileSettingsPage({
     avatarButtonRef.current?.focus();
     if (!file) return;
 
-    setSaveError(null);
-    setSuccessMessage(null);
+    setAvatarValidationError(null);
     if (!ACCEPTED_AVATAR_TYPES.has(file.type)) {
-      setSaveError("头像仅支持 PNG、JPEG 或 WebP 图片。");
+      setAvatarValidationError("头像仅支持 PNG、JPEG 或 WebP 图片。");
       return;
     }
     if (file.size === 0 || file.size > MAX_AVATAR_BYTES) {
-      setSaveError("头像文件不能为空，且大小不能超过 2 MiB。");
+      setAvatarValidationError("头像文件不能为空，且大小不能超过 2 MiB。");
       return;
     }
     setSelectedAvatar(file);
@@ -94,16 +95,14 @@ export function ProfileSettingsPage({
     setNickname(profile.nickname);
     setSelectedAvatar(null);
     setPreviewUrl(null);
-    setSaveError(null);
-    setSuccessMessage(null);
+    setAvatarValidationError(null);
   }
 
   async function saveChanges() {
     if (!profile || !isNicknameValid || !hasUnsavedChanges) return;
 
     setIsSaving(true);
-    setSaveError(null);
-    setSuccessMessage(null);
+    setAvatarValidationError(null);
     try {
       const updatedProfile = await updateUserProfile(nickname.trim(), selectedAvatar);
       setProfile(updatedProfile);
@@ -111,9 +110,9 @@ export function ProfileSettingsPage({
       setNickname(updatedProfile.nickname);
       setSelectedAvatar(null);
       setPreviewUrl(null);
-      setSuccessMessage("个人资料已保存。");
+      showToast("success", "个人资料已保存。");
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "保存失败，请稍后重试。");
+      showToast("error", getProfileErrorMessage(error));
     } finally {
       setIsSaving(false);
     }
@@ -194,6 +193,11 @@ export function ProfileSettingsPage({
               type="file"
             />
           </div>
+          {avatarValidationError && (
+            <p className="profile-settings__avatar-error" role="alert">
+              {avatarValidationError}
+            </p>
+          )}
         </div>
 
         <div className="profile-settings__field">
@@ -207,8 +211,7 @@ export function ProfileSettingsPage({
               maxLength={MAX_NICKNAME_LENGTH}
               onChange={(event) => {
                 setNickname(event.currentTarget.value);
-                setSaveError(null);
-                setSuccessMessage(null);
+                setAvatarValidationError(null);
               }}
               value={nickname}
             />
@@ -242,22 +245,6 @@ export function ProfileSettingsPage({
           </div>
         </dl>
 
-        <div aria-live="polite" className="profile-settings__feedback">
-          {saveError && (
-            <p className="profile-settings__message profile-settings__message--error" role="alert">
-              {saveError}
-            </p>
-          )}
-          {successMessage && (
-            <p
-              className="profile-settings__message profile-settings__message--success"
-              role="status"
-            >
-              {successMessage}
-            </p>
-          )}
-        </div>
-
         <footer className="profile-settings__actions">
           <button
             className="button button--outline"
@@ -279,6 +266,12 @@ export function ProfileSettingsPage({
       </div>
     </section>
   );
+}
+
+function getProfileErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
+  return "个人资料保存失败，请稍后重试。";
 }
 
 function formatDateTime(value: string | null): string {

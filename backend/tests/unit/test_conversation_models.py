@@ -108,7 +108,7 @@ def test_sqlite_enforces_message_role_and_cascade_delete() -> None:
             session.add(
                 Skill(
                     code="general_chat",
-                    name="通用对话助手",
+                    name="对话助手",
                     type="agent",
                     status="published",
                 )

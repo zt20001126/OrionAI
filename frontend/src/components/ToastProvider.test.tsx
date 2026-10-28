@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider, useToast } from "./ToastProvider";
@@ -9,7 +9,7 @@ afterEach(() => {
 });
 
 function ToastTrigger() {
-  const { showToast } = useToast();
+  const { confirm, showToast } = useToast();
 
   return (
     <>
@@ -18,6 +18,12 @@ function ToastTrigger() {
       </button>
       <button onClick={() => showToast("error", "第二条错误")} type="button">
         显示第二条
+      </button>
+      <button
+        onClick={() => void confirm({ title: "确认操作？", description: "请确认是否继续。" })}
+        type="button"
+      >
+        打开确认框
       </button>
     </>
   );
@@ -65,5 +71,82 @@ describe("ToastProvider", () => {
     unmount();
 
     expect(() => act(() => vi.runOnlyPendingTimers())).not.toThrow();
+  });
+
+  it("allows a toast to be dismissed manually", () => {
+    vi.useFakeTimers();
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "显示第一条" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭提示" }));
+
+    expect(screen.getByRole("alert")).toHaveClass("is-exiting");
+    act(() => vi.advanceTimersByTime(300));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a confirmation dialog and closes it with Escape", async () => {
+    render(
+      <ToastProvider>
+        <ToastTrigger />
+      </ToastProvider>,
+    );
+    const trigger = screen.getByRole("button", { name: "打开确认框" });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "确认操作？" });
+    expect(dialog).toHaveTextContent("请确认是否继续。");
+    expect(screen.getByRole("button", { name: "取消" })).toHaveFocus();
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("waits for an asynchronous confirmation action and prevents duplicate submits", async () => {
+    let finishConfirmation: ((confirmed: boolean) => void) | undefined;
+    const onConfirm = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishConfirmation = resolve;
+        }),
+    );
+    function AsyncConfirmTrigger() {
+      const { confirm } = useToast();
+      return (
+        <button
+          onClick={() =>
+            void confirm({
+              title: "保存并继续？",
+              description: "保存后继续执行。",
+              confirmLabel: "保存并继续",
+              onConfirm,
+            })
+          }
+          type="button"
+        >
+          执行异步确认
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <AsyncConfirmTrigger />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "执行异步确认" }));
+    fireEvent.click(screen.getByRole("button", { name: "保存并继续" }));
+
+    expect(await screen.findByRole("button", { name: "处理中…" })).toBeDisabled();
+    expect(onConfirm).toHaveBeenCalledOnce();
+    finishConfirmation?.(true);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

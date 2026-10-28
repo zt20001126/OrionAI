@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ToastProvider } from "../components/ToastProvider";
+import { ToastProvider, useToast } from "../components/ToastProvider";
 import { AuthPage } from "../features/auth/AuthPage";
 import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
@@ -22,6 +22,18 @@ import { getSession, logout } from "../features/auth/authApi";
 import { getUserProfile, type UserProfile } from "../features/platform/profileApi";
 
 type AppPath = PlatformRoute | typeof platformPaths.login;
+type PopNavigationStage = "restoring" | "confirming" | "navigating";
+
+interface PendingPopNavigation {
+  currentIndex: number;
+  currentPath: string;
+  targetIndex: number | null;
+  targetPath: string;
+  stage: PopNavigationStage;
+  shouldPrompt: boolean;
+}
+
+const HISTORY_INDEX_KEY = "__orionHistoryIndex";
 
 function getCurrentPath(): string {
   return window.location.pathname || "/";
@@ -36,6 +48,7 @@ export default function App() {
 }
 
 function AppContent() {
+  const { confirm, showToast } = useToast();
   const [account, setAccount] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [pathname, setPathname] = useState(getCurrentPath);
@@ -44,63 +57,184 @@ function AppContent() {
   const [isRestoringSession, setIsRestoringSession] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
-  const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const historyIndexRef = useRef<number | null>(null);
+  const pendingNavigationRef = useRef(false);
+  const pendingPopNavigationRef = useRef<PendingPopNavigation | null>(null);
+  const skipNextPopStateRef = useRef(false);
+
+  useEffect(() => {
+    const initialIndex = getHistoryIndex(window.history.state) ?? 0;
+    historyIndexRef.current = initialIndex;
+    window.history.replaceState(
+      withHistoryIndex(window.history.state, initialIndex),
+      "",
+      window.location.href,
+    );
+  }, []);
 
   const navigate = useCallback(
-    (path: AppPath, replace = false) => {
+    async (path: AppPath, replace = false) => {
       const isSettingsPath =
         pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
       const shouldConfirmLeave =
         (isSettingsPath && hasUnsavedSettings) ||
         (pathname === platformPaths.resume && hasUnsavedResume);
-      if (
-        path !== pathname &&
-        shouldConfirmLeave &&
-        !window.confirm(
-          pathname === platformPaths.resume
-            ? "简历有未保存的修改，确定离开吗？"
-            : "当前设置有尚未保存的更改，确定离开吗？",
-        )
-      ) {
-        return;
+      if (path !== pathname && shouldConfirmLeave) {
+        if (pendingNavigationRef.current) return;
+        pendingNavigationRef.current = true;
+        let confirmed: boolean;
+        try {
+          confirmed = await confirm(getLeaveConfirmation());
+        } finally {
+          pendingNavigationRef.current = false;
+        }
+        if (!confirmed) return;
       }
 
       const method = replace ? "replaceState" : "pushState";
       if (window.location.pathname !== path) {
-        window.history[method]({}, "", path);
+        const currentIndex = historyIndexRef.current ?? 0;
+        const nextIndex = replace ? currentIndex : currentIndex + 1;
+        historyIndexRef.current = nextIndex;
+        window.history[method](withHistoryIndex(window.history.state, nextIndex), "", path);
       }
       setPathname(path);
     },
-    [hasUnsavedResume, hasUnsavedSettings, pathname],
+    [confirm, hasUnsavedResume, hasUnsavedSettings, pathname],
   );
 
   useEffect(() => {
-    function handlePopState() {
+    function handlePopState(event: PopStateEvent) {
       const nextPath = getCurrentPath();
+      const nextIndex = getHistoryIndex(event.state);
+
+      const pendingPopNavigation = pendingPopNavigationRef.current;
+      if (pendingPopNavigation) {
+        if (pendingPopNavigation.stage === "navigating") {
+          if (nextIndex === null || nextIndex === pendingPopNavigation.targetIndex) {
+            historyIndexRef.current = nextIndex ?? pendingPopNavigation.targetIndex;
+            setPathname(nextPath);
+            pendingPopNavigationRef.current = null;
+            pendingNavigationRef.current = false;
+          }
+          return;
+        }
+
+        if (pendingPopNavigation.stage === "restoring") {
+          if (nextIndex === pendingPopNavigation.currentIndex) {
+            historyIndexRef.current = nextIndex;
+            setPathname(pendingPopNavigation.currentPath);
+            pendingPopNavigation.stage = "confirming";
+            if (pendingPopNavigation.shouldPrompt) {
+              pendingPopNavigation.shouldPrompt = false;
+              void confirm(getLeaveConfirmation()).then((confirmed) => {
+                if (pendingPopNavigationRef.current !== pendingPopNavigation) return;
+                if (!confirmed) {
+                  pendingPopNavigationRef.current = null;
+                  pendingNavigationRef.current = false;
+                  return;
+                }
+
+                pendingPopNavigation.stage = "navigating";
+                if (pendingPopNavigation.targetIndex === null) {
+                  const currentIndex = historyIndexRef.current ?? 0;
+                  historyIndexRef.current = currentIndex;
+                  window.history.replaceState(
+                    withHistoryIndex(window.history.state, currentIndex),
+                    "",
+                    pendingPopNavigation.targetPath,
+                  );
+                  setPathname(pendingPopNavigation.targetPath);
+                  pendingPopNavigationRef.current = null;
+                  pendingNavigationRef.current = false;
+                  return;
+                }
+
+                window.history.go(
+                  pendingPopNavigation.targetIndex - pendingPopNavigation.currentIndex,
+                );
+              });
+            }
+          } else if (nextIndex !== null) {
+            window.history.go(pendingPopNavigation.currentIndex - nextIndex);
+          }
+          return;
+        }
+
+        if (nextIndex !== null && nextIndex !== pendingPopNavigation.currentIndex) {
+          pendingPopNavigation.stage = "restoring";
+          pendingPopNavigation.shouldPrompt = false;
+          window.history.go(pendingPopNavigation.currentIndex - nextIndex);
+        }
+        return;
+      }
+
+      if (skipNextPopStateRef.current) {
+        skipNextPopStateRef.current = false;
+        if (nextIndex !== null) historyIndexRef.current = nextIndex;
+        setPathname(nextPath);
+        return;
+      }
+      if (pendingNavigationRef.current) {
+        const currentIndex = historyIndexRef.current;
+        if (nextIndex !== null && currentIndex !== null && nextIndex !== currentIndex) {
+          skipNextPopStateRef.current = true;
+          window.history.go(currentIndex - nextIndex);
+        }
+        return;
+      }
       const isSettingsPath =
         pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
       const shouldConfirmLeave =
         (isSettingsPath && hasUnsavedSettings) ||
         (pathname === platformPaths.resume && hasUnsavedResume);
-      if (
-        nextPath !== pathname &&
-        shouldConfirmLeave &&
-        !window.confirm(
-          pathname === platformPaths.resume
-            ? "简历有未保存的修改，确定离开吗？"
-            : "当前设置有尚未保存的更改，确定离开吗？",
-        )
-      ) {
-        window.history.pushState({}, "", pathname);
+      if (nextPath !== pathname && shouldConfirmLeave) {
+        const currentIndex = historyIndexRef.current ?? 0;
+        if (nextIndex === null) {
+          window.history.pushState(
+            withHistoryIndex(window.history.state, currentIndex),
+            "",
+            pathname,
+          );
+          pendingNavigationRef.current = true;
+          void confirm(getLeaveConfirmation())
+            .then((confirmed) => {
+              if (confirmed) {
+                window.history.replaceState(
+                  withHistoryIndex(window.history.state, currentIndex),
+                  "",
+                  nextPath,
+                );
+                setPathname(nextPath);
+              }
+            })
+            .finally(() => {
+              pendingNavigationRef.current = false;
+            });
+          return;
+        }
+
+        const pendingNavigation: PendingPopNavigation = {
+          currentIndex,
+          currentPath: pathname,
+          targetIndex: nextIndex,
+          targetPath: nextPath,
+          stage: "restoring",
+          shouldPrompt: true,
+        };
+        pendingPopNavigationRef.current = pendingNavigation;
+        pendingNavigationRef.current = true;
+        window.history.go(currentIndex - nextIndex);
         return;
       }
+      if (nextIndex !== null) historyIndexRef.current = nextIndex;
       setPathname(nextPath);
     }
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [hasUnsavedResume, hasUnsavedSettings, pathname]);
+  }, [confirm, hasUnsavedResume, hasUnsavedSettings, pathname]);
 
   useEffect(() => {
     if (!hasUnsavedSettings && !hasUnsavedResume) return;
@@ -161,22 +295,32 @@ function AppContent() {
     }
 
     if (redirectPath && window.location.pathname !== redirectPath) {
-      window.history.replaceState({}, "", redirectPath);
+      const currentIndex = historyIndexRef.current ?? 0;
+      historyIndexRef.current = currentIndex;
+      window.history.replaceState(
+        withHistoryIndex(window.history.state, currentIndex),
+        "",
+        redirectPath,
+      );
     }
   }, [account, isRestoringSession, pathname]);
 
   async function handleLogout() {
-    setLogoutError(null);
     setIsLoggingOut(true);
     try {
       await logout();
       setHasUnsavedSettings(false);
       setAccount(null);
       setUserProfile(null);
-      window.history.replaceState({}, "", platformPaths.login);
+      const currentIndex = historyIndexRef.current ?? 0;
+      window.history.replaceState(
+        withHistoryIndex(window.history.state, currentIndex),
+        "",
+        platformPaths.login,
+      );
       setPathname(platformPaths.login);
     } catch {
-      setLogoutError("退出失败，请检查连接后重试。");
+      showToast("error", "退出失败，请检查连接后重试。");
     } finally {
       setIsLoggingOut(false);
     }
@@ -185,7 +329,6 @@ function AppContent() {
   function handleAuthenticated(authenticatedAccount: string) {
     setSessionError(null);
     setAuthSuccessMessage(null);
-    setLogoutError(null);
     setHasUnsavedSettings(false);
     setUserProfile(null);
     setAccount(authenticatedAccount);
@@ -198,7 +341,12 @@ function AppContent() {
     setSessionError(null);
     setAuthSuccessMessage(message);
     setAccount(null);
-    window.history.replaceState({}, "", platformPaths.login);
+    const currentIndex = historyIndexRef.current ?? 0;
+    window.history.replaceState(
+      withHistoryIndex(window.history.state, currentIndex),
+      "",
+      platformPaths.login,
+    );
     setPathname(platformPaths.login);
   }
 
@@ -266,7 +414,6 @@ function AppContent() {
       account={account}
       avatarUrl={userProfile?.avatar_url}
       isLoggingOut={isLoggingOut}
-      logoutError={logoutError}
       nickname={userProfile?.nickname}
       onLogout={() => void handleLogout()}
       onNavigate={navigate}
@@ -275,4 +422,28 @@ function AppContent() {
       {page}
     </PlatformLayout>
   );
+}
+
+function getLeaveConfirmation() {
+  return {
+    title: "离开当前页面？",
+    description: "当前修改尚未保存，离开后更改将丢失。",
+    cancelLabel: "继续编辑",
+    confirmLabel: "放弃修改并离开",
+    tone: "warning" as const,
+  };
+}
+
+function getHistoryIndex(state: unknown): number | null {
+  if (!state || typeof state !== "object" || !(HISTORY_INDEX_KEY in state)) return null;
+  const index = (state as Record<string, unknown>)[HISTORY_INDEX_KEY];
+  return typeof index === "number" && Number.isInteger(index) ? index : null;
+}
+
+function withHistoryIndex(state: unknown, index: number): Record<string, unknown> {
+  const safeState =
+    state && typeof state === "object" && !Array.isArray(state)
+      ? (state as Record<string, unknown>)
+      : {};
+  return { ...safeState, [HISTORY_INDEX_KEY]: index };
 }

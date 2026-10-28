@@ -78,8 +78,45 @@
 .toast-copy {
   display: grid;
   min-width: 0;
+  flex: 1 1 auto;
   gap: 2px;
   padding-top: 1px;
+}
+
+.toast-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  margin: -3px -5px 0 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  padding: 0;
+  place-items: center;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color var(--motion-fast),
+    background var(--motion-fast);
+}
+
+.toast-close:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.toast-close:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.toast-close svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.6;
 }
 
 .toast-title {
@@ -115,5 +152,12 @@
 
   to {
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast.is-exiting {
+    animation-duration: 1ms;
   }
 }

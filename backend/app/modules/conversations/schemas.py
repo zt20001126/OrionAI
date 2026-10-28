@@ -28,6 +28,7 @@ class ConversationListResponse(BaseModel):
     items: list[ConversationCreateResponse] = Field(description="按更新时间倒序排列的会话。")
     limit: int = Field(description="本页条数上限。")
     offset: int = Field(description="当前偏移量。")
+    total_count: int = Field(description="当前用户的会话总数。")
 
 
 class ConversationCreateRequest(BaseModel):

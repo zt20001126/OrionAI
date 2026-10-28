@@ -212,7 +212,7 @@ function createBackend(options?: {
               {
                 id: "373284764594991100",
                 code: "general_chat",
-                name: "通用对话助手",
+                name: "对话助手",
                 description: "支持日常问答和多轮对话",
                 type: "agent",
                 status: "published",
@@ -255,7 +255,12 @@ function createBackend(options?: {
         return {
           ok: true,
           status: 200,
-          json: async () => ({ items: conversations.slice(offset, offset + limit), limit, offset }),
+          json: async () => ({
+            items: conversations.slice(offset, offset + limit),
+            limit,
+            offset,
+            total_count: conversations.length,
+          }),
         } as Response;
       }
 
@@ -774,7 +779,7 @@ describe("OrionAI conversations", () => {
     fireEvent.click(option);
     fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("题目服务暂不可用。");
+    expect(await screen.findByRole("alert")).toHaveTextContent("对话服务暂不可用，请稍后重试。");
     expect(screen.getByRole("radio", { name: /简洁/ })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
@@ -825,6 +830,9 @@ describe("OrionAI conversations", () => {
     expect(within(answerCard).getByText("选择一")).toBeInTheDocument();
     expect(within(answerCard).getByText("1–3 年")).toBeInTheDocument();
     expect(within(answerCard).getByText("技术成长")).toBeInTheDocument();
+    const answerToggle = within(answerCard).getByRole("button", { name: /我的回答已提交/ });
+    expect(answerToggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(answerToggle);
     const answerItems = within(answerCard).getAllByRole("listitem");
     expect(answerItems).toHaveLength(3);
     expect(answerItems[0]).toHaveTextContent("01你目前遇到的主要问题是什么？我的选择：选择一");
@@ -1010,6 +1018,51 @@ describe("OrionAI conversations", () => {
 
     expect(await screen.findByText("本季度目标分为三项。")).toBeInTheDocument();
     expect(window.location.pathname).toBe(`/chat/${historyId}`);
+  });
+
+  it("fits a page to the available session area and switches without navigation", async () => {
+    const conversations: ConversationSummary[] = Array.from({ length: 32 }, (_, index) => ({
+      id: `91000000000000${index + 10}`,
+      skill_code: "general_chat",
+      title: `分页会话 ${index + 1}`,
+      created_at: createdAt,
+      updated_at: createdAt,
+    }));
+    window.history.replaceState({}, "", "/sessions");
+    const backend = createBackend({ conversations });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    expect(await screen.findByText("分页会话 1", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("共 32 条会话")).toBeInTheDocument();
+    const firstPageRequest = backend.calls.find(
+      ({ url, method }) =>
+        method === "GET" &&
+        url.pathname === "/api/conversations" &&
+        url.searchParams.get("offset") === "0",
+    );
+    expect(firstPageRequest).toBeDefined();
+    const pageSize = Number(firstPageRequest?.url.searchParams.get("limit"));
+    expect(pageSize).toBeGreaterThan(0);
+    expect(screen.getByText(`分页会话 ${pageSize}`, { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText(`分页会话 ${pageSize + 1}`, { exact: true })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+
+    expect(
+      await screen.findByText(`分页会话 ${pageSize + 1}`, { exact: true }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("分页会话 1", { exact: true })).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe("/sessions");
+    expect(
+      backend.calls.some(
+        ({ url, method }) =>
+          method === "GET" &&
+          url.pathname === "/api/conversations" &&
+          url.searchParams.get("limit") === String(pageSize) &&
+          url.searchParams.get("offset") === String(pageSize),
+      ),
+    ).toBe(true);
   });
 
   it("keeps legacy answer text and restores its completed question card", async () => {

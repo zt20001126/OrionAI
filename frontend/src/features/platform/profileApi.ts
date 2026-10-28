@@ -1,4 +1,5 @@
 import { ApiError } from "../auth/authApi";
+import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
 
 export interface UserProfile {
   nickname: string;
@@ -25,16 +26,18 @@ async function parseResponse<T>(response: Response): Promise<T> {
       payload && typeof payload === "object" && "detail" in payload
         ? (payload.detail as unknown)
         : null;
-    const message =
-      typeof detail === "string"
-        ? detail
-        : response.status === 422
-          ? "请检查填写内容是否正确。"
-          : "请求失败，请稍后重试。";
+    const message = getUserFacingErrorMessage(detail, response.status);
     throw new ApiError(message, response.status);
   }
 
   return payload as T;
+}
+
+function getUserFacingErrorMessage(detail: unknown, status: number): string {
+  if (status === 422) return "请检查填写内容是否正确。";
+  if (status === 401) return "登录状态已失效，请刷新页面后重新登录。";
+  if (status >= 500) return "服务暂时不可用，请稍后重试。";
+  return getSafeErrorDetail(detail, "请求失败，请稍后重试。");
 }
 
 export async function getUserProfile(): Promise<UserProfile> {

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useToast } from "../../components/ToastProvider";
+import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
 import { PlatformIcon } from "../platform/PlatformIcon";
 import type { PlatformRoute } from "../platform/platformData";
 import { ResumeAssistantPanel } from "./components/ResumeAssistantPanel";
@@ -28,6 +30,7 @@ export function ResumePage({
   onNavigate: (path: PlatformRoute) => void;
   onDirtyChange: (dirty: boolean) => void;
 }) {
+  const { confirm, showToast } = useToast();
   const [section, setSection] = useState<ResumeSection>("basic");
   const [draft, setDraft] = useState<ResumeDraft>(() => clone(EMPTY_RESUME));
   const [baseline, setBaseline] = useState(() => JSON.stringify(EMPTY_RESUME));
@@ -45,8 +48,6 @@ export function ResumePage({
     () => !window.matchMedia("(max-width: 800px)").matches,
   );
   const [assistantConversationId, setAssistantConversationId] = useState<string | null>(null);
-  const [assistantConflict, setAssistantConflict] = useState<ResumeResponse | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const assistantToggleRef = useRef<HTMLButtonElement>(null);
 
   const dirty = useMemo(() => JSON.stringify(draft) !== baseline, [baseline, draft]);
@@ -89,7 +90,7 @@ export function ResumePage({
     setError(null);
   }
 
-  async function saveCurrent(): Promise<boolean> {
+  async function saveCurrent(notifySuccess = true): Promise<boolean> {
     setError(null);
     setSaving(true);
     try {
@@ -99,9 +100,12 @@ export function ResumePage({
         if (current) URL.revokeObjectURL(current);
         return null;
       });
+      if (notifySuccess) showToast("success", "简历已保存。");
       return true;
     } catch (requestError) {
-      setError(messageOf(requestError, "简历保存失败，请重试。"));
+      const message = messageOf(requestError, "简历保存失败，请稍后重试。");
+      if (/其他位置更新|版本冲突/.test(message)) setError(message);
+      else showToast("error", message);
       return false;
     } finally {
       setSaving(false);
@@ -138,7 +142,7 @@ export function ResumePage({
         },
       }));
     } catch (requestError) {
-      setPhotoError(messageOf(requestError, "照片上传失败，请重试。"));
+      showToast("error", messageOf(requestError, "照片上传失败，请稍后重试。"));
     } finally {
       setUploading(false);
     }
@@ -149,16 +153,23 @@ export function ResumePage({
   }
 
   async function handleExport() {
-    setError(null);
     if (dirty) {
-      if (!window.confirm("简历有未保存的修改。保存成功后继续导出 PDF？")) return;
-      if (!(await saveCurrent())) return;
+      const confirmed = await confirm({
+        title: "导出前保存简历？",
+        description: "当前简历有未保存的修改。保存成功后将继续导出 PDF。",
+        cancelLabel: "继续编辑",
+        confirmLabel: "保存并导出",
+        tone: "warning",
+        onConfirm: () => saveCurrent(false),
+      });
+      if (!confirmed) return;
     }
     setExporting(true);
     try {
       await downloadResumePdf();
+      showToast("success", "PDF 已开始下载。");
     } catch (requestError) {
-      setError(messageOf(requestError, "PDF 导出失败，请重试。"));
+      showToast("error", messageOf(requestError, "PDF 导出失败，请稍后重试。"));
     } finally {
       setExporting(false);
     }
@@ -166,17 +177,35 @@ export function ResumePage({
 
   async function handleAssistantResumeSaved() {
     setError(null);
-    setSuccessMessage(null);
     try {
       const response = await getResume();
       if (dirty) {
-        setAssistantConflict(response);
+        const useAssistantVersion = await confirm({
+          title: "简历已被助手更新",
+          description:
+            "你的本地草稿有未保存修改。载入助手版本将丢弃本地草稿；保留本地草稿后，可在之后保存并覆盖助手版本。",
+          cancelLabel: "保留本地草稿",
+          confirmLabel: "载入助手版本",
+          tone: "danger",
+          onConfirm: () => {
+            applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
+            showToast("success", "已载入助手保存的最新版本。");
+          },
+        });
+        if (!useAssistantVersion) {
+          setResumeVersion(response.updated_at);
+          showToast(
+            "info",
+            "已保留本地草稿。简历助手的修改已保存；保存草稿时会以本地内容覆盖该版本。",
+          );
+        }
         return;
       }
       applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
-      setSuccessMessage("简历助手的修改已保存，预览已同步。");
+      showToast("success", "简历助手的修改已保存，预览已同步。");
     } catch (requestError) {
-      setError(
+      showToast(
+        "error",
         `简历助手已完成保存，但最新版本暂时无法同步：${messageOf(requestError, "请稍后重试。")}`,
       );
     }
@@ -187,20 +216,6 @@ export function ResumePage({
     window.requestAnimationFrame(() => assistantToggleRef.current?.focus());
   }
 
-  function useAssistantVersion() {
-    if (!assistantConflict) return;
-    applyLoadedResume(assistantConflict, setDraft, setBaseline, setExists, setResumeVersion);
-    setAssistantConflict(null);
-    setSuccessMessage("已载入简历助手保存的最新版本。");
-  }
-
-  function keepLocalDraft() {
-    if (!assistantConflict) return;
-    setResumeVersion(assistantConflict.updated_at);
-    setAssistantConflict(null);
-    setSuccessMessage("已保留本地草稿。简历助手的修改已保存；保存草稿时会以本地内容覆盖该版本。");
-  }
-
   async function reloadAfterConflict() {
     setLoading(true);
     try {
@@ -208,7 +223,7 @@ export function ResumePage({
       applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
       setError(null);
     } catch (requestError) {
-      setError(messageOf(requestError, "重新加载简历失败。"));
+      showToast("error", messageOf(requestError, "重新加载简历失败，请稍后重试。"));
     } finally {
       setLoading(false);
     }
@@ -309,20 +324,6 @@ export function ResumePage({
           </button>
         </div>
       )}
-      {successMessage && (
-        <div className="resume-success" role="status">
-          <span>{successMessage}</span>
-          <button
-            aria-label="关闭成功提示"
-            className="resume-alert__close"
-            onClick={() => setSuccessMessage(null)}
-            type="button"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       <ResumeSectionTabs
         active={section}
         onChange={(next) => {
@@ -367,34 +368,6 @@ export function ResumePage({
         <span>简历仅对你本人可见</span>
         <span>编辑内容会即时同步到预览</span>
       </footer>
-
-      {assistantConflict && (
-        <div className="resume-conflict-backdrop">
-          <section
-            aria-labelledby="resume-assistant-conflict-title"
-            aria-modal="true"
-            className="resume-conflict-dialog"
-            role="dialog"
-          >
-            <h2 id="resume-assistant-conflict-title">简历已被助手更新</h2>
-            <p>
-              你的本地草稿有未保存修改。可以载入助手保存的版本，或保留草稿并在之后明确覆盖服务端版本。
-            </p>
-            <div className="resume-conflict-dialog__actions">
-              <button className="button button--outline" onClick={keepLocalDraft} type="button">
-                保留本地草稿
-              </button>
-              <button
-                className="button button--primary"
-                onClick={useAssistantVersion}
-                type="button"
-              >
-                载入助手版本
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
     </main>
   );
 }
@@ -427,5 +400,7 @@ function getPhotoId(baseline: string): string | null {
 }
 
 function messageOf(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
+  if (!(error instanceof Error)) return fallback;
+  return getSafeErrorDetail(error.message, fallback);
 }

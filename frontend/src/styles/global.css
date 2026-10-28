@@ -89,7 +89,7 @@
 
   --radius-control: 8px;
   --radius-card: 12px;
-  --radius-skill-card: 14px;
+  --radius-skill-card: 12px;
   --radius-panel: 16px;
   --radius-pill: 999px;
 
@@ -933,27 +933,6 @@ button {
   border-top-color: var(--color-surface);
   border-radius: var(--radius-pill);
   animation: spin 800ms linear infinite;
-}
-
-.form-message {
-  margin: 0 0 var(--space-4);
-  padding: var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height-normal);
-}
-
-.success-message {
-  border-color: var(--color-success-line);
-  color: var(--color-success);
-  background: var(--color-success-soft);
-}
-
-.error-message {
-  border-color: var(--color-danger-line);
-  color: var(--color-danger);
-  background: var(--color-danger-soft);
 }
 
 .auth-security-note {

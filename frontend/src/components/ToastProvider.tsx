@@ -9,16 +9,18 @@ import {
   type ReactNode,
 } from "react";
 
+import { ConfirmationDialog, type ConfirmOptions } from "./ConfirmationDialog";
 import "./toast.css";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
-interface ToastOptions {
+export interface ToastOptions {
   title?: string;
 }
 
 interface ToastContextValue {
   showToast: (type: ToastType, description: string, options?: ToastOptions) => void;
+  confirm: (options: ConfirmOptions) => Promise<boolean>;
 }
 
 interface ToastItem {
@@ -31,6 +33,11 @@ interface ToastItem {
 
 interface ToastProviderProps {
   children: ReactNode;
+}
+
+interface ConfirmRequest {
+  id: number;
+  options: ConfirmOptions;
 }
 
 const toastTitles: Record<ToastType, string> = {
@@ -48,6 +55,14 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: ToastProviderProps) {
   const [toast, setToast] = useState<ToastItem | null>(null);
   const nextId = useRef(0);
+  const nextConfirmId = useRef(0);
+  const confirmationResolvers = useRef(new Map<number, (confirmed: boolean) => void>());
+  const [confirmations, setConfirmations] = useState<ConfirmRequest[]>([]);
+  const [busyConfirmationId, setBusyConfirmationId] = useState<number | null>(null);
+  const [confirmationError, setConfirmationError] = useState<{
+    id: number;
+    message: string;
+  } | null>(null);
   const timers = useRef<{ dismiss: number | null; remove: number | null }>({
     dismiss: null,
     remove: null,
@@ -67,11 +82,65 @@ export function ToastProvider({ children }: ToastProviderProps) {
 
   useEffect(() => {
     isMounted.current = true;
+    const resolvers = confirmationResolvers.current;
     return () => {
       isMounted.current = false;
       clearTimers();
+      for (const resolve of resolvers.values()) resolve(false);
+      resolvers.clear();
     };
   }, [clearTimers]);
+
+  const confirm = useCallback((options: ConfirmOptions) => {
+    const id = ++nextConfirmId.current;
+    return new Promise<boolean>((resolve) => {
+      confirmationResolvers.current.set(id, resolve);
+      setConfirmations((current) => [...current, { id, options }]);
+    });
+  }, []);
+
+  const settleConfirmation = useCallback((id: number, result: boolean) => {
+    confirmationResolvers.current.get(id)?.(result);
+    confirmationResolvers.current.delete(id);
+    setConfirmations((current) => current.filter((item) => item.id !== id));
+    setBusyConfirmationId(null);
+    setConfirmationError(null);
+  }, []);
+
+  const handleConfirm = useCallback(
+    async (request: ConfirmRequest) => {
+      if (busyConfirmationId === request.id) return;
+      setBusyConfirmationId(request.id);
+      setConfirmationError(null);
+      try {
+        const result = await request.options.onConfirm?.();
+        if (result === false) {
+          setBusyConfirmationId(null);
+          return;
+        }
+        settleConfirmation(request.id, true);
+      } catch {
+        setBusyConfirmationId(null);
+        setConfirmationError({
+          id: request.id,
+          message: "操作未能完成，请稍后重试。",
+        });
+      }
+    },
+    [busyConfirmationId, settleConfirmation],
+  );
+
+  const dismissToast = useCallback(
+    (id: number) => {
+      clearTimers();
+      setToast((current) => (current?.id === id ? { ...current, isExiting: true } : current));
+      timers.current.remove = window.setTimeout(() => {
+        if (isMounted.current) setToast((current) => (current?.id === id ? null : current));
+        timers.current.remove = null;
+      }, TOAST_EXIT_DURATION_MS);
+    },
+    [clearTimers],
+  );
 
   const showToast = useCallback(
     (type: ToastType, description: string, options?: ToastOptions) => {
@@ -100,7 +169,8 @@ export function ToastProvider({ children }: ToastProviderProps) {
     [clearTimers],
   );
 
-  const value = useMemo(() => ({ showToast }), [showToast]);
+  const value = useMemo(() => ({ showToast, confirm }), [confirm, showToast]);
+  const activeConfirmation = confirmations[0] ?? null;
 
   return (
     <ToastContext.Provider value={value}>
@@ -120,8 +190,32 @@ export function ToastProvider({ children }: ToastProviderProps) {
               <strong className="toast-title">{toast.title}</strong>
               <span className="toast-description">{toast.description}</span>
             </span>
+            <button
+              aria-label="关闭提示"
+              className="toast-close"
+              onClick={() => dismissToast(toast.id)}
+              type="button"
+            >
+              <ToastCloseIcon />
+            </button>
           </div>
         </div>
+      )}
+      {activeConfirmation && (
+        <ConfirmationDialog
+          confirmation={activeConfirmation.options}
+          errorMessage={
+            confirmationError?.id === activeConfirmation.id ? confirmationError.message : null
+          }
+          isBusy={busyConfirmationId === activeConfirmation.id}
+          key={activeConfirmation.id}
+          onCancel={() => {
+            if (busyConfirmationId !== activeConfirmation.id) {
+              settleConfirmation(activeConfirmation.id, false);
+            }
+          }}
+          onConfirm={() => void handleConfirm(activeConfirmation)}
+        />
       )}
     </ToastContext.Provider>
   );
@@ -167,6 +261,14 @@ function ToastIcon({ type }: { type: ToastType }) {
     <svg viewBox="0 0 20 20" fill="none">
       <circle cx="10" cy="10" r="7" />
       <path d="M10 9v4M10 6.7h.01" />
+    </svg>
+  );
+}
+
+function ToastCloseIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="m5 5 10 10M15 5 5 15" />
     </svg>
   );
 }

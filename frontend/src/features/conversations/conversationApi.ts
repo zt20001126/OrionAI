@@ -1,3 +1,5 @@
+import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+
 export interface ConversationSummary {
   id: string;
   skill_code: string;
@@ -10,6 +12,7 @@ export interface ConversationListResponse {
   items: ConversationSummary[];
   limit: number;
   offset: number;
+  total_count: number;
 }
 
 export interface TextContentPart {
@@ -134,13 +137,18 @@ async function request<T>(
 function getResponseError(response: Response, payload: unknown): ConversationApiError {
   const detail =
     payload && typeof payload === "object" && "detail" in payload ? payload.detail : null;
-  const message =
-    typeof detail === "string"
-      ? detail
-      : response.status === 422
-        ? "请检查填写内容是否正确。"
-        : "请求失败，请稍后重试。";
+  const message = getUserFacingErrorMessage(detail, response.status);
   return new ConversationApiError(message, response.status);
+}
+
+function getUserFacingErrorMessage(detail: unknown, status: number): string {
+  if (status === 401) return "登录状态已失效，请刷新页面后重新登录。";
+  if (status === 404) return "会话不存在或无权访问，无法打开。";
+  if (status === 409) return "当前会话正在等待题卡答案，请先完成题卡。";
+  if (status === 422) return "请检查填写内容是否正确。";
+  if (status === 503) return "对话服务暂不可用，请稍后重试。";
+  if (status >= 500) return "对话服务暂不可用，请稍后重试。";
+  return getSafeErrorDetail(detail, "请求失败，请稍后重试。");
 }
 
 export function createConversation(skillCode?: string): Promise<ConversationSummary> {
@@ -151,8 +159,11 @@ export function createConversation(skillCode?: string): Promise<ConversationSumm
   );
 }
 
-export function listConversations(offset = 0): Promise<ConversationListResponse> {
-  const query = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+export function listConversations(
+  offset = 0,
+  limit = PAGE_SIZE,
+): Promise<ConversationListResponse> {
+  const query = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   return request<ConversationListResponse>(`?${query.toString()}`);
 }
 

@@ -12,7 +12,7 @@ from app.modules.skills.models import Skill, UserSkill
 GENERAL_CHAT_SKILL_CODE = "general_chat"
 GENERAL_CHAT = {
     "code": GENERAL_CHAT_SKILL_CODE,
-    "name": "通用对话助手",
+    "name": "对话助手",
     "description": "支持日常问答和多轮对话",
     "type": "agent",
     "status": "published",
@@ -156,7 +156,7 @@ def remove_user_skill(session: Session, user_id: int, skill_id: int) -> bool:
 
 
 def ensure_general_chat_skill(session: Session) -> None:
-    """幂等创建通用对话助手，不覆盖已存在技能的管理员配置。"""
+    """幂等创建对话助手技能，不覆盖已存在技能的管理员配置。"""
 
     values = GENERAL_CHAT.copy()
     dialect_name = session.get_bind().dialect.name

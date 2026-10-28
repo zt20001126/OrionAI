@@ -120,6 +120,7 @@ class ConversationService:
 
         self._validate_pagination(limit, offset)
         try:
+            total_count = repository.count_conversations(self._session, user.id)
             conversations = repository.list_conversations(
                 self._session,
                 user.id,
@@ -133,6 +134,7 @@ class ConversationService:
             items=[self._conversation_response(conversation) for conversation in conversations],
             limit=limit,
             offset=offset,
+            total_count=total_count,
         )
 
     def list_messages(

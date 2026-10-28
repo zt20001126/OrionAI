@@ -8,7 +8,7 @@ const marketSkills = [
   {
     id: "373284764594991100",
     code: "general_chat",
-    name: "通用对话助手",
+    name: "对话助手",
     description: "支持日常问答和多轮对话",
     type: "agent",
     status: "published",
@@ -136,6 +136,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   window.history.replaceState({}, "", "/");
 });
 
@@ -154,7 +155,7 @@ describe("OrionAI platform", () => {
     expect(screen.getByRole("heading", { name: "文献助手" })).toBeInTheDocument();
     expect(screen.getAllByText("已停用")).toHaveLength(2);
     expect(document.querySelectorAll(".skill-card__status--disabled")).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "通用对话助手" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "对话助手" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文档处理工具" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "会话记录" }));
     expect(await screen.findByRole("heading", { name: "会话记录" })).toBeInTheDocument();
@@ -165,12 +166,8 @@ describe("OrionAI platform", () => {
     ).toBeInTheDocument();
   });
 
-  it("warns before switching settings with unsaved profile changes", async () => {
+  it("uses the custom leave dialog and preserves unsaved profile changes", async () => {
     vi.stubGlobal("fetch", mockSession());
-    vi.stubGlobal(
-      "confirm",
-      vi.fn(() => false),
-    );
     render(<App />);
 
     await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" });
@@ -181,9 +178,72 @@ describe("OrionAI platform", () => {
     fireEvent.change(nicknameInput, { target: { value: "待保存昵称" } });
     fireEvent.click(screen.getByRole("button", { name: "安全设置" }));
 
-    expect(window.confirm).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("dialog", { name: "离开当前页面？" })).toHaveTextContent(
+      "当前修改尚未保存，离开后更改将丢失。",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "继续编辑" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(window.location.pathname).toBe("/settings");
     expect(nicknameInput).toHaveValue("待保存昵称");
+
+    fireEvent.click(screen.getByRole("button", { name: "安全设置" }));
+    fireEvent.click(await screen.findByRole("button", { name: "放弃修改并离开" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/settings/security"));
+    const persistedNickname = document.getElementById(
+      "profile-nickname",
+    ) as HTMLInputElement | null;
+    expect(persistedNickname?.value).toBe("待保存昵称");
+  });
+
+  it("keeps browser forward navigation on the requested route after confirmation", async () => {
+    vi.stubGlobal("fetch", mockSession());
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" });
+    const entries = new Map<number, { path: string; state: unknown }>();
+    const rememberCurrentEntry = () => {
+      const state = window.history.state as { __orionHistoryIndex?: number };
+      if (typeof state.__orionHistoryIndex === "number") {
+        entries.set(state.__orionHistoryIndex, {
+          path: window.location.pathname,
+          state: window.history.state,
+        });
+      }
+    };
+    rememberCurrentEntry();
+
+    fireEvent.click(screen.getByRole("button", { name: "更多用户选项" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "个人设置" }));
+    await screen.findByRole("textbox", { name: "用户昵称" });
+    rememberCurrentEntry();
+
+    fireEvent.click(screen.getByRole("link", { name: "技能市场" }));
+    await screen.findByRole("heading", { name: "探索 AI 技能，构建专属智能体" });
+    rememberCurrentEntry();
+
+    vi.spyOn(window.history, "go").mockImplementation((delta = 0) => {
+      const current = window.history.state as { __orionHistoryIndex?: number };
+      if (typeof current.__orionHistoryIndex !== "number") return;
+      const target = entries.get(current.__orionHistoryIndex + delta);
+      if (!target) return;
+      window.history.replaceState(target.state, "", target.path);
+      window.dispatchEvent(new PopStateEvent("popstate", { state: target.state }));
+    });
+
+    window.history.go(-1);
+    const nicknameInput = await screen.findByRole("textbox", { name: "用户昵称" });
+    fireEvent.change(nicknameInput, { target: { value: "待保存昵称" } });
+
+    window.history.go(1);
+    expect(await screen.findByRole("dialog", { name: "离开当前页面？" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "继续编辑" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/settings"));
+    expect(nicknameInput).toHaveValue("待保存昵称");
+
+    window.history.go(1);
+    expect(await screen.findByRole("dialog", { name: "离开当前页面？" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "放弃修改并离开" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/market"));
   });
 
   it("filters database skills by search and category", async () => {
@@ -220,6 +280,7 @@ describe("OrionAI platform", () => {
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: "已在我的技能" })).toHaveLength(2);
     });
+    expect(await screen.findByText("已添加「文档处理工具」到我的技能。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "我的技能" }));
     expect(await screen.findByRole("heading", { name: "我的技能" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文档处理工具" })).toBeInTheDocument();
@@ -230,12 +291,13 @@ describe("OrionAI platform", () => {
     vi.stubGlobal("fetch", mockSession());
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "通用对话助手" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "对话助手" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "移除" }));
 
     await waitFor(() => {
-      expect(screen.queryByRole("heading", { name: "通用对话助手" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "对话助手" })).not.toBeInTheDocument();
     });
+    expect(await screen.findByText("已从我的技能移除「对话助手」。")).toBeInTheDocument();
     expect(screen.getByText("0 项技能")).toBeInTheDocument();
   });
 
@@ -245,7 +307,7 @@ describe("OrionAI platform", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "我的技能" })).toBeInTheDocument();
-    expect(await screen.findByRole("heading", { name: "通用对话助手" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "对话助手" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "简历助手" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "使用" }));

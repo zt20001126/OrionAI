@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { useToast } from "../../components/ToastProvider";
 import { PlatformIcon } from "./PlatformIcon";
 import { SkillCard } from "./SkillCard";
 import { SkillDetailsDialog } from "./SkillDetailsDialog";
@@ -15,12 +16,12 @@ const EMPTY_SKILLS: MarketSkill[] = [];
 
 /** 技能市场页面，负责加载数据库技能并协调搜索、分类和详情弹窗。 */
 export function SkillMarketPage() {
+  const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<SkillCategory>("全部");
   const [selectedSkill, setSelectedSkill] = useState<MarketSkill | null>(null);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [addingSkillIds, setAddingSkillIds] = useState<Set<string>>(() => new Set());
-  const [addError, setAddError] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<MarketLoadState>({
     requestVersion: 0,
     status: "loading",
@@ -56,7 +57,6 @@ export function SkillMarketPage() {
   async function handleAddSkill(skill: MarketSkill) {
     if (skill.status !== "published" || skill.is_added) return;
 
-    setAddError(null);
     setAddingSkillIds((current) => new Set(current).add(skill.id));
     try {
       await addSkillToMySkills(skill.id);
@@ -71,8 +71,14 @@ export function SkillMarketPage() {
           ),
         };
       });
+      showToast("success", `已添加「${skill.name}」到我的技能。`);
     } catch (error) {
-      setAddError(error instanceof Error ? error.message : "添加技能失败，请稍后重试。");
+      showToast(
+        "error",
+        error instanceof Error && error.message === "网络连接异常，请检查网络后重试。"
+          ? "网络连接异常，请检查网络后重试。"
+          : "添加技能失败，请稍后重试。",
+      );
     } finally {
       setAddingSkillIds((current) => {
         const next = new Set(current);
@@ -147,12 +153,6 @@ export function SkillMarketPage() {
             {isLoading ? "加载中" : loadError ? "加载失败" : `${visibleSkills.length} 项技能`}
           </span>
         </div>
-
-        {addError && (
-          <p className="platform-global-error" role="alert">
-            {addError}
-          </p>
-        )}
 
         {isLoading ? (
           <div className="market-no-results" role="status">

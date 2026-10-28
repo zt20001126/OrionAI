@@ -12,7 +12,6 @@ interface PlatformLayoutProps {
   avatarUrl?: string | null;
   children: ReactNode;
   isLoggingOut: boolean;
-  logoutError: string | null;
   nickname?: string | null;
   onLogout: () => void;
   onNavigate: (path: PlatformRoute) => void;
@@ -24,7 +23,6 @@ export function PlatformLayout({
   avatarUrl,
   children,
   isLoggingOut,
-  logoutError,
   nickname,
   onLogout,
   onNavigate,
@@ -32,6 +30,7 @@ export function PlatformLayout({
 }: PlatformLayoutProps) {
   const isConversationPage =
     pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
+  const isSessionsPage = pathname === platformPaths.sessions;
   const isResumePage = pathname === platformPaths.resume;
   const pageTitle =
     pathname === platformPaths.market
@@ -47,12 +46,12 @@ export function PlatformLayout({
               : pathname === platformPaths.securitySettings
                 ? "安全设置"
                 : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
-                  ? "通用对话助手"
+                  ? "对话助手"
                   : "OrionAI";
 
   return (
     <div
-      className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}`}
+      className={`platform-shell${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}${isSessionsPage ? " platform-shell--sessions" : ""}`}
     >
       <PlatformSidebar
         account={account}
@@ -65,7 +64,7 @@ export function PlatformLayout({
       />
 
       <div
-        className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}`}
+        className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}${isSessionsPage ? " platform-main--sessions" : ""}`}
       >
         <header className="platform-topbar">
           <div className="platform-topbar__context">
@@ -90,18 +89,12 @@ export function PlatformLayout({
           </div>
         </header>
 
-        {logoutError && (
-          <div className="platform-global-error" role="alert">
-            {logoutError}
-          </div>
-        )}
-
         <main
-          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}${isResumePage ? " platform-content--resume" : ""}`}
+          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}${isResumePage ? " platform-content--resume" : ""}${isSessionsPage ? " platform-content--sessions" : ""}`}
         >
           {children}
         </main>
-        {!isConversationPage && !isResumePage && (
+        {!isConversationPage && !isResumePage && !isSessionsPage && (
           <footer className="platform-footer">© OrionAI · 为企业智能体应用而构建</footer>
         )}
       </div>

@@ -149,7 +149,7 @@ def conversation_client() -> Iterator[
         session.refresh(other_user)
         general_chat = Skill(
             code="general_chat",
-            name="通用对话助手",
+            name="对话助手",
             description="支持日常问答和多轮对话",
             type="agent",
             status="published",
@@ -251,6 +251,43 @@ def test_conversation_endpoints_require_login() -> None:
         response = client.get("/api/conversations")
 
     assert response.status_code == 401
+
+
+def test_conversation_list_returns_user_scoped_total_and_stable_pages(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, users, _agent, _title_generator, session_factory = conversation_client
+    for _ in range(12):
+        assert client.post("/api/conversations").status_code == 201
+
+    with session_factory() as session:
+        session.add(Conversation(user_id=users["other"].id, skill_code="general_chat"))
+        session.commit()
+
+    first_page = client.get("/api/conversations?limit=10&offset=0")
+    second_page = client.get("/api/conversations?limit=10&offset=10")
+    empty_page = client.get("/api/conversations?limit=10&offset=20")
+
+    assert first_page.status_code == second_page.status_code == empty_page.status_code == 200
+    first_payload = first_page.json()
+    second_payload = second_page.json()
+    assert first_payload["total_count"] == second_payload["total_count"] == 12
+    assert len(first_payload["items"]) == 10
+    assert len(second_payload["items"]) == 2
+    assert empty_page.json()["items"] == []
+    assert empty_page.json()["total_count"] == 12
+
+    all_items = first_payload["items"] + second_payload["items"]
+    ids = [item["id"] for item in all_items]
+    assert len(ids) == len(set(ids)) == 12
+    sort_keys = [(item["updated_at"], int(item["id"])) for item in all_items]
+    assert sort_keys == sorted(sort_keys, reverse=True)
 
 
 def test_streaming_message_persists_the_complete_answer(

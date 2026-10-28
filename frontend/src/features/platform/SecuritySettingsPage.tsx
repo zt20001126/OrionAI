@@ -1,5 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { useToast } from "../../components/ToastProvider";
+import { ApiError } from "../auth/authApi";
 import { changePassword, sendPasswordChangeCode } from "./profileApi";
 
 interface SecuritySettingsPageProps {
@@ -16,6 +18,7 @@ export function SecuritySettingsPage({
   onDirtyChange,
   onPasswordChanged,
 }: SecuritySettingsPageProps) {
+  const { showToast } = useToast();
   const [newPassword, setNewPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [code, setCode] = useState("");
@@ -25,7 +28,6 @@ export function SecuritySettingsPage({
   const [isSendingCode, setIsSendingCode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const isDirty = Boolean(newPassword || passwordConfirmation || code);
   const passwordLength = Array.from(newPassword).length;
@@ -46,7 +48,6 @@ export function SecuritySettingsPage({
 
   function clearFeedback() {
     setErrorMessage(null);
-    setSuccessMessage(null);
   }
 
   function cancelChanges() {
@@ -60,11 +61,11 @@ export function SecuritySettingsPage({
     setIsSendingCode(true);
     clearFeedback();
     try {
-      await sendPasswordChangeCode();
+      const result = await sendPasswordChangeCode();
       setCountdown(60);
-      setSuccessMessage(`验证码已发送至 ${account}。`);
+      showToast("success", result.message || `验证码已发送至 ${account}。`);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "验证码发送失败，请稍后重试。");
+      showToast("error", getPasswordSettingsErrorMessage(error, "验证码发送失败，请稍后重试。"));
     } finally {
       setIsSendingCode(false);
     }
@@ -97,10 +98,9 @@ export function SecuritySettingsPage({
       setNewPassword("");
       setPasswordConfirmation("");
       setCode("");
-      setSuccessMessage(result.message);
       onPasswordChanged(result.message);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "密码修改失败，请稍后重试。");
+      showToast("error", getPasswordSettingsErrorMessage(error, "密码修改失败，请稍后重试。"));
     } finally {
       setIsSubmitting(false);
     }
@@ -226,14 +226,6 @@ export function SecuritySettingsPage({
               {errorMessage}
             </p>
           )}
-          {successMessage && (
-            <p
-              className="profile-settings__message profile-settings__message--success"
-              role="status"
-            >
-              {successMessage}
-            </p>
-          )}
         </div>
 
         <footer className="profile-settings__actions">
@@ -252,4 +244,10 @@ export function SecuritySettingsPage({
       </form>
     </section>
   );
+}
+
+function getPasswordSettingsErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
+  return fallback;
 }
