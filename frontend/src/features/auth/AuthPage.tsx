@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 
+import { useToast } from "../../components/ToastProvider";
 import { BrandMark, ProductIntro } from "./ProductIntro";
 import {
   ApiError,
@@ -29,6 +30,7 @@ export function AuthPage({
   initialSuccessMessage,
   onAuthenticated,
 }: AuthPageProps) {
+  const { showToast } = useToast();
   const [view, setView] = useState<AuthView>("login");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -38,7 +40,10 @@ export function AuthPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
   const [message, setMessage] = useState<string | null>(initialSuccessMessage ?? null);
-  const [error, setError] = useState<string | null>(initialMessage ?? null);
+
+  useEffect(() => {
+    if (initialMessage) showToast("error", initialMessage);
+  }, [initialMessage, showToast]);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -53,11 +58,9 @@ export function AuthPage({
     setPasswordConfirmation("");
     setCooldown(0);
     setMessage(null);
-    setError(null);
   }
 
   async function handleRequestCode() {
-    setError(null);
     setMessage(null);
     setIsRequestingCode(true);
     try {
@@ -69,7 +72,7 @@ export function AuthPage({
       if (requestError instanceof ApiError && requestError.status === 429) {
         setCooldown(60);
       }
-      setError(getErrorMessage(requestError));
+      showToast("error", getErrorMessage(requestError));
     } finally {
       setIsRequestingCode(false);
     }
@@ -77,7 +80,6 @@ export function AuthPage({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
     setMessage(null);
     setIsSubmitting(true);
     try {
@@ -93,7 +95,7 @@ export function AuthPage({
         setMessage(result.message);
       }
     } catch (submitError) {
-      setError(getErrorMessage(submitError));
+      showToast("error", getErrorMessage(submitError));
     } finally {
       setIsSubmitting(false);
     }
@@ -155,12 +157,6 @@ export function AuthPage({
               {message}
             </p>
           )}
-          {error && (
-            <p className="form-message error-message" role="alert">
-              {error}
-            </p>
-          )}
-
           <form
             aria-busy={isSubmitting}
             className="auth-form"
@@ -376,6 +372,7 @@ function ShieldIcon() {
 }
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
   return "请求失败，请稍后重试。";
 }

@@ -1,0 +1,119 @@
+.toast-viewport {
+  position: fixed;
+  z-index: 1200;
+  top: 24px;
+  left: 50%;
+  width: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-menu);
+  pointer-events: auto;
+  animation: toast-enter 200ms ease-out both;
+}
+
+.toast.is-exiting {
+  animation: toast-exit 300ms ease-in both;
+}
+
+.toast--error {
+  border-color: var(--color-danger-line);
+}
+
+.toast--success {
+  border-color: var(--color-success-line);
+}
+
+.toast--warning {
+  border-color: var(--color-warning-line);
+}
+
+.toast-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  place-items: center;
+}
+
+.toast-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.toast--error .toast-icon {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+.toast--success .toast-icon {
+  color: var(--color-success);
+  background: var(--color-success-soft);
+}
+
+.toast--warning .toast-icon {
+  color: var(--color-warning);
+  background: var(--color-warning-soft);
+}
+
+.toast--info .toast-icon {
+  color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
+.toast-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding-top: 1px;
+}
+
+.toast-title {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  line-height: var(--line-height-normal);
+}
+
+.toast-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

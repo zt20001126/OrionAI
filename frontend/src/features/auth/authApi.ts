@@ -9,6 +9,9 @@ export interface AccountResponse {
   account: string;
 }
 
+const MAX_USER_FACING_ERROR_LENGTH = 180;
+const SERVICE_UNAVAILABLE_STATUS = 503;
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -29,20 +32,36 @@ async function request<T>(path: string, body?: object): Promise<T> {
 
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const detail =
-      payload && typeof payload === "object" && "detail" in payload
-        ? (payload.detail as unknown)
-        : null;
-    const message =
-      typeof detail === "string"
-        ? detail
-        : response.status === 422
-          ? "请检查填写内容是否正确。"
-          : "请求失败，请稍后重试。";
-    throw new ApiError(message, response.status);
+    throw new ApiError(getUserFacingErrorMessage(payload, response.status), response.status);
   }
 
   return payload as T;
+}
+
+function getUserFacingErrorMessage(payload: unknown, status: number): string {
+  if (status === 422) return "请检查填写内容是否正确。";
+  if (status >= 500 && status !== SERVICE_UNAVAILABLE_STATUS) {
+    return "认证服务暂不可用，请稍后重试。";
+  }
+
+  const detail =
+    payload && typeof payload === "object" && "detail" in payload
+      ? (payload.detail as unknown)
+      : null;
+  if (typeof detail !== "string") return "请求失败，请稍后重试。";
+
+  const message = detail.trim();
+  const containsTechnicalDetails = /(?:traceback|stack trace|exception|error:)/i.test(message);
+  if (
+    !message ||
+    message.length > MAX_USER_FACING_ERROR_LENGTH ||
+    /[\r\n]/.test(message) ||
+    containsTechnicalDetails
+  ) {
+    return "请求失败，请稍后重试。";
+  }
+
+  return message;
 }
 
 export function getSession(): Promise<AuthSession> {

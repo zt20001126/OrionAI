@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { ToastProvider } from "../components/ToastProvider";
 import { AuthPage } from "../features/auth/AuthPage";
 import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
@@ -27,6 +28,14 @@ function getCurrentPath(): string {
 }
 
 export default function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
+  );
+}
+
+function AppContent() {
   const [account, setAccount] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [pathname, setPathname] = useState(getCurrentPath);
@@ -129,7 +138,7 @@ export default function App() {
       })
       .catch(() => {
         if (isActive) {
-          setSessionError("暂时无法连接认证服务，请检查后端、Redis 和数据库状态。");
+          setSessionError("认证服务暂时无法连接，请稍后重试。");
         }
       })
       .finally(() => {
