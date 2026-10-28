@@ -89,6 +89,25 @@ class QuestionContentPart(BaseModel):
         return cls(type="question", questions=payload.model_dump(mode="json")["questions"])
 
 
+class SubmittedQuestionAnswer(BaseModel):
+    """用户提交的单道题答案，用于稳定恢复会话中的答题展示。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: str = Field(min_length=1, description="原题目 ID。")
+    question: str = Field(min_length=1, description="原题目文本。")
+    answer: str = Field(min_length=1, description="用户实际选择的选项。")
+
+
+class QuestionAnswersContentPart(BaseModel):
+    """用户提交答案时随文本消息保存的结构化展示数据。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["question_answers"] = Field(description="结构化答题结果类型。")
+    items: list[SubmittedQuestionAnswer] = Field(min_length=1, description="题目和用户答案。")
+
+
 class ImageResultContentPart(BaseModel):
     """消息中指向当前用户私有图片结果接口的稳定引用。"""
 
@@ -101,7 +120,7 @@ class ImageResultContentPart(BaseModel):
 
 
 MessageContentPart = Annotated[
-    TextContentPart | QuestionContentPart | ImageResultContentPart,
+    TextContentPart | QuestionContentPart | QuestionAnswersContentPart | ImageResultContentPart,
     Field(discriminator="type"),
 ]
 

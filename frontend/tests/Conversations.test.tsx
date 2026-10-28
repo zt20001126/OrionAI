@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "../src/app/App";
@@ -6,6 +6,7 @@ import type {
   ConversationMessage,
   ConversationSummary,
   QuestionContentPart,
+  SubmittedQuestionAnswer,
 } from "../src/features/conversations/conversationApi";
 
 const createdConversationId = "9007199254740993";
@@ -24,6 +25,17 @@ function textMessage(
     content: { parts: [{ type: "text", text }] },
     created_at: createdAt,
   };
+}
+
+function submittedAnswerMessage(
+  id: string,
+  conversationId: string,
+  text: string,
+  items: SubmittedQuestionAnswer[],
+): ConversationMessage {
+  const message = textMessage(id, conversationId, "user", text);
+  message.content.parts.push({ type: "question_answers", items });
+  return message;
 }
 
 function imageResultMessage(id: string, conversationId: string): ConversationMessage {
@@ -385,7 +397,19 @@ function createBackend(options?: {
               .map((question) => `- ${question.title}：${String(answers[question.id] ?? "")}`)
               .join("\n")}`
           : "用户已提交以下选择：";
-        items.push(textMessage(String(nextMessageId++), conversationId, "user", answerText));
+        const userAnswerMessage = latestQuestion
+          ? submittedAnswerMessage(
+              String(nextMessageId++),
+              conversationId,
+              answerText,
+              latestQuestion.questions.map((question) => ({
+                question_id: question.id,
+                question: question.title,
+                answer: String(answers[question.id] ?? ""),
+              })),
+            )
+          : textMessage(String(nextMessageId++), conversationId, "user", answerText);
+        items.push(userAnswerMessage);
         const assistantMessage = textMessage(
           String(nextMessageId++),
           conversationId,
@@ -634,7 +658,9 @@ describe("OrionAI conversations", () => {
       ),
     ).toBe(true);
     await waitFor(() => {
-      expect(document.querySelector(".conversation-panel__header h1")?.textContent).toBe("图片助手");
+      expect(document.querySelector(".conversation-panel__header h1")?.textContent).toBe(
+        "图片助手",
+      );
     });
   });
 
@@ -664,10 +690,7 @@ describe("OrionAI conversations", () => {
     expect(await screen.findByText("图片已生成并保存到本次会话。")).toBeInTheDocument();
     expect(document.querySelector(".conversation-panel__header h1")?.textContent).toBe("图片助手");
     const image = screen.getByRole("img", { name: "图片助手生成的商品图片" });
-    expect(image).toHaveAttribute(
-      "src",
-      "/api/v1/task-results/9007199254740994/image",
-    );
+    expect(image).toHaveAttribute("src", "/api/v1/task-results/9007199254740994/image");
     fireEvent.error(image);
     expect(screen.getByText("生成图片暂时无法显示。")).toHaveAttribute("role", "status");
   });
@@ -689,8 +712,23 @@ describe("OrionAI conversations", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
     expect(await screen.findByText("已按选择继续对话。")).toBeInTheDocument();
-    expect(screen.getByText(/已提交回答 · 共 1 题/)).toBeInTheDocument();
-    expect(screen.getByText("简洁", { selector: "strong" })).toBeInTheDocument();
+    const answerCard = screen.getByRole("region", { name: "我的回答，共 1 题" });
+    expect(within(answerCard).getByText("你希望回答采用哪种风格？")).toBeInTheDocument();
+    expect(within(answerCard).getByText("简洁")).toBeInTheDocument();
+
+    const completedCard = screen.getByRole("region", { name: "本轮答题已完成，共 1 题" });
+    const completedToggle = within(completedCard).getByRole("button", {
+      name: /本轮答题已完成.*共 1 题/,
+    });
+    expect(completedToggle).toHaveAttribute("aria-expanded", "false");
+    const questionDetails = document.getElementById(completedToggle.getAttribute("aria-controls")!);
+    expect(questionDetails).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(completedToggle);
+    expect(completedToggle).toHaveAttribute("aria-expanded", "true");
+    expect(within(questionDetails!).getByText("你希望回答采用哪种风格？")).toBeInTheDocument();
+    expect(within(questionDetails!).queryByRole("radio")).not.toBeInTheDocument();
+    fireEvent.click(completedToggle);
+    expect(completedToggle).toHaveAttribute("aria-expanded", "false");
     expect(
       document.querySelector(".conversation-message--user .conversation-message__label"),
     ).toBeNull();
@@ -740,7 +778,7 @@ describe("OrionAI conversations", () => {
     expect(screen.getByRole("radio", { name: /简洁/ })).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
-    expect(await screen.findByText(/已提交回答 · 共 1 题/)).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: "我的回答，共 1 题" })).toBeInTheDocument();
   });
 
   it("walks through a multi-question card and submits retained answers once", async () => {
@@ -782,11 +820,16 @@ describe("OrionAI conversations", () => {
     fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
 
     expect(await screen.findByText("已按选择继续对话。")).toBeInTheDocument();
-    expect(screen.getByText(/已提交回答 · 共 3 题/)).toBeInTheDocument();
-    expect(screen.getByText("你目前遇到的主要问题是什么？")).toBeInTheDocument();
-    expect(screen.getByText("选择一", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText("1–3 年", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText("技术成长", { selector: "strong" })).toBeInTheDocument();
+    const answerCard = screen.getByRole("region", { name: "我的回答，共 3 题" });
+    expect(within(answerCard).getByText("你目前遇到的主要问题是什么？")).toBeInTheDocument();
+    expect(within(answerCard).getByText("选择一")).toBeInTheDocument();
+    expect(within(answerCard).getByText("1–3 年")).toBeInTheDocument();
+    expect(within(answerCard).getByText("技术成长")).toBeInTheDocument();
+    const answerItems = within(answerCard).getAllByRole("listitem");
+    expect(answerItems).toHaveLength(3);
+    expect(answerItems[0]).toHaveTextContent("01你目前遇到的主要问题是什么？我的选择：选择一");
+    expect(answerItems[1]).toHaveTextContent("02你目前的工作年限是多少？我的选择：1–3 年");
+    expect(answerItems[2]).toHaveTextContent("03你最看重工作的哪一方面？我的选择：技术成长");
     expect(screen.queryByRole("button", { name: "提交答案" })).not.toBeInTheDocument();
 
     const answerCall = backend.calls.find(
@@ -969,7 +1012,7 @@ describe("OrionAI conversations", () => {
     expect(window.location.pathname).toBe(`/chat/${historyId}`);
   });
 
-  it("restores a submitted question summary from historical messages", async () => {
+  it("keeps legacy answer text and restores its completed question card", async () => {
     const conversationId = "9100000000000004";
     const questions: QuestionContentPart["questions"] = [
       singleChoiceQuestion("work_style", "你偏好的工作方式是什么？", [
@@ -1005,10 +1048,54 @@ describe("OrionAI conversations", () => {
     vi.stubGlobal("fetch", backend.fetchMock);
     render(<App />);
 
-    expect(await screen.findByText(/已提交回答 · 共 1 题/)).toBeInTheDocument();
-    expect(screen.getByText("你偏好的工作方式是什么？")).toBeInTheDocument();
-    expect(screen.getByText("团队协作", { selector: "strong" })).toBeInTheDocument();
-    expect(screen.getByText(/已完成答题 · 共 1 题/)).toBeInTheDocument();
+    expect(await screen.findByText(/用户已提交以下选择/)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: /我的回答/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "本轮答题已完成，共 1 题" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  });
+
+  it("restores structured answers and expandable questions from historical messages", async () => {
+    const conversationId = "9100000000000005";
+    const question = singleChoiceQuestion("work_style", "你偏好的工作方式是什么？", [
+      "独立完成",
+      "团队协作",
+      "灵活切换",
+    ]);
+    const questionMessage: ConversationMessage = {
+      id: "216",
+      conversation_id: conversationId,
+      role: "assistant",
+      content: { parts: [{ type: "question", questions: [question] }] },
+      created_at: createdAt,
+    };
+    window.history.replaceState({}, "", `/chat/${conversationId}`);
+    const backend = createBackend({
+      messages: {
+        [conversationId]: [
+          textMessage("217", conversationId, "user", "请先了解我的偏好"),
+          questionMessage,
+          submittedAnswerMessage(
+            "218",
+            conversationId,
+            "用户已提交以下选择：\n- 你偏好的工作方式是什么？：团队协作",
+            [
+              {
+                question_id: "work_style",
+                question: "你偏好的工作方式是什么？",
+                answer: "团队协作",
+              },
+            ],
+          ),
+          textMessage("219", conversationId, "assistant", "我会按团队协作的方式展开。"),
+        ],
+      },
+    });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    const answerCard = await screen.findByRole("region", { name: "我的回答，共 1 题" });
+    expect(within(answerCard).getByText("团队协作")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "本轮答题已完成，共 1 题" })).toBeInTheDocument();
     expect(screen.queryByRole("radio")).not.toBeInTheDocument();
   });
 });

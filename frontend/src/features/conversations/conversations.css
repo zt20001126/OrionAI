@@ -283,6 +283,14 @@
   background: var(--color-brand-soft);
 }
 
+.conversation-message--question-answers {
+  width: fit-content;
+  max-width: min(85%, 680px);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .conversation-message--assistant {
   width: min(100%, 820px);
   align-self: flex-start;
@@ -603,49 +611,222 @@
   font-size: var(--font-size-sm);
 }
 
-.question-card__history.is-complete {
-  color: var(--color-brand-active);
-  background: var(--color-brand-soft);
+.completed-question-card {
+  width: fit-content;
+  max-width: min(100%, 560px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
 }
 
-.conversation-answer-summary {
-  display: grid;
-  max-width: 100%;
-  gap: var(--space-3);
-}
-
-.conversation-answer-summary__heading {
+.completed-question-card__toggle {
   display: flex;
+  width: 100%;
+  min-height: 64px;
   align-items: center;
-  gap: var(--space-2);
-  color: var(--color-brand-active);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.completed-question-card__status-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-pill);
+  color: var(--color-success);
+  background: var(--color-success-soft);
+  place-items: center;
+}
+
+.completed-question-card__status-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.completed-question-card__heading {
+  display: grid;
+  min-width: 0;
+  flex: 1 1 auto;
+  gap: 2px;
+}
+
+.completed-question-card__heading strong {
+  color: var(--color-text);
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
 
-.conversation-answer-summary__item {
-  display: grid;
-  min-width: 0;
-  gap: var(--space-1);
-}
-
-.conversation-answer-summary__item > span {
+.completed-question-card__heading > span {
   color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
 }
 
-.conversation-answer-summary__item > strong {
+.completed-question-card__toggle > .platform-icon {
+  color: var(--color-text-tertiary);
+  transition: transform var(--motion-normal);
+}
+
+.completed-question-card__toggle[aria-expanded="true"] > .platform-icon {
+  transform: rotate(180deg);
+}
+
+.completed-question-card__details {
+  display: grid;
+  grid-template-rows: 0fr;
+  border-top: 0 solid var(--color-border);
+  transition:
+    grid-template-rows var(--motion-normal),
+    border-top-width var(--motion-normal);
+}
+
+.completed-question-card__details.is-expanded {
+  grid-template-rows: 1fr;
+  border-top-width: 1px;
+}
+
+.completed-question-card__details-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.completed-question-card__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  list-style: none;
+}
+
+.completed-question-card__item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.completed-question-card__number {
+  display: grid;
+  width: 28px;
+  height: 26px;
+  border-radius: var(--radius-control);
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  place-items: center;
+}
+
+.completed-question-card__question {
+  min-width: 0;
+}
+
+.completed-question-card__question p {
+  margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-sm);
-  font-weight: 550;
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.completed-question-card__question .completed-question-card__context {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+.question-answer-card {
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-brand-line);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.question-answer-card__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  line-height: var(--line-height-normal);
+}
+
+.question-answer-card__heading > span {
+  color: var(--color-success);
+}
+
+.question-answer-card__list {
+  display: grid;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.question-answer-card__item {
+  min-width: 0;
+  padding: var(--space-3) 0;
+}
+
+.question-answer-card__item + .question-answer-card__item {
+  border-top: 1px solid var(--color-border);
+}
+
+.question-answer-card__question {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.question-answer-card__number {
+  padding-top: 1px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.question-answer-card__question p {
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.question-answer-card__answer {
+  margin: var(--space-2) 0 0 36px;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
   overflow-wrap: anywhere;
 }
 
-.conversation-answer-summary > p {
-  margin: 0;
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-normal);
+.question-answer-card__answer strong {
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.question-answer-card__answer span {
+  font-weight: 600;
 }
 
 .conversation-composer {
@@ -811,6 +992,12 @@
   .conversation-message {
     max-width: 96%;
     padding: var(--space-3);
+  }
+
+  .conversation-message--question-answers {
+    width: fit-content;
+    max-width: 96%;
+    padding: 0;
   }
 
   .conversation-message--assistant {

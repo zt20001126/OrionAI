@@ -334,6 +334,16 @@ def test_streaming_question_answer_resumes_the_same_conversation(
         "assistant",
     ]
     assert stored_messages[-1]["content"]["parts"][0]["text"] == "我会采用简洁风格。"
+    assert stored_messages[4]["content"]["parts"][1] == {
+        "type": "question_answers",
+        "items": [
+            {
+                "question_id": "style",
+                "question": "希望采用哪种表达风格？",
+                "answer": "简洁",
+            }
+        ],
+    }
 
 
 def test_streaming_agent_failure_sends_sanitized_end_without_saving_partial_answer(
@@ -556,6 +566,7 @@ def test_chat_persists_messages_and_resumes_waiting_questions(
     ]
     assert items[2]["content"] == {"parts": [{"type": "text", "text": "帮我写一份说明"}]}
     assert items[4]["content"]["parts"][0]["text"].endswith("简洁")
+    assert items[4]["content"]["parts"][1]["items"][0]["answer"] == "简洁"
     listed_conversation = client.get("/api/conversations").json()["items"][0]
     assert listed_conversation["id"] == conversation_id
     assert listed_conversation["title"] == "自动生成的标题"

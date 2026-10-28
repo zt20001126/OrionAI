@@ -13,6 +13,7 @@ import remarkGfm from "remark-gfm";
 import { PlatformIcon } from "../platform/PlatformIcon";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { ConversationHistory } from "./ConversationHistory";
+import { CompletedQuestionCard, QuestionAnswerCard } from "./QuestionAnswerCards";
 import {
   createConversation,
   getConversationErrorMessage,
@@ -24,6 +25,8 @@ import {
   type ImageResultContentPart,
   type MessageListResponse,
   type QuestionContentPart,
+  type QuestionAnswersContentPart,
+  type SubmittedQuestionAnswer,
 } from "./conversationApi";
 import "./conversations.css";
 
@@ -73,17 +76,6 @@ function ImageResult({ part }: { part: ImageResultContentPart }) {
   );
 }
 
-interface QuestionAnswerSummaryItem {
-  question: string;
-  answer: string;
-}
-
-interface QuestionAnswerSummaryData {
-  count: number;
-  items: QuestionAnswerSummaryItem[];
-  detailsUnavailable: boolean;
-}
-
 function getQuestionPart(message: ConversationMessage | undefined): QuestionContentPart | null {
   if (message?.role !== "assistant") return null;
 
@@ -93,53 +85,46 @@ function getQuestionPart(message: ConversationMessage | undefined): QuestionCont
   );
 }
 
-function getQuestionAnswerSummary(
-  text: string,
+function getQuestionAnswersPart(
+  message: ConversationMessage | undefined,
+): QuestionAnswersContentPart | null {
+  if (message?.role !== "user") return null;
+  return (
+    message.content.parts.find(
+      (part): part is QuestionAnswersContentPart => part.type === "question_answers",
+    ) ?? null
+  );
+}
+
+function getQuestionAnswerItems(
+  message: ConversationMessage | undefined,
   questionPart?: QuestionContentPart | null,
-): QuestionAnswerSummaryData | null {
-  const answerHeader = "用户已提交以下选择：";
-  if (text.startsWith(answerHeader)) {
-    if (questionPart) {
-      const lines = text.split(/\r?\n/);
-      const items = questionPart.questions.map((question) => {
-        const fullWidthPrefix = `- ${question.title}：`;
-        const asciiPrefix = `- ${question.title}:`;
-        const answerLine = lines.find(
-          (line) => line.startsWith(fullWidthPrefix) || line.startsWith(asciiPrefix),
-        );
-        if (!answerLine) return null;
+): SubmittedQuestionAnswer[] | null {
+  const answersPart = getQuestionAnswersPart(message);
+  if (!answersPart || answersPart.items.length === 0) return null;
 
-        const prefix = answerLine.startsWith(fullWidthPrefix) ? fullWidthPrefix : asciiPrefix;
-        const answer = answerLine.slice(prefix.length).trim();
-        return answer ? { question: question.title, answer } : null;
-      });
+  const answerByQuestionId = new Map(
+    answersPart.items.map((item) => [item.question_id, item.answer]),
+  );
+  if (answerByQuestionId.size !== answersPart.items.length) return null;
 
-      if (items.every((item): item is QuestionAnswerSummaryItem => item !== null)) {
-        return { count: items.length, items, detailsUnavailable: false };
-      }
-    }
+  if (questionPart) {
+    if (answersPart.items.length !== questionPart.questions.length) return null;
 
-    const formattedAnswerCount = text
-      .split(/\r?\n/)
-      .filter((line) => /^- .+[:：].+$/u.test(line)).length;
-    if (formattedAnswerCount > 0) {
-      return { count: formattedAnswerCount, items: [], detailsUnavailable: true };
-    }
+    const items = questionPart.questions.map((question) => {
+      const answer = answerByQuestionId.get(question.id);
+      return answer ? { question_id: question.id, question: question.title, answer } : null;
+    });
+    return items.every((item): item is SubmittedQuestionAnswer => item !== null) ? items : null;
   }
 
-  const legacyPrefix = "已提交选择：";
-  if (!text.startsWith(legacyPrefix)) return null;
+  return answersPart.items.every((item) => item.question && item.answer) ? answersPart.items : null;
+}
 
-  try {
-    const parsed: unknown = JSON.parse(text.slice(legacyPrefix.length));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
-
-    const values = Object.values(parsed as Record<string, unknown>);
-    if (values.length === 0 || !values.every((value) => typeof value === "string")) return null;
-    return { count: values.length, items: [], detailsUnavailable: true };
-  } catch {
-    return null;
-  }
+function isLegacySubmittedAnswersMessage(message: ConversationMessage | undefined): boolean {
+  if (message?.role !== "user") return false;
+  const text = messageText(message);
+  return text.startsWith("用户已提交以下选择：") || text.startsWith("已提交选择：");
 }
 
 interface QuestionWizardProps {
@@ -258,24 +243,6 @@ function QuestionWizard({
         )}
       </footer>
     </section>
-  );
-}
-
-function QuestionAnswerSummary({ summary }: { summary: QuestionAnswerSummaryData }) {
-  return (
-    <div aria-label="已提交回答摘要" className="conversation-answer-summary">
-      <strong className="conversation-answer-summary__heading">
-        <span aria-hidden="true">✓</span>
-        已提交回答 · 共 {summary.count} 题
-      </strong>
-      {summary.items.map((item) => (
-        <div className="conversation-answer-summary__item" key={item.question}>
-          <span>{item.question}</span>
-          <strong>{item.answer}</strong>
-        </div>
-      ))}
-      {summary.detailsUnavailable && <p>历史消息未包含完整题目，暂时无法还原选择明细。</p>}
-    </div>
   );
 }
 
@@ -918,19 +885,20 @@ export function ConversationPage({
                   (part): part is ImageResultContentPart => part.type === "image_result",
                 );
                 const previousQuestionPart = getQuestionPart(visibleMessages[index - 1]);
-                const answerSummary =
+                const questionAnswerItems =
                   message.role === "user"
-                    ? getQuestionAnswerSummary(text, previousQuestionPart)
+                    ? getQuestionAnswerItems(message, previousQuestionPart)
                     : null;
                 const nextMessage = visibleMessages[index + 1];
                 const hasSubmittedQuestionAnswers =
                   questionPart !== null &&
                   nextMessage?.role === "user" &&
-                  getQuestionAnswerSummary(messageText(nextMessage), questionPart) !== null;
+                  (getQuestionAnswersPart(nextMessage) !== null ||
+                    isLegacySubmittedAnswersMessage(nextMessage));
 
                 return (
                   <article
-                    className={`conversation-message conversation-message--${message.role}`}
+                    className={`conversation-message conversation-message--${message.role}${questionAnswerItems ? " conversation-message--question-answers" : ""}`}
                     key={message.id}
                   >
                     {message.role === "assistant" && text && (
@@ -951,8 +919,8 @@ export function ConversationPage({
                       ))}
                     {message.role === "user" &&
                       text &&
-                      (answerSummary ? (
-                        <QuestionAnswerSummary summary={answerSummary} />
+                      (questionAnswerItems ? (
+                        <QuestionAnswerCard items={questionAnswerItems} />
                       ) : (
                         <p className="conversation-message__text">{text}</p>
                       ))}
@@ -987,16 +955,15 @@ export function ConversationPage({
                         selectedAnswers={selectedAnswers}
                       />
                     )}
-                    {questionPart && !isCurrentQuestion && (
-                      <div
-                        className={`question-card__history${hasSubmittedQuestionAnswers ? " is-complete" : ""}`}
-                        role="status"
-                      >
-                        {hasSubmittedQuestionAnswers
-                          ? `✓ 已完成答题 · 共 ${questionPart.questions.length} 题`
-                          : "此题卡当前不等待答题。"}
-                      </div>
-                    )}
+                    {questionPart &&
+                      !isCurrentQuestion &&
+                      (hasSubmittedQuestionAnswers ? (
+                        <CompletedQuestionCard questions={questionPart.questions} />
+                      ) : (
+                        <div className="question-card__history" role="status">
+                          此题卡当前不等待答题。
+                        </div>
+                      ))}
                   </article>
                 );
               })}

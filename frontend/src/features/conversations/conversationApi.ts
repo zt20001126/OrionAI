@@ -36,6 +36,17 @@ export interface QuestionContentPart {
   questions: SingleChoiceQuestion[];
 }
 
+export interface SubmittedQuestionAnswer {
+  question_id: string;
+  question: string;
+  answer: string;
+}
+
+export interface QuestionAnswersContentPart {
+  type: "question_answers";
+  items: SubmittedQuestionAnswer[];
+}
+
 export interface ImageResultContentPart {
   type: "image_result";
   task_result_id: string;
@@ -43,7 +54,8 @@ export interface ImageResultContentPart {
   image_url: string;
 }
 
-export type MessageContentPart = TextContentPart | QuestionContentPart | ImageResultContentPart;
+export type MessageContentPart =
+  TextContentPart | QuestionContentPart | QuestionAnswersContentPart | ImageResultContentPart;
 
 export interface ConversationMessage {
   id: string;

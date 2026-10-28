@@ -42,8 +42,10 @@ from app.modules.conversations.schemas import (
     MessageContent,
     MessageListResponse,
     MessageResponse,
+    QuestionAnswersContentPart,
     QuestionAnswersRequest,
     QuestionContentPart,
+    SubmittedQuestionAnswer,
 )
 from app.modules.conversations.title import (
     ConversationTitleGenerator,
@@ -347,7 +349,22 @@ class ConversationService:
             raise ConversationValidationError(str(error)) from None
 
         answer_text = self._format_answer(question_payload, request)
-        user_message = self._save_user_message(conversation, answer_text)
+        question_answers = QuestionAnswersContentPart(
+            type="question_answers",
+            items=[
+                SubmittedQuestionAnswer(
+                    question_id=question.id,
+                    question=question.title,
+                    answer=request.answers[question.id],
+                )
+                for question in question_payload.questions
+            ],
+        )
+        user_message = self._save_user_message(
+            conversation,
+            answer_text,
+            question_answers=question_answers,
+        )
         return PreparedConversationTurn(
             user_id=user.id,
             conversation=conversation,
@@ -625,15 +642,20 @@ class ConversationService:
         self,
         conversation: Conversation,
         message_text: str,
+        *,
+        question_answers: QuestionAnswersContentPart | None = None,
     ) -> Message:
-        """先提交用户消息，使其 ID 可作为 LangGraph 消息稳定标识。"""
+        """先提交用户消息和可选题目答案，使其 ID 可作为 LangGraph 消息稳定标识。"""
 
         try:
+            content_parts: list[dict[str, object]] = [{"type": "text", "text": message_text}]
+            if question_answers is not None:
+                content_parts.append(question_answers.model_dump(mode="json"))
             user_message = repository.create_message(
                 self._session,
                 conversation_id=conversation.id,
                 role="user",
-                content={"parts": [{"type": "text", "text": message_text}]},
+                content={"parts": content_parts},
             )
             repository.update_conversation_timestamp(conversation, datetime.now(UTC))
             self._session.commit()
