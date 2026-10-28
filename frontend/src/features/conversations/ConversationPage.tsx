@@ -831,9 +831,7 @@ export function ConversationPage({
                 <PlatformIcon name="chevron" size={17} />
               </button>
             </div>
-          ) : (
-            <span>多轮对话</span>
-          )}
+          ) : null}
         </header>
 
         {embedded && showEmbeddedHistory ? (
@@ -1064,7 +1062,7 @@ export function ConversationPage({
                 value={draft}
               />
               <div className="conversation-composer__footer">
-                <span>{error ? "检查消息状态后再决定是否重试。" : "回答会逐段显示。"}</span>
+                {error && <span>检查消息状态后再决定是否重试。</span>}
                 <button
                   aria-label="发送消息"
                   className="button button--primary conversation-composer__send"
