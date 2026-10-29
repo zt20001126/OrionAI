@@ -84,7 +84,7 @@ class GeneratedQuestion(BaseModel):
         max_length=OPTIONS_PER_QUESTION,
         description="按 A、B、C、D 顺序排列的选项文本",
     )
-    correct_option_index: int = Field(ge=0, lt=OPTIONS_PER_QUESTION, description="唯一正确项下标")
+    correct_option_id: OptionId = Field(description="唯一正确选项，取值为 A、B、C 或 D")
     explanation: str = Field(
         min_length=4,
         max_length=MAX_EXPLANATION_LENGTH,

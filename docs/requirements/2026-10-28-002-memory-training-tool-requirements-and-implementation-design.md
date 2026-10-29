@@ -289,7 +289,7 @@ sequenceDiagram
 
 ### 9.1 模型接入与图片输入
 
-复用 `OpenAICompatibleChatModelProvider` 和 LangChain 调用方式，但为训练任务显式传入独立的阿里云百炼 API Key、Base URL 和模型名。当前配置使用 `qwen3.8-flash`，通过多模态 `HumanMessage` 传入公开 OSS 图片 URL 和文字提示词，并使用 JSON mode 与 Pydantic 做结构校验。平台其他功能继续使用原有 DeepSeek 配置。
+复用 `OpenAICompatibleChatModelProvider` 和 LangChain 调用方式，但为训练任务显式传入独立的阿里云百炼 API Key、Base URL 和模型名。当前配置使用 `qwen3.8-flash`，通过多模态 `HumanMessage` 传入公开 OSS 图片 URL 和文字提示词。图片请求使用 JSON Object 模式，随后解析原始 JSON、归一化字段别名并用 Pydantic 校验；平台其他功能继续使用原有 DeepSeek 配置。
 
 模型从公开 URL 读取图片；Worker 不下载或转存图片字节。模型输入只含一张图片和一条任务指令，不传用户资料或历史会话。Generator 使用异步 `ainvoke`，Celery 同步任务入口通过 `asyncio.run` 等待结果。
 
@@ -304,14 +304,14 @@ sequenceDiagram
 不得使用常识补全图片中看不清或不存在的信息，不得询问图片以外的知识。
 优先选择明显、稳定、可核对的事实；避免模糊、主观、歧义、重复或对细小像素过度敏感的题目。
 答案解析用一句话指出图片中支持答案的可见证据，不添加推测。
-严格按指定 JSON Schema 返回，不输出 Markdown、前言或其他文本。
+严格返回一个 JSON 对象，顶层包含 questions 数组；每题仅包含 prompt、options、correct_option_id、explanation。options 按 A、B、C、D 顺序保存四个文本，correct_option_id 只能为 A、B、C、D。不要输出模型自带 ID、其他字段、Markdown 或前言。
 ```
 
 用户消息可写“请观察图片并按 Schema 出题”。不要把选中答案暴露到前端；生成后标准答案只存 Redis 内部状态。
 
 ### 9.3 Schema 与 Pydantic 校验
 
-建议模型结构化输出 Schema（`additionalProperties: false`）：
+服务端使用以下 Schema 校验模型输出（`additionalProperties: false`）。百炼的多模态图片请求使用 JSON Object 模式，因此该 Schema 在本地校验，不作为模型端 JSON Schema 约束：
 
 ```json
 {
@@ -346,7 +346,7 @@ sequenceDiagram
 
 Pydantic DTO 采用 `extra="forbid"`；外层验证恰好 5 题，内层恰好 4 个非空选项，答案标签属于 A-D，问题及选项经空白归一化后不重复，题干去重后不重复，解释非空。服务端生成 `q1`–`q5` 题目 ID 和选项 ID A-D；不信任模型返回的任意 ID。`correct_option_id` 是唯一的单值字段，因此无法表示多个答案；仍须验证其在四个选项中存在。校验失败时整组题目作废，不用不足 5 题的集合开始答题。
 
-先使用目标 Provider 支持的 `with_structured_output` JSON Schema 模式；若其不支持，则要求 JSON mode 并对原始输出执行 `model_validate_json`。不能以 JSON 能解析代替业务校验。
+Generator 直接读取模型返回文本并解析 JSON，再将题干别名 `question` 归一化为 `prompt`，并将 `answer` 中的选项 ID 或选项文本映射到 A-D。模型提供的题目 ID 会丢弃，由服务端生成稳定 ID。不能以 JSON 能解析代替业务校验。
 
 ### 9.4 去重、事实风险和失败策略
 
