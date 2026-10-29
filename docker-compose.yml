@@ -61,7 +61,7 @@ services:
       - app.core.celery_app:celery_app
       - worker
       - --loglevel=INFO
-      - --queues=reminders
+      - --queues=reminders,memory_training
       - --pool=solo
     environment:
       ENVIRONMENT: development
@@ -71,6 +71,9 @@ services:
       SMTP_USERNAME: ${SMTP_USERNAME:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      ALIYUN_BAILIAN_API_KEY: ${ALIYUN_BAILIAN_API_KEY:?ALIYUN_BAILIAN_API_KEY must be set in the project .env}
+      ALIYUN_BAILIAN_BASE_URL: ${ALIYUN_BAILIAN_BASE_URL:?ALIYUN_BAILIAN_BASE_URL must be set in the project .env}
+      ALIYUN_BAILIAN_MODEL: ${ALIYUN_BAILIAN_MODEL:-qwen3.8-flash}
       SNOWFLAKE_WORKER_ID: "2"
     volumes:
       - ./backend:/app

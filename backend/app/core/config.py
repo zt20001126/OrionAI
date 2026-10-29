@@ -77,6 +77,11 @@ class Settings(BaseSettings):
         le=3600,
         description="恢复异常 sending 执行前等待的租约秒数，须大于 SMTP 超时。",
     )
+    memory_training_task_queue: str = Field(
+        default="memory_training",
+        min_length=1,
+        description="记忆训练视觉出题 Celery 队列，由共享后台 Worker 监听。",
+    )
     aliyun_oss_access_key_id: SecretStr = Field(
         default=SecretStr(""), description="阿里云 OSS AccessKey ID，不得写入日志。"
     )
@@ -102,6 +107,15 @@ class Settings(BaseSettings):
     )
     deepseek_temperature: float = Field(default=0.7, ge=0, le=2, description="对话模型生成温度。")
     deepseek_max_retries: int = Field(default=2, ge=0, le=5, description="模型请求的最大重试次数。")
+    aliyun_bailian_api_key: SecretStr = Field(
+        default=SecretStr(""), description="阿里云百炼 API 密钥，不得写入日志。"
+    )
+    aliyun_bailian_base_url: str = Field(
+        default="", description="阿里云百炼 OpenAI-compatible API 地址。"
+    )
+    aliyun_bailian_model: str = Field(
+        default="qwen3.8-flash", description="记忆训练使用的百炼多模态模型名称。"
+    )
     tokenhub_api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias=AliasChoices("TOKENHUB_API_KEY", "TENCENT_TOKENHUB_API_KEY"),

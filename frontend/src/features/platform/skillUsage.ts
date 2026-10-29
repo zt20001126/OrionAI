@@ -7,6 +7,7 @@ const RUNNABLE_SKILL_CODES = new Set([
   "image_agent",
   "resume_assistant",
   "reminder",
+  "memory_training",
 ]);
 
 /** 当前前端已接入使用入口的技能编码。 */
@@ -29,6 +30,10 @@ export async function launchSkill(
   }
   if (skill.code === "reminder") {
     onNavigate(platformPaths.reminders);
+    return;
+  }
+  if (skill.code === "memory_training") {
+    onNavigate(platformPaths.memoryTraining);
     return;
   }
 

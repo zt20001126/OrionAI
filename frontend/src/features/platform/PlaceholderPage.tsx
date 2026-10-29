@@ -9,6 +9,7 @@ type PlaceholderPath = Exclude<
   | typeof platformPaths.resume
   | typeof platformPaths.reminders
   | typeof platformPaths.reminderCreate
+  | typeof platformPaths.memoryTraining
   | typeof platformPaths.settings
   | typeof platformPaths.securitySettings
 >;

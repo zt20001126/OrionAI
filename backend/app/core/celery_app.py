@@ -10,7 +10,7 @@ settings = get_settings()
 celery_app = Celery(
     "orionai",
     broker=settings.redis_url,
-    include=["app.modules.reminders.tasks"],
+    include=["app.modules.reminders.tasks", "app.modules.memory_training.tasks"],
 )
 celery_app.conf.update(
     broker_url=settings.redis_url,
@@ -20,6 +20,9 @@ celery_app.conf.update(
         "app.modules.reminders.tasks.scan_due_reminders": {"queue": settings.reminder_task_queue},
         "app.modules.reminders.tasks.send_reminder_execution": {
             "queue": settings.reminder_task_queue
+        },
+        "app.modules.memory_training.tasks.generate_training_questions": {
+            "queue": settings.memory_training_task_queue
         },
     },
     task_serializer="json",

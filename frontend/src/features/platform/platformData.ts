@@ -7,6 +7,7 @@ export const platformPaths = {
   tools: "/tools",
   reminders: "/reminders",
   reminderCreate: "/reminders/new",
+  memoryTraining: "/memory-training",
   settings: "/settings",
   securitySettings: "/settings/security",
   chat: "/chat",

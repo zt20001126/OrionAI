@@ -12,6 +12,7 @@ import { SessionsPage } from "../features/conversations/SessionsPage";
 import { MySkillsPage } from "../features/skills/MySkillsPage";
 import { ResumePage } from "../features/resume/ResumePage";
 import { ReminderPage } from "../features/reminders/ReminderPage";
+import { MemoryTrainingPage } from "../features/memory-training/pages/MemoryTrainingPage";
 import {
   getConversationId,
   isConversationPath,
@@ -396,6 +397,9 @@ function AppContent() {
           onNavigate={navigate}
         />
       );
+    }
+    if (safePathname === platformPaths.memoryTraining) {
+      return <MemoryTrainingPage onNavigate={navigate} />;
     }
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
     if (

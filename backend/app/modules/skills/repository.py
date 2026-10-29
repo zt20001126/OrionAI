@@ -38,6 +38,13 @@ REMINDER_TOOL = {
     "type": "tool",
     "status": "published",
 }
+MEMORY_TRAINING_TOOL = {
+    "code": "memory_training",
+    "name": "记忆训练",
+    "description": "通过限时观察图片并回答细节问题，练习视觉注意力与记忆能力。",
+    "type": "tool",
+    "status": "published",
+}
 
 
 def list_market_skills(
@@ -276,6 +283,35 @@ def ensure_reminder_tool_skill(session: Session) -> None:
         )
     else:
         if session.scalar(select(Skill.id).where(Skill.code == REMINDER_TOOL["code"])) is None:
+            session.add(Skill(**values))
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()
+
+
+def ensure_memory_training_tool_skill(session: Session) -> None:
+    """幂等发布记忆训练工具目录项，不覆盖管理员对既有条目的配置。"""
+
+    values = MEMORY_TRAINING_TOOL.copy()
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    else:
+        if (
+            session.scalar(select(Skill.id).where(Skill.code == MEMORY_TRAINING_TOOL["code"]))
+            is None
+        ):
             session.add(Skill(**values))
         session.commit()
         return

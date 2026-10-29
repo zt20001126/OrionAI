@@ -24,6 +24,7 @@ from app.modules.conversations.title import ModelConversationTitleGenerator
 from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
 from app.modules.image_generation.providers.tokenhub_client import TokenHubImageClient
 from app.modules.image_generation.service import TaskResultStore
+from app.modules.memory_training.errors import MemoryTrainingError
 from app.modules.reminders.errors import ReminderError
 from app.modules.resume.dependencies import get_resume_photo_storage
 from app.modules.resume.errors import ResumeError
@@ -32,6 +33,7 @@ from app.modules.skills.errors import SkillsError
 from app.modules.skills.repository import (
     ensure_general_chat_skill,
     ensure_image_agent_skill,
+    ensure_memory_training_tool_skill,
     ensure_reminder_tool_skill,
     ensure_resume_assistant_skill,
 )
@@ -61,6 +63,7 @@ def create_agent_lifespan(
                     ensure_image_agent_skill(session)
                     ensure_resume_assistant_skill(session)
                     ensure_reminder_tool_skill(session)
+                    ensure_memory_training_tool_skill(session)
                 except SQLAlchemyError:
                     session.rollback()
                     logger.exception("general_chat_skill_initialization_failed")
@@ -158,6 +161,15 @@ def create_app(
     @application.exception_handler(ReminderError)
     async def handle_reminder_error(_request: Request, error: ReminderError) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+    @application.exception_handler(MemoryTrainingError)
+    async def handle_memory_training_error(
+        _request: Request, error: MemoryTrainingError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"detail": error.detail, "code": error.code},
+        )
 
     application.add_middleware(
         CORSMiddleware,
