@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.base import Base
@@ -13,6 +13,13 @@ class User(Base):
     """认证模块的用户持久化模型，用户 ID 由 Snowflake 生成。"""
 
     __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint(
+            "(is_guest AND account IS NULL AND password_hash IS NULL) "
+            "OR (NOT is_guest AND account IS NOT NULL AND password_hash IS NOT NULL)",
+            name="ck_users_identity_credentials",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BigInteger().with_variant(Integer(), "sqlite"),
@@ -20,8 +27,15 @@ class User(Base):
         default=generate_snowflake_id,
         comment="用户 Snowflake ID",
     )
-    account: Mapped[str] = mapped_column(String(254), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
+    account: Mapped[str | None] = mapped_column(String(254), unique=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    is_guest: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=text("false"),
+        comment="是否为临时访客身份",
+    )
     nickname: Mapped[str | None] = mapped_column(
         String(20), nullable=True, comment="用户昵称；未设置时使用账号本地部分展示"
     )

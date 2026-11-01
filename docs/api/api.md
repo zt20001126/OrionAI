@@ -34,6 +34,7 @@ AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户�
 | `POST` | `/api/auth/email-codes`    | 请求注册或重置密码验证码 | 否                             |
 | `POST` | `/api/auth/register`       | 验证邮箱并创建账号       | 否                             |
 | `POST` | `/api/auth/login`          | 邮箱和密码登录           | 否                             |
+| `POST` | `/api/auth/guest`          | 创建访客身份并登录       | 否                             |
 | `GET`  | `/api/auth/session`        | 检查并恢复当前会话       | Cookie                         |
 | `POST` | `/api/auth/logout`         | 撤销当前会话             | Cookie（无 Cookie 时也可调用） |
 | `POST` | `/api/auth/password-reset` | 验证邮箱并更新密码       | 否                             |
@@ -54,6 +55,10 @@ AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户�
 | `POST` | `/api/v1/users/me/password/code` | 向当前用户绑定邮箱发送修改密码验证码 | Cookie |
 | `PUT` | `/api/v1/users/me/password` | 验证验证码并修改当前用户密码 | Cookie |
 | `GET` | `/api/v1/task-results/{task_result_id}/image` | 读取本人已完成的私有图片结果 | Cookie |
+
+`POST /api/auth/guest` 无请求体，创建一个 `users.is_guest=true` 的访客用户并设置与邮箱登录相同的 `orionai_session` Cookie。响应为 `{"authenticated":true,"account":null,"is_guest":true}`；`GET /api/auth/session` 对访客会话返回 `is_guest:true`，注册用户及未登录响应仍保持原有字段。访客会话默认有效 7 天；Cookie 过期或被清除后，访客不能恢复该身份。访客数据当前不会自动清理。
+
+访客可访问使用用户 ID 隔离的工作空间功能。需要邮箱发送的提醒写操作、修改密码和邮箱验证码操作仅对注册用户开放，访客请求返回 `403`。访客个人资料账号字段为空。
 
 ## 接口详情
 
@@ -142,6 +147,8 @@ AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户�
 ```
 
 无效 Cookie 会被清除。会话状态服务不可用时返回 `503`。
+
+访客会话返回 `{"authenticated":true,"account":null,"is_guest":true}`。注册用户和未登录响应继续使用原有字段；客户端可通过 `is_guest` 区分访客。
 
 ### `POST /api/auth/logout`
 

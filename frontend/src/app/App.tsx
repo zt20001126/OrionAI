@@ -20,7 +20,7 @@ import {
   platformPaths,
   type PlatformRoute,
 } from "../features/platform/platformData";
-import { getSession, logout } from "../features/auth/authApi";
+import { getSession, logout, type AuthIdentity } from "../features/auth/authApi";
 import { getUserProfile, type UserProfile } from "../features/platform/profileApi";
 
 type AppPath = PlatformRoute | typeof platformPaths.login;
@@ -51,7 +51,9 @@ export default function App() {
 
 function AppContent() {
   const { confirm, showToast } = useToast();
-  const [account, setAccount] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<AuthIdentity | null>(null);
+  const account = identity?.account ?? null;
+  const isGuest = identity?.is_guest ?? false;
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [pathname, setPathname] = useState(getCurrentPath);
   const [hasUnsavedSettings, setHasUnsavedSettings] = useState(false);
@@ -249,7 +251,7 @@ function AppContent() {
   }, [hasUnsavedResume, hasUnsavedSettings]);
 
   useEffect(() => {
-    if (!account) return;
+    if (!identity) return;
 
     let isActive = true;
     void getUserProfile()
@@ -263,14 +265,20 @@ function AppContent() {
     return () => {
       isActive = false;
     };
-  }, [account]);
+  }, [identity]);
 
   useEffect(() => {
     let isActive = true;
 
     void getSession()
       .then((session) => {
-        if (isActive) setAccount(session.authenticated ? session.account : null);
+        if (isActive) {
+          setIdentity(
+            session.authenticated
+              ? { account: session.account, is_guest: session.is_guest ?? false }
+              : null,
+          );
+        }
       })
       .catch(() => {
         if (isActive) {
@@ -290,8 +298,14 @@ function AppContent() {
     if (isRestoringSession) return;
 
     let redirectPath: AppPath | null = null;
-    if (account) {
-      if (!isPlatformPath(pathname)) redirectPath = platformPaths.market;
+    if (identity) {
+      if (identity.is_guest && pathname === platformPaths.securitySettings) {
+        redirectPath = platformPaths.settings;
+      } else if (identity.is_guest && pathname === platformPaths.reminderCreate) {
+        redirectPath = platformPaths.reminders;
+      } else if (!isPlatformPath(pathname)) {
+        redirectPath = platformPaths.market;
+      }
     } else if (pathname !== platformPaths.login) {
       redirectPath = platformPaths.login;
     }
@@ -305,14 +319,14 @@ function AppContent() {
         redirectPath,
       );
     }
-  }, [account, isRestoringSession, pathname]);
+  }, [identity, isRestoringSession, pathname]);
 
   async function handleLogout() {
     setIsLoggingOut(true);
     try {
       await logout();
       setHasUnsavedSettings(false);
-      setAccount(null);
+      setIdentity(null);
       setUserProfile(null);
       const currentIndex = historyIndexRef.current ?? 0;
       window.history.replaceState(
@@ -328,12 +342,12 @@ function AppContent() {
     }
   }
 
-  function handleAuthenticated(authenticatedAccount: string) {
+  function handleAuthenticated(authenticatedIdentity: AuthIdentity) {
     setSessionError(null);
     setAuthSuccessMessage(null);
     setHasUnsavedSettings(false);
     setUserProfile(null);
-    setAccount(authenticatedAccount);
+    setIdentity(authenticatedIdentity);
     navigate(platformPaths.market, true);
   }
 
@@ -342,7 +356,7 @@ function AppContent() {
     setHasUnsavedSettings(false);
     setSessionError(null);
     setAuthSuccessMessage(message);
-    setAccount(null);
+    setIdentity(null);
     const currentIndex = historyIndexRef.current ?? 0;
     window.history.replaceState(
       withHistoryIndex(window.history.state, currentIndex),
@@ -371,7 +385,7 @@ function AppContent() {
     );
   }
 
-  if (!account) {
+  if (!identity) {
     return (
       <AuthPage
         initialMessage={sessionError}
@@ -381,7 +395,15 @@ function AppContent() {
     );
   }
 
-  const safePathname: PlatformRoute = isPlatformPath(pathname) ? pathname : platformPaths.market;
+  const guestSafePathname =
+    isGuest && pathname === platformPaths.securitySettings
+      ? platformPaths.settings
+      : isGuest && pathname === platformPaths.reminderCreate
+        ? platformPaths.reminders
+        : pathname;
+  const safePathname: PlatformRoute = isPlatformPath(guestSafePathname)
+    ? guestSafePathname
+    : platformPaths.market;
   const conversationId = getConversationId(safePathname);
   const page = (() => {
     if (safePathname === platformPaths.market) return <SkillMarketPage onNavigate={navigate} />;
@@ -392,6 +414,7 @@ function AppContent() {
     if (safePathname === platformPaths.reminders || safePathname === platformPaths.reminderCreate) {
       return (
         <ReminderPage
+          isGuest={isGuest}
           key={safePathname}
           mode={safePathname === platformPaths.reminderCreate ? "create" : "list"}
           onNavigate={navigate}
@@ -408,7 +431,8 @@ function AppContent() {
     ) {
       return (
         <SettingsPage
-          account={account}
+          account={account ?? ""}
+          isGuest={isGuest}
           onDirtyChange={setHasUnsavedSettings}
           onNavigate={navigate}
           onPasswordChanged={handlePasswordChanged}
@@ -425,8 +449,9 @@ function AppContent() {
 
   return (
     <PlatformLayout
-      account={account}
+      account={account ?? "访客用户"}
       avatarUrl={userProfile?.avatar_url}
+      isGuest={isGuest}
       isLoggingOut={isLoggingOut}
       nickname={userProfile?.nickname}
       onLogout={() => void handleLogout()}

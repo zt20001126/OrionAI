@@ -64,7 +64,27 @@ def login(
     return AccountResponse(account=account)
 
 
-@router.get("/session", response_model=SessionResponse)
+@router.post(
+    "/guest",
+    response_model=SessionResponse,
+    response_model_exclude_unset=True,
+    dependencies=[Depends(validate_origin)],
+)
+def guest_login(
+    response: Response,
+    service: Annotated[AuthService, Depends(get_auth_service)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SessionResponse:
+    token = service.guest_login()
+    set_session_cookie(response, token, settings)
+    return SessionResponse(authenticated=True, account=None, is_guest=True)
+
+
+@router.get(
+    "/session",
+    response_model=SessionResponse,
+    response_model_exclude_unset=True,
+)
 def get_session(
     request: Request,
     response: Response,
@@ -72,10 +92,14 @@ def get_session(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> SessionResponse:
     token = request.cookies.get(settings.auth_cookie_name)
-    account = service.get_session_account(token)
-    if token and account is None:
+    user = service.get_session_user(token)
+    if token and user is None:
         clear_session_cookie(response, settings)
-    return SessionResponse(authenticated=account is not None, account=account)
+    return SessionResponse(
+        authenticated=user is not None,
+        account=user.account if user is not None else None,
+        **({"is_guest": True} if user is not None and user.is_guest else {}),
+    )
 
 
 @router.post(

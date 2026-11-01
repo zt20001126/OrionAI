@@ -162,7 +162,8 @@ class UsersService:
     def _profile_response(self, user: User) -> UserProfileResponse:
         nickname = (user.nickname or "").strip()
         if not nickname:
-            nickname = user.account.partition("@")[0][:MAX_NICKNAME_LENGTH] or "个人用户"
+            account_name = (user.account or "").partition("@")[0][:MAX_NICKNAME_LENGTH]
+            nickname = account_name or ("访客用户" if user.is_guest else "个人用户")
         avatar_url = user.avatar_url
         if user.avatar_key:
             if not user.avatar_key.startswith(f"users/{user.id}/avatars/"):

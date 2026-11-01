@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.database.session import get_db_session
-from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.dependencies import get_current_user, get_registered_user
 from app.modules.auth.models import User
 from app.modules.users.service import UsersService
 
@@ -22,4 +22,5 @@ def get_users_service(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+RegisteredUser = Annotated[User, Depends(get_registered_user)]
 UsersServiceDependency = Annotated[UsersService, Depends(get_users_service)]

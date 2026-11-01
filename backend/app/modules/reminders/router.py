@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from app.modules.auth.dependencies import validate_origin
+from app.modules.auth.dependencies import RegisteredUser, validate_origin
 from app.modules.reminders.constants import MAX_SNOWFLAKE_ID, PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX
 from app.modules.reminders.dependencies import CurrentUser, ReminderServiceDependency
 from app.modules.reminders.schemas import (
@@ -33,7 +33,7 @@ ReminderOffsetQuery = Annotated[int, Query(ge=0)]
 )
 def create_reminder(
     payload: ReminderCreateRequest,
-    user: CurrentUser,
+    user: RegisteredUser,
     service: ReminderServiceDependency,
 ) -> ReminderResponse:
     """为当前登录用户创建一个单次或周期提醒。"""
@@ -76,7 +76,7 @@ def get_reminder(
 def update_reminder(
     reminder_id: ReminderIdPath,
     payload: ReminderUpdateRequest,
-    user: CurrentUser,
+    user: RegisteredUser,
     service: ReminderServiceDependency,
 ) -> ReminderResponse:
     """用完整规则更新提醒，并以 expected_version 拒绝过期表单。"""
@@ -91,7 +91,7 @@ def update_reminder(
 )
 def pause_reminder(
     reminder_id: ReminderIdPath,
-    user: CurrentUser,
+    user: RegisteredUser,
     service: ReminderServiceDependency,
 ) -> ReminderResponse:
     """暂停周期提醒，已开始的 SMTP 调用无法撤回。"""
@@ -106,7 +106,7 @@ def pause_reminder(
 )
 def resume_reminder(
     reminder_id: ReminderIdPath,
-    user: CurrentUser,
+    user: RegisteredUser,
     service: ReminderServiceDependency,
 ) -> ReminderResponse:
     """恢复暂停的周期提醒并计算下一次未来计划。"""
@@ -121,7 +121,7 @@ def resume_reminder(
 )
 def cancel_reminder(
     reminder_id: ReminderIdPath,
-    user: CurrentUser,
+    user: RegisteredUser,
     service: ReminderServiceDependency,
 ) -> ReminderResponse:
     """软取消提醒，保留所有已经创建的执行历史。"""

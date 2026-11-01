@@ -11,6 +11,10 @@ def get_user(session: Session, account: str) -> User | None:
     return session.scalar(select(User).where(User.account == account))
 
 
+def get_user_by_id(session: Session, user_id: int) -> User | None:
+    return session.get(User, user_id)
+
+
 def create_user(
     session: Session,
     account: str,
@@ -31,6 +35,24 @@ def create_user(
         return None
     session.refresh(user)
     return user
+
+
+def create_guest_user(session: Session, created_at: datetime) -> User:
+    user = User(
+        account=None,
+        password_hash=None,
+        is_guest=True,
+        created_at=created_at,
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+def delete_user(session: Session, user: User) -> None:
+    session.delete(user)
+    session.commit()
 
 
 def update_last_login(session: Session, user: User, timestamp: datetime) -> None:

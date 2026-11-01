@@ -4,7 +4,7 @@
 
 - **关系型数据库：** PostgreSQL 17。
 - **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`、`task_results`、`resumes`。
-- **验证码和登录状态：** 保存在 Redis；聊天会话和消息保存在 PostgreSQL。
+- **验证码和认证会话：** 保存在 Redis；用户及业务数据保存在 PostgreSQL。访客身份同样使用 `users.id` 归属业务数据。
 - **迁移：** Alembic。Docker 后端启动时自动执行迁移；本地可在 `backend/` 目录运行 `python -m alembic upgrade head`。
 
 ## `users` — 用户账号
@@ -12,21 +12,22 @@
 | 字段            | PostgreSQL 类型 | 可空 | 默认值  | 键/约束 | 说明                                                     |
 | --------------- | --------------- | ---- | ------- | ------- | -------------------------------------------------------- |
 | `id`            | `BIGINT`        | 否   | 应用侧 Snowflake | 主键 | 用户 Snowflake ID，供业务外键引用                        |
-| `account`       | `VARCHAR(254)`  | 否   | —       | 唯一    | 规范化后的邮箱：去除首尾空格并转为小写                   |
-| `password_hash` | `VARCHAR(256)`  | 否   | —       | —       | 使用 scrypt 和随机盐生成的密码哈希，不保存明文密码       |
+| `is_guest`      | `BOOLEAN`       | 否   | `false` | —       | 区分访客与注册用户；既有用户迁移为 `false`               |
+| `account`       | `VARCHAR(254)`  | 是   | `NULL`  | 唯一    | 注册用户的规范化邮箱；访客为空                           |
+| `password_hash` | `VARCHAR(256)`  | 是   | `NULL`  | —       | 注册用户的 scrypt 密码哈希；访客为空                     |
 | `nickname`      | `VARCHAR(20)`   | 是   | `NULL`  | —       | 用户昵称；未设置时资料接口使用邮箱本地部分作为显示值       |
 | `avatar_key`    | `VARCHAR(1024)` | 是   | `NULL`  | — | 用户头像在 OSS 中的对象键，用于安全管理和替换旧对象 |
 | `avatar_url`    | `VARCHAR(2048)` | 是   | `NULL`  | — | 兼容既有自定义头像地址；新头像使用 `avatar_key`，不在此列重复保存 OSS URL |
 | `created_at`    | `TIMESTAMPTZ`   | 否   | `now()` | —       | 账号创建时间；注册时设置                                 |
-| `last_login_at` | `TIMESTAMPTZ`   | 是   | `NULL`  | —       | 最近一次成功认证时间；新账号注册时初始化，成功登录时更新 |
+| `last_login_at` | `TIMESTAMPTZ`   | 是   | `NULL`  | —       | 注册用户最近一次成功登录时间；访客为空                   |
 
-`id` 是由后端应用生成的 Snowflake 主键，`account` 保持唯一约束。创建用户时由 SQLAlchemy client-side default 赋值；PostgreSQL 中不再使用 Identity 序列。
+`id` 是由后端应用生成的 Snowflake 主键，`account` 保持唯一约束。检查约束要求访客的 `account` 与 `password_hash` 均为空，注册用户则两者均非空。访客会话在 Redis 中按令牌摘要映射到 `users.id`，默认有效 7 天；Cookie 过期后访客无法恢复原身份，但访客行及关联业务数据目前不会自动清理。创建用户时由 SQLAlchemy client-side default 赋值；PostgreSQL 中不再使用 Identity 序列。
 
 迁移 `0009_add_user_profile.py` 增加可空昵称和默认头像 URL。迁移 `0010_add_user_avatar_key.py` 增加可空 OSS 对象键，移除头像 URL 列默认值，并将旧默认头像路径置空；既有自定义头像 URL、用户和其他资料均保留。新用户未设置头像时两个头像字段为空，资料接口返回项目静态默认图片。新上传头像仅将 OSS 对象键写入 `avatar_key`；响应中的公开 URL 按需生成。头像字节不写入数据库。
 
 ### 建表迁移
 
-迁移文件：[`backend/migrations/versions/0001_create_users.py`](../../backend/migrations/versions/0001_create_users.py)、[`0002_add_users_identity_id.py`](../../backend/migrations/versions/0002_add_users_identity_id.py)、[`0004_snowflake_primary_ids.py`](../../backend/migrations/versions/0004_snowflake_primary_ids.py)、[`0009_add_user_profile.py`](../../backend/migrations/versions/0009_add_user_profile.py) 与 [`0010_add_user_avatar_key.py`](../../backend/migrations/versions/0010_add_user_avatar_key.py)。数据库另有 Alembic 管理的 `alembic_version` 迁移版本表，它不存放业务数据。
+迁移文件：[`backend/migrations/versions/0001_create_users.py`](../../backend/migrations/versions/0001_create_users.py)、[`0002_add_users_identity_id.py`](../../backend/migrations/versions/0002_add_users_identity_id.py)、[`0004_snowflake_primary_ids.py`](../../backend/migrations/versions/0004_snowflake_primary_ids.py)、[`0009_add_user_profile.py`](../../backend/migrations/versions/0009_add_user_profile.py)、[`0010_add_user_avatar_key.py`](../../backend/migrations/versions/0010_add_user_avatar_key.py) 与 [`0016_guest_users.py`](../../backend/migrations/versions/0016_guest_users.py)。数据库另有 Alembic 管理的 `alembic_version` 迁移版本表，它不存放业务数据。
 
 ## `conversations` — 会话
 
@@ -119,6 +120,6 @@ LangGraph PostgreSQL Checkpointer 使用其依赖管理的内部表保存图执�
 | -------- | --------------------------------------------------- | -------------------------- | ---------------------- |
 | 验证码   | `orionai:auth:code:{purpose}:{sha256(account)}`     | HMAC-SHA256 摘要、失败次数 | 默认 600 秒；修改密码 300 秒 |
 | 重发冷却 | `orionai:auth:cooldown:{purpose}:{sha256(account)}` | 冷却标记                   | 60 秒                  |
-| 登录会话 | `orionai:auth:session:{sha256(cookie_token)}`       | 规范化账号、密码哈希指纹   | 默认 604800 秒（7 天） |
+| 登录会话 | `orionai:auth:session:{sha256(cookie_token)}`       | 注册用户账号及密码哈希指纹，或访客 `user_id` | 默认 604800 秒（7 天） |
 
 验证码摘要使用 `HMAC-SHA256(AUTH_CODE_PEPPER, purpose + ":" + account + ":" + code)` 计算。Redis 不保存原始验证码；会话键使用 Cookie 令牌的 SHA-256 摘要，密码更新后通过密码哈希指纹使旧会话失效。验证码按用途和规范化账号隔离，验证错误最多允许 5 次。

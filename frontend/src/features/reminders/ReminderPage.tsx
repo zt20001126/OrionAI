@@ -27,6 +27,7 @@ import {
 import "./reminders.css";
 
 interface ReminderPageProps {
+  isGuest?: boolean;
   mode: "list" | "create";
   onNavigate: (path: PlatformRoute, replace?: boolean) => Promise<void> | void;
 }
@@ -79,7 +80,7 @@ const EXECUTION_STATUS_MARKS: Record<ReminderExecutionStatus, string> = {
 };
 
 /** 提醒助手列表与独立新建路由，共用编辑、执行历史和 API 状态。 */
-export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
+export function ReminderPage({ isGuest = false, mode, onNavigate }: ReminderPageProps) {
   const { confirm, showToast } = useToast();
   const isCreatePage = mode === "create";
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -258,6 +259,22 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
   const listSummary =
     currentLoadState.status === "success" ? `${currentLoadState.total} 条提醒` : "";
 
+  if (isGuest) {
+    return (
+      <section aria-labelledby="guest-reminders-title" className="reminders-page">
+        <header className="reminders-heading">
+          <div>
+            <h1 id="guest-reminders-title">提醒助手</h1>
+            <p>提醒会发送到账号邮箱，访客身份暂不能使用此功能。</p>
+          </div>
+        </header>
+        <div className="reminders-message" role="status">
+          注册并登录邮箱账号后，即可创建和管理邮件提醒。
+        </div>
+      </section>
+    );
+  }
+
   if (isCreatePage) {
     function leaveCreatePage() {
       if (isSaving) return;
@@ -390,7 +407,6 @@ export function ReminderPage({ mode, onNavigate }: ReminderPageProps) {
           />
         </section>
       )}
-
     </div>
   );
 }
@@ -470,7 +486,12 @@ function ReminderListItem({
         </div>
         <div className="reminder-row__actions">
           {(reminder.status === "active" || reminder.status === "paused") && (
-            <button className="button button--outline" disabled={busy} onClick={onEdit} type="button">
+            <button
+              className="button button--outline"
+              disabled={busy}
+              onClick={onEdit}
+              type="button"
+            >
               编辑
             </button>
           )}
@@ -541,13 +562,12 @@ function ReminderListItem({
                 正在加载执行历史…
               </div>
             ) : currentHistoryState.status === "error" ? (
-              <div className="reminder-history-feedback reminder-history-feedback--error" role="alert">
+              <div
+                className="reminder-history-feedback reminder-history-feedback--error"
+                role="alert"
+              >
                 <span>{currentHistoryState.message}</span>
-                <button
-                  className="button button--secondary"
-                  onClick={retryHistory}
-                  type="button"
-                >
+                <button className="button button--secondary" onClick={retryHistory} type="button">
                   重试
                 </button>
               </div>
@@ -584,19 +604,25 @@ function ExecutionRow({ execution, timezone }: { execution: ReminderExecution; t
         >
           {EXECUTION_STATUS_MARKS[execution.status]}
         </span>
-        <strong className={`reminder-execution-status reminder-execution-status--${execution.status}`}>
+        <strong
+          className={`reminder-execution-status reminder-execution-status--${execution.status}`}
+        >
           {EXECUTION_STATUS_LABELS[execution.status]}
         </strong>
         <span>
           <small>计划执行时间</small>
-          <time dateTime={execution.scheduled_at}>{formatDateTime(execution.scheduled_at, timezone)}</time>
+          <time dateTime={execution.scheduled_at}>
+            {formatDateTime(execution.scheduled_at, timezone)}
+          </time>
         </span>
       </div>
       <div className="reminder-execution-row__details">
         <span>
           <small>实际开始</small>
           {execution.started_at ? (
-            <time dateTime={execution.started_at}>{formatDateTime(execution.started_at, timezone)}</time>
+            <time dateTime={execution.started_at}>
+              {formatDateTime(execution.started_at, timezone)}
+            </time>
           ) : (
             "尚未开始"
           )}
@@ -604,9 +630,13 @@ function ExecutionRow({ execution, timezone }: { execution: ReminderExecution; t
         <span>
           <small>实际结束</small>
           {execution.finished_at ? (
-            <time dateTime={execution.finished_at}>{formatDateTime(execution.finished_at, timezone)}</time>
+            <time dateTime={execution.finished_at}>
+              {formatDateTime(execution.finished_at, timezone)}
+            </time>
+          ) : execution.started_at ? (
+            "执行中"
           ) : (
-            execution.started_at ? "执行中" : "尚未开始"
+            "尚未开始"
           )}
         </span>
         <span>

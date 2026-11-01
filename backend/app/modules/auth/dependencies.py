@@ -5,16 +5,13 @@ from urllib.parse import urlsplit
 
 from fastapi import Depends, HTTPException, Request
 from redis import Redis
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.redis.auth_state import RedisAuthStateStore
 from app.infrastructure.redis.client import get_redis_client
-from app.modules.auth.errors import AuthUnavailableError
 from app.modules.auth.models import User
-from app.modules.auth.repository import get_user
 from app.modules.auth.service import AuthService
 
 
@@ -37,17 +34,17 @@ def get_current_user(
     """验证 Cookie Session 并返回用户 ORM，拒绝匿名访问会话数据。"""
 
     auth_service = AuthService(session, RedisAuthStateStore(redis_client), settings)
-    account = auth_service.get_session_account(request.cookies.get(settings.auth_cookie_name))
-    if account is None:
-        raise HTTPException(status_code=401, detail="请先登录。")
-
-    try:
-        user = get_user(session, account)
-    except SQLAlchemyError:
-        session.rollback()
-        raise AuthUnavailableError from None
+    user = auth_service.get_session_user(request.cookies.get(settings.auth_cookie_name))
     if user is None:
-        raise HTTPException(status_code=401, detail="登录状态已失效，请重新登录。")
+        raise HTTPException(status_code=401, detail="请先登录。")
+    return user
+
+
+def get_registered_user(user: Annotated[User, Depends(get_current_user)]) -> User:
+    """限制需要已验证邮箱的操作只能由注册用户执行。"""
+
+    if user.is_guest:
+        raise HTTPException(status_code=403, detail="此功能需要注册账号后使用。")
     return user
 
 
@@ -65,3 +62,7 @@ def validate_origin(request: Request) -> None:
         or parsed_origin.netloc.lower() != request_host.lower()
     ):
         raise HTTPException(status_code=403, detail="请求来源无效。")
+
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
+RegisteredUser = Annotated[User, Depends(get_registered_user)]

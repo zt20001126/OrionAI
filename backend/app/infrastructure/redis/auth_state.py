@@ -30,8 +30,9 @@ return 3
 
 @dataclass(frozen=True)
 class AuthSession:
-    account: str
-    password_fingerprint: str
+    account: str | None = None
+    password_fingerprint: str | None = None
+    user_id: int | None = None
 
 
 class RedisAuthStateStore:
@@ -87,6 +88,7 @@ class RedisAuthStateStore:
             {
                 "account": session.account,
                 "password_fingerprint": session.password_fingerprint,
+                "user_id": session.user_id,
             }
         )
         self._client.setex(self._session_key(token_digest), ttl_seconds, payload)
@@ -97,13 +99,25 @@ class RedisAuthStateStore:
             return None
         try:
             session_data = json.loads(payload)
-            account = session_data["account"]
-            password_fingerprint = session_data["password_fingerprint"]
-            if not isinstance(account, str) or not isinstance(password_fingerprint, str):
+            if not isinstance(session_data, dict):
+                raise ValueError("Invalid session payload")
+            account = session_data.get("account")
+            password_fingerprint = session_data.get("password_fingerprint")
+            user_id = session_data.get("user_id")
+            if account is not None and not isinstance(account, str):
+                raise ValueError("Invalid session account")
+            if password_fingerprint is not None and not isinstance(password_fingerprint, str):
+                raise ValueError("Invalid session fingerprint")
+            if user_id is not None and (not isinstance(user_id, int) or user_id <= 0):
+                raise ValueError("Invalid session user ID")
+            if account is None and user_id is None:
+                raise ValueError("Session has no identity")
+            if account is not None and password_fingerprint is None:
                 raise ValueError("Invalid session payload")
             return AuthSession(
                 account=account,
                 password_fingerprint=password_fingerprint,
+                user_id=user_id,
             )
         except (KeyError, TypeError, ValueError):
             self.delete_session(token_digest)

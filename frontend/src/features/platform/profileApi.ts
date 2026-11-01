@@ -3,7 +3,7 @@ import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
 
 export interface UserProfile {
   nickname: string;
-  account: string;
+  account: string | null;
   avatar_url: string;
   created_at: string;
   last_login_at: string | null;

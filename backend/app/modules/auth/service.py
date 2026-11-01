@@ -171,6 +171,8 @@ class AuthService:
         if not verify_password(password, user.password_hash if user else None):
             raise InvalidCredentialsError
         assert user is not None
+        if user.is_guest:
+            raise InvalidCredentialsError
         now = datetime.now(UTC)
         try:
             repository.update_last_login(self._session, user, now)
@@ -179,7 +181,27 @@ class AuthService:
             raise AuthUnavailableError from error
         return account, self._create_session(user)
 
-    def get_session_account(self, token: str | None) -> str | None:
+    def guest_login(self) -> str:
+        """创建临时访客用户，并签发沿用现有时长的 Cookie 会话。"""
+
+        try:
+            user = repository.create_guest_user(self._session, datetime.now(UTC))
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise AuthUnavailableError from error
+
+        try:
+            return self._create_session(user)
+        except AuthUnavailableError:
+            try:
+                repository.delete_user(self._session, user)
+            except SQLAlchemyError:
+                self._session.rollback()
+            raise
+
+    def get_session_user(self, token: str | None) -> User | None:
+        """将 Redis 会话解析为注册用户或访客用户，并验证会话仍有效。"""
+
         if not token:
             return None
         token_digest = _token_digest(token)
@@ -187,16 +209,38 @@ class AuthService:
             auth_session = self._state_store.get_session(token_digest)
             if auth_session is None:
                 return None
+
+            if auth_session.account is None:
+                user = self._get_user_by_id(auth_session.user_id)
+                if (
+                    user is None
+                    or not user.is_guest
+                    or user.password_hash is not None
+                    or auth_session.password_fingerprint is not None
+                ):
+                    self._state_store.delete_session(token_digest)
+                    return None
+                return user
+
             user = self._get_user(auth_session.account)
-            if user is None or not hmac.compare_digest(
-                _password_fingerprint(user.password_hash),
-                auth_session.password_fingerprint,
+            if (
+                user is None
+                or user.password_hash is None
+                or auth_session.password_fingerprint is None
+                or not hmac.compare_digest(
+                    _password_fingerprint(user.password_hash),
+                    auth_session.password_fingerprint,
+                )
             ):
                 self._state_store.delete_session(token_digest)
                 return None
-            return user.account
+            return user
         except RedisError as error:
             raise AuthUnavailableError from error
+
+    def get_session_account(self, token: str | None) -> str | None:
+        user = self.get_session_user(token)
+        return user.account if user is not None else None
 
     def logout(self, token: str | None) -> None:
         if token:
@@ -225,6 +269,8 @@ class AuthService:
         user = self._get_user(normalize_email(account))
         if user is None:
             raise InvalidCredentialsError
+        if user.account is None or user.password_hash is None:
+            raise InvalidCredentialsError
         if verify_password(new_password, user.password_hash):
             raise PasswordPolicyError("新密码不能与当前密码相同。")
         self._consume_code(user.account, "password_change", code)
@@ -237,6 +283,15 @@ class AuthService:
     def _get_user(self, account: str) -> User | None:
         try:
             return repository.get_user(self._session, account)
+        except SQLAlchemyError as error:
+            self._session.rollback()
+            raise AuthUnavailableError from error
+
+    def _get_user_by_id(self, user_id: int | None) -> User | None:
+        if user_id is None:
+            return None
+        try:
+            return repository.get_user_by_id(self._session, user_id)
         except SQLAlchemyError as error:
             self._session.rollback()
             raise AuthUnavailableError from error
@@ -281,10 +336,15 @@ class AuthService:
 
     def _create_session(self, user: User) -> str:
         token = secrets.token_urlsafe(32)
-        session = AuthSession(
-            account=user.account,
-            password_fingerprint=_password_fingerprint(user.password_hash),
-        )
+        if user.is_guest:
+            session = AuthSession(user_id=user.id)
+        else:
+            if user.account is None or user.password_hash is None:
+                raise AuthUnavailableError
+            session = AuthSession(
+                account=user.account,
+                password_fingerprint=_password_fingerprint(user.password_hash),
+            )
         try:
             self._state_store.save_session(
                 _token_digest(token),

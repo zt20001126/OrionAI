@@ -7,6 +7,7 @@ interface ProfileMenuProps {
   account: string;
   avatarUrl?: string | null;
   isLoggingOut: boolean;
+  isGuest?: boolean;
   nickname?: string | null;
   onLogout: () => void;
   onNavigate: (path: PlatformPath) => void;
@@ -20,6 +21,7 @@ export function ProfileMenu({
   account,
   avatarUrl,
   isLoggingOut,
+  isGuest = false,
   nickname,
   onLogout,
   onNavigate,
@@ -33,7 +35,7 @@ export function ProfileMenu({
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
-  const displayName = nickname?.trim() || getDisplayName(account);
+  const displayName = nickname?.trim() || (isGuest ? "访客用户" : getDisplayName(account));
 
   const closeMenu = useCallback(() => {
     setIsOpen(false);
@@ -93,14 +95,14 @@ export function ProfileMenu({
         data-tooltip={tooltipLabel}
         onClick={isOpen ? closeMenu : openMenu}
         ref={triggerRef}
-        title={variant === "sidebar" && !collapsed ? account : undefined}
+        title={variant === "sidebar" && !collapsed ? (isGuest ? "访客用户" : account) : undefined}
         type="button"
       >
         <UserAvatar account={account} avatarUrl={avatarUrl} key={avatarUrl || "default-avatar"} />
         {variant === "sidebar" && (
           <span className="profile-menu__trigger-copy">
             <strong>{displayName}</strong>
-            <small>已登录</small>
+            <small>{isGuest ? "访客体验" : "已登录"}</small>
           </span>
         )}
         <PlatformIcon name="chevron" size={15} />
@@ -125,7 +127,7 @@ export function ProfileMenu({
             />
             <span>
               <strong>{displayName}</strong>
-              <small title={account}>{account}</small>
+              <small title={account}>{isGuest ? "访客账号 · 默认有效 7 天" : account}</small>
             </span>
           </div>
           <div className="profile-menu__divider" />

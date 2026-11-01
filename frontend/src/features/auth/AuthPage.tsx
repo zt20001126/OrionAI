@@ -4,11 +4,13 @@ import { useToast } from "../../components/ToastProvider";
 import { BrandMark, ProductIntro } from "./ProductIntro";
 import {
   ApiError,
+  guestLogin,
   login,
   register,
   requestEmailCode,
   resetPassword,
   type AuthPurpose,
+  type AuthIdentity,
 } from "./authApi";
 
 type AuthView = "login" | "register" | "password_reset";
@@ -16,7 +18,7 @@ type AuthView = "login" | "register" | "password_reset";
 interface AuthPageProps {
   initialMessage?: string | null;
   initialSuccessMessage?: string | null;
-  onAuthenticated: (account: string) => void;
+  onAuthenticated: (identity: AuthIdentity) => void;
 }
 
 const viewContent: Record<AuthView, { title: string; subtitle: string }> = {
@@ -38,6 +40,7 @@ export function AuthPage({
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGuestSubmitting, setIsGuestSubmitting] = useState(false);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
 
   useEffect(() => {
@@ -85,10 +88,10 @@ export function AuthPage({
     try {
       if (view === "login") {
         const result = await login(email, password);
-        onAuthenticated(result.account);
+        onAuthenticated({ account: result.account, is_guest: false });
       } else if (view === "register") {
         const result = await register(email, code, password, passwordConfirmation);
-        onAuthenticated(result.account);
+        onAuthenticated({ account: result.account, is_guest: false });
       } else {
         const result = await resetPassword(email, code, password, passwordConfirmation);
         changeView("login");
@@ -98,6 +101,18 @@ export function AuthPage({
       showToast("error", getErrorMessage(submitError));
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleGuestLogin() {
+    setIsGuestSubmitting(true);
+    try {
+      const session = await guestLogin();
+      onAuthenticated({ account: session.account, is_guest: session.is_guest === true });
+    } catch (loginError) {
+      showToast("error", getErrorMessage(loginError));
+    } finally {
+      setIsGuestSubmitting(false);
     }
   }
 
@@ -256,7 +271,7 @@ export function AuthPage({
 
             <button
               className="button button--primary submit-button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isGuestSubmitting}
               type="submit"
             >
               {isSubmitting ? (
@@ -273,6 +288,32 @@ export function AuthPage({
               )}
             </button>
           </form>
+
+          {view === "login" && (
+            <div className="auth-guest-option">
+              <div className="auth-guest-divider" aria-hidden="true">
+                <span>或</span>
+              </div>
+              <button
+                className="button button--outline auth-guest-button"
+                disabled={isSubmitting || isGuestSubmitting}
+                onClick={() => void handleGuestLogin()}
+                type="button"
+              >
+                {isGuestSubmitting ? (
+                  <>
+                    <span className="button-spinner auth-guest-spinner" aria-hidden="true" />
+                    正在进入访客空间…
+                  </>
+                ) : (
+                  "以访客身份体验"
+                )}
+              </button>
+              <p className="auth-guest-note">
+                无需注册 · 会话默认有效 7 天，清除 Cookie 后无法恢复访客数据
+              </p>
+            </div>
+          )}
 
           <p className="auth-security-note">
             <ShieldIcon />

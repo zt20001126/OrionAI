@@ -91,3 +91,4 @@ class AccountResponse(BaseModel):
 class SessionResponse(BaseModel):
     authenticated: bool
     account: str | None = None
+    is_guest: bool = False

@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 
 from app.core.config import Settings, get_settings
 from app.modules.auth.cookies import clear_session_cookie
@@ -10,7 +10,7 @@ from app.modules.auth.dependencies import get_auth_service, validate_origin
 from app.modules.auth.schemas import MessageResponse, PasswordChangeRequest
 from app.modules.auth.service import AuthService
 from app.modules.users.constants import MAX_AVATAR_UPLOAD_BYTES
-from app.modules.users.dependencies import CurrentUser, UsersServiceDependency
+from app.modules.users.dependencies import CurrentUser, RegisteredUser, UsersServiceDependency
 from app.modules.users.schemas import UpdateUserProfileRequest, UserProfileResponse
 
 router = APIRouter(prefix="/v1/users", tags=["users"])
@@ -59,11 +59,13 @@ def update_my_profile(
     dependencies=[Depends(validate_origin)],
 )
 def send_password_change_code(
-    user: CurrentUser,
+    user: RegisteredUser,
     service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> MessageResponse:
     """向当前登录用户绑定的邮箱发送修改密码验证码。"""
 
+    if user.account is None:
+        raise HTTPException(status_code=403, detail="此功能需要注册账号后使用。")
     return MessageResponse(message=service.request_password_change_code(user.account))
 
 
@@ -75,12 +77,14 @@ def send_password_change_code(
 def change_my_password(
     payload: PasswordChangeRequest,
     response: Response,
-    user: CurrentUser,
+    user: RegisteredUser,
     service: Annotated[AuthService, Depends(get_auth_service)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> MessageResponse:
     """修改当前用户密码并清除当前浏览器会话 Cookie。"""
 
+    if user.account is None:
+        raise HTTPException(status_code=403, detail="此功能需要注册账号后使用。")
     service.change_password(user.account, payload.code, payload.new_password)
     clear_session_cookie(response, settings)
     return MessageResponse(message="密码已修改，请使用新密码重新登录。")

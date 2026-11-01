@@ -14,6 +14,7 @@ interface PlatformLayoutProps {
   avatarUrl?: string | null;
   children: ReactNode;
   isLoggingOut: boolean;
+  isGuest?: boolean;
   nickname?: string | null;
   onLogout: () => void;
   onNavigate: (path: PlatformRoute) => void;
@@ -25,6 +26,7 @@ export function PlatformLayout({
   avatarUrl,
   children,
   isLoggingOut,
+  isGuest = false,
   nickname,
   onLogout,
   onNavigate,
@@ -75,6 +77,7 @@ export function PlatformLayout({
         account={account}
         avatarUrl={avatarUrl}
         isLoggingOut={isLoggingOut}
+        isGuest={isGuest}
         nickname={nickname}
         onLogout={onLogout}
         onNavigate={onNavigate}
@@ -99,6 +102,7 @@ export function PlatformLayout({
               account={account}
               avatarUrl={avatarUrl}
               isLoggingOut={isLoggingOut}
+              isGuest={isGuest}
               nickname={nickname}
               onLogout={onLogout}
               onNavigate={onNavigate}

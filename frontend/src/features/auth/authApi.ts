@@ -5,6 +5,12 @@ export type AuthPurpose = "register" | "password_reset";
 export interface AuthSession {
   authenticated: boolean;
   account: string | null;
+  is_guest?: boolean;
+}
+
+export interface AuthIdentity {
+  account: string | null;
+  is_guest: boolean;
 }
 
 export interface AccountResponse {
@@ -23,9 +29,9 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, body?: object): Promise<T> {
+async function request<T>(path: string, body?: object, method?: "GET" | "POST"): Promise<T> {
   const response = await fetch(`/api/auth/${path}`, {
-    method: body ? "POST" : "GET",
+    method: method ?? (body ? "POST" : "GET"),
     credentials: "include",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -79,6 +85,10 @@ export function register(
 
 export function login(email: string, password: string): Promise<AccountResponse> {
   return request("login", { email, password });
+}
+
+export function guestLogin(): Promise<AuthSession> {
+  return request<AuthSession>("guest", undefined, "POST");
 }
 
 export function resetPassword(

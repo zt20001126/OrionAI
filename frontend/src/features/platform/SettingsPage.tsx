@@ -7,6 +7,7 @@ import { SecuritySettingsPage } from "./SecuritySettingsPage";
 
 interface SettingsPageProps {
   account: string;
+  isGuest?: boolean;
   onNavigate: (path: PlatformRoute) => void;
   onDirtyChange: (isDirty: boolean) => void;
   onPasswordChanged: (message: string) => void;
@@ -17,6 +18,7 @@ interface SettingsPageProps {
 /** 设置页外壳，个人和安全设置在同一应用页面内切换。 */
 export function SettingsPage({
   account,
+  isGuest = false,
   onNavigate,
   onDirtyChange,
   onPasswordChanged,
@@ -25,7 +27,7 @@ export function SettingsPage({
 }: SettingsPageProps) {
   const [profileDirty, setProfileDirty] = useState(false);
   const [securityDirty, setSecurityDirty] = useState(false);
-  const isSecuritySettings = pathname === platformPaths.securitySettings;
+  const isSecuritySettings = !isGuest && pathname === platformPaths.securitySettings;
 
   useEffect(() => {
     onDirtyChange(profileDirty || securityDirty);
@@ -47,14 +49,16 @@ export function SettingsPage({
         >
           个人设置
         </button>
-        <button
-          aria-current={isSecuritySettings ? "page" : undefined}
-          className={`account-settings-nav__item${isSecuritySettings ? " is-active" : ""}`}
-          onClick={() => selectTab(platformPaths.securitySettings)}
-          type="button"
-        >
-          安全设置
-        </button>
+        {!isGuest && (
+          <button
+            aria-current={isSecuritySettings ? "page" : undefined}
+            className={`account-settings-nav__item${isSecuritySettings ? " is-active" : ""}`}
+            onClick={() => selectTab(platformPaths.securitySettings)}
+            type="button"
+          >
+            安全设置
+          </button>
+        )}
       </nav>
 
       <div className="account-settings-content">
@@ -63,12 +67,14 @@ export function SettingsPage({
           onDirtyChange={setProfileDirty}
           onProfileUpdated={onProfileUpdated}
         />
-        <SecuritySettingsPage
-          account={account}
-          hidden={!isSecuritySettings}
-          onDirtyChange={setSecurityDirty}
-          onPasswordChanged={onPasswordChanged}
-        />
+        {!isGuest && (
+          <SecuritySettingsPage
+            account={account}
+            hidden={!isSecuritySettings}
+            onDirtyChange={setSecurityDirty}
+            onPasswordChanged={onPasswordChanged}
+          />
+        )}
       </div>
     </section>
   );

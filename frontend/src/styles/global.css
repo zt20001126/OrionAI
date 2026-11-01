@@ -925,6 +925,45 @@ button {
   margin-top: var(--space-1);
 }
 
+.auth-guest-option {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.auth-guest-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+}
+
+.auth-guest-divider::before,
+.auth-guest-divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--color-border);
+  content: "";
+}
+
+.auth-guest-divider span {
+  line-height: var(--line-height-normal);
+}
+
+.auth-guest-button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.auth-guest-note {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+  text-align: center;
+}
+
 .button-spinner,
 .status-spinner {
   width: 16px;
@@ -933,6 +972,11 @@ button {
   border-top-color: var(--color-surface);
   border-radius: var(--radius-pill);
   animation: spin 800ms linear infinite;
+}
+
+.button-spinner.auth-guest-spinner {
+  border-color: var(--color-border-strong);
+  border-top-color: var(--color-brand);
 }
 
 .auth-security-note {

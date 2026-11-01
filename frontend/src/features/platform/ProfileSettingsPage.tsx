@@ -169,7 +169,7 @@ export function ProfileSettingsPage({
         <div className="profile-settings__avatar-section">
           <div className="profile-settings__avatar-wrap">
             <img
-              alt={`${nickname || profile.account} 的头像`}
+              alt={`${nickname || profile.account || "访客用户"} 的头像`}
               className="profile-settings__avatar"
               src={avatarSource}
             />
@@ -225,9 +225,9 @@ export function ProfileSettingsPage({
           <div className="profile-settings__detail-row">
             <dt>
               <PlatformIcon name="user" size={20} />
-              <span>账号</span>
+              <span>{profile.account ? "账号" : "身份"}</span>
             </dt>
-            <dd>{profile.account}</dd>
+            <dd>{profile.account || "访客体验"}</dd>
           </div>
           <div className="profile-settings__detail-row">
             <dt>
@@ -236,13 +236,15 @@ export function ProfileSettingsPage({
             </dt>
             <dd>{formatDateTime(profile.created_at)}</dd>
           </div>
-          <div className="profile-settings__detail-row">
-            <dt>
-              <PlatformIcon name="clock" size={20} />
-              <span>最后登录时间</span>
-            </dt>
-            <dd>{formatDateTime(profile.last_login_at)}</dd>
-          </div>
+          {profile.account && (
+            <div className="profile-settings__detail-row">
+              <dt>
+                <PlatformIcon name="clock" size={20} />
+                <span>最后登录时间</span>
+              </dt>
+              <dd>{formatDateTime(profile.last_login_at)}</dd>
+            </div>
+          )}
         </dl>
 
         <footer className="profile-settings__actions">
