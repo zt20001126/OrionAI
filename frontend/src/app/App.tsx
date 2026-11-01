@@ -62,6 +62,7 @@ function AppContent() {
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const guestRestrictedRedirect = getGuestRestrictedRedirect(pathname, isGuest);
   const historyIndexRef = useRef<number | null>(null);
   const pendingNavigationRef = useRef(false);
   const pendingPopNavigationRef = useRef<PendingPopNavigation | null>(null);
@@ -299,10 +300,8 @@ function AppContent() {
 
     let redirectPath: AppPath | null = null;
     if (identity) {
-      if (identity.is_guest && pathname === platformPaths.securitySettings) {
-        redirectPath = platformPaths.settings;
-      } else if (identity.is_guest && pathname === platformPaths.reminderCreate) {
-        redirectPath = platformPaths.reminders;
+      if (guestRestrictedRedirect) {
+        redirectPath = guestRestrictedRedirect;
       } else if (!isPlatformPath(pathname)) {
         redirectPath = platformPaths.market;
       }
@@ -319,7 +318,7 @@ function AppContent() {
         redirectPath,
       );
     }
-  }, [identity, isRestoringSession, pathname]);
+  }, [guestRestrictedRedirect, identity, isRestoringSession, pathname]);
 
   async function handleLogout() {
     setIsLoggingOut(true);
@@ -395,12 +394,7 @@ function AppContent() {
     );
   }
 
-  const guestSafePathname =
-    isGuest && pathname === platformPaths.securitySettings
-      ? platformPaths.settings
-      : isGuest && pathname === platformPaths.reminderCreate
-        ? platformPaths.reminders
-        : pathname;
+  const guestSafePathname = guestRestrictedRedirect ?? pathname;
   const safePathname: PlatformRoute = isPlatformPath(guestSafePathname)
     ? guestSafePathname
     : platformPaths.market;
@@ -471,6 +465,13 @@ function getLeaveConfirmation() {
     confirmLabel: "放弃修改并离开",
     tone: "warning" as const,
   };
+}
+
+function getGuestRestrictedRedirect(pathname: string, isGuest: boolean): AppPath | null {
+  if (!isGuest) return null;
+  if (pathname === platformPaths.securitySettings) return platformPaths.settings;
+  if (pathname === platformPaths.reminderCreate) return platformPaths.reminders;
+  return null;
 }
 
 function getHistoryIndex(state: unknown): number | null {

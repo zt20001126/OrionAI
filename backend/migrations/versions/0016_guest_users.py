@@ -1,4 +1,4 @@
-"""Add temporary guest identities to the existing users table."""
+"""在现有 users 表中增加访客身份支持。"""
 
 from collections.abc import Sequence
 
