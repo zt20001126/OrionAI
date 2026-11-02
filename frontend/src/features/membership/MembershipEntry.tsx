@@ -3,6 +3,8 @@ import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { useMembershipStatus } from "./MembershipStatusContext";
 import { t } from "../../i18n/localeStore";
 
+import "./MembershipEntry.css";
+
 export function MembershipEntry({ onNavigate }: { onNavigate: (path: PlatformRoute) => void }) {
   const { overview, isLoading, error } = useMembershipStatus();
   const isActive = Boolean(overview?.active_period);
