@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query
 
 from app.modules.auth.dependencies import RegisteredUser, validate_origin
+from app.modules.membership.dependencies import require_membership_access
 from app.modules.reminders.constants import MAX_SNOWFLAKE_ID, PAGE_SIZE_DEFAULT, PAGE_SIZE_MAX
 from app.modules.reminders.dependencies import CurrentUser, ReminderServiceDependency
 from app.modules.reminders.schemas import (
@@ -29,7 +30,7 @@ ReminderOffsetQuery = Annotated[int, Query(ge=0)]
     "",
     response_model=ReminderResponse,
     status_code=201,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def create_reminder(
     payload: ReminderCreateRequest,
@@ -71,7 +72,7 @@ def get_reminder(
 @router.put(
     "/{reminder_id}",
     response_model=ReminderResponse,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def update_reminder(
     reminder_id: ReminderIdPath,
@@ -102,7 +103,7 @@ def pause_reminder(
 @router.post(
     "/{reminder_id}/resume",
     response_model=ReminderResponse,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def resume_reminder(
     reminder_id: ReminderIdPath,

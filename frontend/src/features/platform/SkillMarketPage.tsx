@@ -7,7 +7,7 @@ import { SkillCard } from "./SkillCard";
 import { SkillDetailsDialog } from "./SkillDetailsDialog";
 import { skillCategories, type PlatformRoute, type SkillCategory } from "./platformData";
 import { addSkillToMySkills, listMarketSkills, type MarketSkill } from "./skillApi";
-import { canLaunchSkill, launchSkill } from "./skillUsage";
+import { canLaunchSkill, ensureSkillMembership, launchSkill } from "./skillUsage";
 
 interface SkillMarketPageProps {
   onNavigate: (path: PlatformRoute) => void;
@@ -22,7 +22,7 @@ const EMPTY_SKILLS: MarketSkill[] = [];
 
 /** 技能市场页面，负责加载数据库技能并协调搜索、分类和详情弹窗。 */
 export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
-  const { showToast } = useToast();
+  const { confirm, showToast } = useToast();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<SkillCategory>("全部");
   const [selectedSkill, setSelectedSkill] = useState<MarketSkill | null>(null);
@@ -98,6 +98,12 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
   async function handleUseSkill(skill: MarketSkill) {
     setStartingSkillIds((current) => new Set(current).add(skill.id));
     try {
+      if (
+        !(await ensureSkillMembership(onNavigate, confirm, (message) =>
+          showToast("error", message),
+        ))
+      )
+        return;
       await launchSkill(skill, onNavigate);
     } catch (error) {
       showToast("error", getConversationErrorMessage(error));

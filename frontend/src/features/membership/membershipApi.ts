@@ -56,6 +56,20 @@ export function getMembershipOverview(signal?: AbortSignal): Promise<MembershipO
   return request<MembershipOverview>("/api/v1/users/me/membership", { signal });
 }
 
+/** 每次技能使用前从服务端读取 Redis 缓存的会员准入结果。 */
+export async function checkMembershipAccess(signal?: AbortSignal): Promise<boolean> {
+  const response = await request<unknown>("/api/v1/users/me/membership/access", { signal });
+  if (
+    typeof response !== "object" ||
+    response === null ||
+    !("is_member" in response) ||
+    typeof response.is_member !== "boolean"
+  ) {
+    throw new MembershipApiError("会员状态响应无效，请稍后重试。", 0);
+  }
+  return response.is_member;
+}
+
 export function listMembershipOrders(
   page: number,
   pageSize: number,

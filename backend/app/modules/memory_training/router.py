@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path
 
 from app.modules.auth.dependencies import validate_origin
+from app.modules.membership.dependencies import require_membership_access
 from app.modules.memory_training.constants import QUESTION_COUNT
 from app.modules.memory_training.dependencies import (
     CurrentUser,
@@ -40,7 +41,7 @@ def get_preparation(
     "/sessions",
     response_model=SessionCreatedResponse,
     status_code=201,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def create_training_session(
     user: CurrentUser,
@@ -55,7 +56,7 @@ def create_training_session(
     "/sessions/{session_id}/observation/start",
     response_model=ObservationStartedResponse,
     status_code=202,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def start_observation(
     session_id: SessionIdPath,
@@ -95,7 +96,7 @@ def get_training_questions(
 @router.post(
     "/sessions/{session_id}/answers",
     response_model=SubmissionSummaryResponse,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def submit_training_answers(
     session_id: SessionIdPath,

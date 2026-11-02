@@ -16,6 +16,16 @@ from app.modules.membership.models import Membership, MembershipOrder, Membershi
 from app.modules.membership.service import MembershipService
 
 
+class RecordingAccessCache:
+    """记录支付确认触发的会员准入缓存失效。"""
+
+    def __init__(self) -> None:
+        self.invalidated_user_ids: list[int] = []
+
+    def invalidate(self, user_id: int) -> None:
+        self.invalidated_user_ids.append(user_id)
+
+
 @pytest.fixture
 def membership_session():
     """使用隔离的 SQLite 数据库验证会员用例，不连接项目配置的业务数据库。"""
@@ -122,7 +132,12 @@ def test_paid_orders_extend_period_and_duplicate_webhook_is_idempotent(membershi
 
     session, user, monthly, quarterly, _disabled = membership_session
     confirmed_at = datetime(2026, 11, 2, 12, tzinfo=UTC)
-    service = MembershipService(session, clock=lambda: confirmed_at)
+    access_cache = RecordingAccessCache()
+    service = MembershipService(
+        session,
+        access_cache=access_cache,  # type: ignore[arg-type]
+        clock=lambda: confirmed_at,
+    )
 
     first_response = service.create_order(
         user_id=user.id,
@@ -141,6 +156,7 @@ def test_paid_orders_extend_period_and_duplicate_webhook_is_idempotent(membershi
     )
     assert service.apply_verified_payment_event(first_event)
     assert service.apply_verified_payment_event(first_event)
+    assert access_cache.invalidated_user_ids == [user.id, user.id]
 
     second_response = service.create_order(
         user_id=user.id,
@@ -159,6 +175,7 @@ def test_paid_orders_extend_period_and_duplicate_webhook_is_idempotent(membershi
             confirmed_at=confirmed_at + timedelta(days=1),
         )
     )
+    assert access_cache.invalidated_user_ids == [user.id, user.id, user.id]
 
     periods = list(
         session.scalars(

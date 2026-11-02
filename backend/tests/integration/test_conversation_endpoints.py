@@ -29,6 +29,7 @@ from app.modules.auth.models import User
 from app.modules.conversations.models import Conversation
 from app.modules.conversations.service import ConversationService
 from app.modules.conversations.title import fallback_conversation_title
+from app.modules.membership.dependencies import require_membership_access
 from app.modules.skills.models import Skill, UserSkill
 
 
@@ -232,8 +233,14 @@ def conversation_client() -> Iterator[
     def override_current_user() -> User:
         return users["current"]
 
+    def override_membership_access() -> None:
+        """让对话行为测试聚焦 Agent 流程；会员拒绝由准入集成测试覆盖。"""
+
+        return None
+
     test_app.dependency_overrides[get_db_session] = override_db_session
     test_app.dependency_overrides[get_current_user] = override_current_user
+    test_app.dependency_overrides[require_membership_access] = override_membership_access
     test_app.state.conversation_agent = agent
     test_app.state.agent_registry = {"general_chat": agent, "image_agent": agent}
     test_app.state.conversation_title_generator = title_generator

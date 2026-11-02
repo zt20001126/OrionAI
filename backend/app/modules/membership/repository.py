@@ -141,6 +141,24 @@ def list_periods(
     return list(session.execute(statement))
 
 
+def get_access_period(
+    session: Session,
+    user_id: int,
+    *,
+    now: datetime,
+) -> tuple[datetime, datetime] | None:
+    """读取当前或最近未来会员期限，供准入缓存计算下一状态边界。"""
+
+    statement = (
+        select(Membership.starts_at, Membership.expires_at)
+        .where(Membership.user_id == user_id, Membership.expires_at > now)
+        .order_by(Membership.starts_at.asc(), Membership.order_id.asc())
+        .limit(1)
+    )
+    row = session.execute(statement).one_or_none()
+    return (row.starts_at, row.expires_at) if row is not None else None
+
+
 def lock_user(session: Session, user_id: int) -> int | None:
     """锁定用户行，串行化同一用户并发会员入账的排期计算。"""
 

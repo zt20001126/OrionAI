@@ -6,10 +6,12 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from redis.exceptions import RedisError
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.modules.membership import repository
+from app.modules.membership.access_cache import MembershipAccessCache
 from app.modules.membership.constants import MembershipOrderStatus
 from app.modules.membership.dto import (
     PaymentEventOutcome,
@@ -100,8 +102,15 @@ def _period_response(
 class MembershipService:
     """实现会员下单、状态查询与支付确认后的有效期排期。"""
 
-    def __init__(self, session: Session, *, clock: Callable[[], datetime] = utc_now) -> None:
+    def __init__(
+        self,
+        session: Session,
+        *,
+        access_cache: MembershipAccessCache | None = None,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
         self._session = session
+        self._access_cache = access_cache
         self._clock = clock
 
     def list_plans(self) -> list[MembershipPlanResponse]:
@@ -370,7 +379,9 @@ class MembershipService:
                     existing_period = repository.get_period_by_order(self._session, order.id)
                     if existing_period is None:
                         raise MembershipUnavailableError
+                    user_id = order.user_id
                     self._session.commit()
+                    self._invalidate_access_cache(user_id)
                     return True
 
                 confirmed_at = _as_utc(self._clock())
@@ -399,7 +410,10 @@ class MembershipService:
                 if order.status == MembershipOrderStatus.PENDING:
                     repository.mark_order_status(order, MembershipOrderStatus.EXPIRED)
 
+            paid_user_id = order.user_id if event.outcome == PaymentEventOutcome.PAID else None
             self._session.commit()
+            if paid_user_id is not None:
+                self._invalidate_access_cache(paid_user_id)
             return True
         except MembershipUnavailableError:
             self._session.rollback()
@@ -411,6 +425,17 @@ class MembershipService:
                 event.event_id,
                 order_id,
             )
+            raise MembershipUnavailableError from None
+
+    def _invalidate_access_cache(self, user_id: int) -> None:
+        """会员期限提交成功后清除该用户的准入缓存。"""
+
+        if self._access_cache is None:
+            return
+        try:
+            self._access_cache.invalidate(user_id)
+        except RedisError:
+            logger.exception("membership_access_cache_invalidation_failed user_id=%s", user_id)
             raise MembershipUnavailableError from None
 
     @staticmethod

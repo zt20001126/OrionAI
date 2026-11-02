@@ -270,6 +270,14 @@ function createBackend(options?: {
         } as Response;
       }
 
+      if (url.pathname === "/api/v1/users/me/membership/access" && method === "GET") {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ is_member: true }),
+        } as Response;
+      }
+
       if (url.pathname === "/api/conversations" && method === "POST") {
         const conversation: ConversationSummary = {
           id: createdConversationId,

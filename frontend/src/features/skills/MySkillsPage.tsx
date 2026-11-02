@@ -11,7 +11,7 @@ import {
   type MarketSkill,
   type MySkill,
 } from "../platform/skillApi";
-import { canLaunchSkill, launchSkill } from "../platform/skillUsage";
+import { canLaunchSkill, ensureSkillMembership, launchSkill } from "../platform/skillUsage";
 
 interface MySkillsPageProps {
   onNavigate: (path: PlatformRoute) => void;
@@ -26,7 +26,7 @@ const EMPTY_MY_SKILLS: MySkill[] = [];
 
 /** 当前用户的技能页，只展示已添加且仍可用的技能。 */
 export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
-  const { showToast } = useToast();
+  const { confirm, showToast } = useToast();
   const [reloadVersion, setReloadVersion] = useState(0);
   const [removingSkillIds, setRemovingSkillIds] = useState<Set<string>>(() => new Set());
   const [startingSkillIds, setStartingSkillIds] = useState<Set<string>>(() => new Set());
@@ -90,6 +90,12 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
   async function handleUseSkill(skill: MySkill) {
     setStartingSkillIds((current) => new Set(current).add(skill.id));
     try {
+      if (
+        !(await ensureSkillMembership(onNavigate, confirm, (message) =>
+          showToast("error", message),
+        ))
+      )
+        return;
       await launchSkill(skill, onNavigate);
     } catch (error) {
       showToast("error", getConversationErrorMessage(error));

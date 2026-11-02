@@ -4,17 +4,21 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from app.modules.auth.dependencies import RegisteredUser, validate_origin
+from app.modules.auth.dependencies import CurrentUser, RegisteredUser, validate_origin
 from app.modules.membership.constants import (
     DEFAULT_ORDER_PAGE_SIZE,
     MAX_ORDER_PAGE_SIZE,
     MIN_ORDER_PAGE,
 )
-from app.modules.membership.dependencies import MembershipServiceDependency
+from app.modules.membership.dependencies import (
+    MembershipAccessServiceDependency,
+    MembershipServiceDependency,
+)
 from app.modules.membership.schemas import (
     MAX_BIGINT_ID,
     CreateMembershipOrderRequest,
     CreateMembershipOrderResponse,
+    MembershipAccessResponse,
     MembershipOrderPageResponse,
     MembershipOrderResponse,
     MembershipOverviewResponse,
@@ -79,6 +83,18 @@ def get_my_membership(
     """读取当前、未来和最近过期的会员期限。"""
 
     return service.get_overview(user_id=user.id)
+
+
+@users_router.get("/me/membership/access", response_model=MembershipAccessResponse)
+def get_my_membership_access(
+    user: CurrentUser,
+    service: MembershipAccessServiceDependency,
+) -> MembershipAccessResponse:
+    """从 Redis 准入缓存读取当前用户是否可使用技能。"""
+
+    return MembershipAccessResponse(
+        is_member=service.is_member(user.id, is_guest=user.is_guest),
+    )
 
 
 @users_router.get("/me/membership/orders", response_model=MembershipOrderPageResponse)

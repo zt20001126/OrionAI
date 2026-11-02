@@ -54,6 +54,9 @@ function mockSession(
   const addedSkillCodes = new Set(initiallyAddedSkills);
   return vi.fn().mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const path = String(input);
+    if (path === "/api/v1/users/me/membership/access") {
+      return { ok: true, json: async () => ({ is_member: true }) } as Response;
+    }
     if (path.startsWith("/api/v1/skills")) {
       expect(path).toContain("include_disabled=true");
       expect(init?.credentials).toBe("include");
@@ -387,6 +390,31 @@ describe("OrionAI platform", () => {
     fireEvent.click(screen.getByRole("link", { name: "我的技能" }));
     expect(await screen.findByRole("heading", { name: "我的技能" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "文档处理工具" })).toBeInTheDocument();
+  });
+
+  it("checks membership before launching an added skill from the market", async () => {
+    window.history.replaceState({}, "", "/market");
+    const sessionFetch = mockSession();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/v1/users/me/membership/access") {
+        return { ok: true, json: async () => ({ is_member: false }) } as Response;
+      }
+      return sessionFetch(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "使用" }));
+
+    expect(await screen.findByRole("dialog", { name: "开通会员后即可使用" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(window.location.pathname).toBe("/market");
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input]) => String(input) === "/api/v1/users/me/membership/access",
+      ),
+    ).toHaveLength(1);
   });
 
   it("removes a skill from my skills", async () => {

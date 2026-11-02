@@ -92,3 +92,9 @@ class MembershipOverviewResponse(BaseModel):
     latest_expired_period: MembershipPeriodResponse | None = Field(
         description="最近一段已过期期限，用于显示最近到期时间"
     )
+
+
+class MembershipAccessResponse(BaseModel):
+    """当前用户的技能使用准入响应，不暴露会员订单或期限详情。"""
+
+    is_member: bool = Field(description="当前用户是否拥有有效会员资格")

@@ -16,6 +16,7 @@ from app.modules.conversations.schemas import (
     MessageListResponse,
     QuestionAnswersRequest,
 )
+from app.modules.membership.dependencies import require_membership_access
 from app.shared.streaming import create_sse_response
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -27,7 +28,7 @@ PageOffset = Annotated[int, Query(ge=0, description="分页偏移量。")]
     "",
     response_model=ConversationCreateResponse,
     status_code=201,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def create_conversation(
     user: CurrentUser,
@@ -68,7 +69,7 @@ def list_messages(
 
 @router.post(
     "/{conversation_id}/messages/stream",
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def stream_message(
     conversation_id: int,
@@ -85,7 +86,7 @@ def stream_message(
 @router.post(
     "/{conversation_id}/messages",
     response_model=AgentTurnResponse,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def send_message(
     conversation_id: int,
@@ -101,7 +102,7 @@ def send_message(
 @router.post(
     "/{conversation_id}/answers",
     response_model=AgentTurnResponse,
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def answer_questions(
     conversation_id: int,
@@ -116,7 +117,7 @@ def answer_questions(
 
 @router.post(
     "/{conversation_id}/answers/stream",
-    dependencies=[Depends(validate_origin)],
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
 )
 def stream_answers(
     conversation_id: int,

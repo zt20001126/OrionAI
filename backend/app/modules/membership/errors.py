@@ -24,6 +24,13 @@ class MembershipConflictError(MembershipError):
         super().__init__(409, detail)
 
 
+class MembershipRequiredError(MembershipError):
+    """当前操作要求用户拥有有效会员资格。"""
+
+    def __init__(self) -> None:
+        super().__init__(403, "该技能需要有效会员，请开通会员后继续使用。")
+
+
 class MembershipUnavailableError(MembershipError):
     """会员数据服务暂不可用。"""
 

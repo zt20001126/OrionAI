@@ -50,6 +50,13 @@ AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户�
 | `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加技能 | Cookie |
 | `POST` | `/api/v1/users/me/skills` | 添加已发布技能 | Cookie |
 | `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户的技能 | Cookie |
+| `GET` | `/api/v1/users/me/membership/access` | 查询当前用户技能使用准入状态 | Cookie |
+| `POST` | `/api/v1/memory-training/sessions` | 创建记忆训练会话 | Cookie，会员 |
+| `POST` | `/api/v1/memory-training/sessions/{session_id}/observation/start` | 启动训练观察 | Cookie，会员 |
+| `POST` | `/api/v1/memory-training/sessions/{session_id}/answers` | 提交训练答案 | Cookie，会员 |
+| `POST` | `/api/v1/reminders` | 创建提醒 | Cookie，会员 |
+| `PUT` | `/api/v1/reminders/{reminder_id}` | 更新提醒 | Cookie，会员 |
+| `POST` | `/api/v1/reminders/{reminder_id}/resume` | 恢复提醒 | Cookie，会员 |
 | `GET` | `/api/v1/users/me` | 读取当前用户个人资料 | Cookie |
 | `PATCH` | `/api/v1/users/me` | 更新当前用户昵称和头像 | Cookie |
 | `POST` | `/api/v1/users/me/password/code` | 向当前用户绑定邮箱发送修改密码验证码 | Cookie |
@@ -221,6 +228,8 @@ PATCH 请求沿用 `Origin` 与 `Host` 同源校验。错误：`401` 未登录�
 
 发送消息和恢复题卡前，当前用户必须已添加会话绑定的技能，且技能仍处于已发布状态；否则返回 `409`。旧客户端不传技能代码时，新会话仍绑定 `general_chat`。
 
+创建会话、发送消息、流式发送、提交答案和流式提交答案还要求当前用户拥有有效会员资格；不满足时返回 `403`。会话及消息历史仍可读取。前端每次从“我的技能”点击使用前都会请求会员准入接口，后端仍独立校验实际执行请求。
+
 `POST /api/conversations` 创建空会话，可选请求体 `{"skill_code":"image_agent"}`；不传时默认为 `general_chat`。请求的技能必须已添加到当前用户技能，且有已注册运行入口。成功响应及会话列表项包含 `skill_code`、字符串形式的 Snowflake `id`、`title`、`created_at`、`updated_at`。首条用户消息发送前标题为空；首条用户消息提交后，根据其内容自动生成标题；模型失败或超时时使用首条消息的简短摘要。`GET /api/conversations` 返回 `items`、`limit`、`offset`，会话按 `updated_at DESC` 排列。
 
 `GET /api/conversations/{id}/messages` 按消息 `id` 升序返回 `items`，并返回会话的 `skill_code`。消息内容使用 JSON `parts` 数组，例如：
@@ -272,6 +281,20 @@ Agent 需要用户选择时，发送完整且已保存的题卡消息：
 以下接口要求有效的 `orionai_session` Cookie。`GET /api/v1/skills` 支持 `type`、`keyword`、`page`、`page_size` 和 `include_disabled`；默认只返回已发布技能，传 `include_disabled=true` 时也返回已停用技能。停用技能可查看列表说明，但详情接口仍返回 `404`，且不能添加到用户技能列表。技能响应中的 Snowflake `id` 使用十进制字符串。
 
 `GET /api/v1/users/me/skills` 只返回当前用户已添加且仍发布的技能。添加技能时，`POST /api/v1/users/me/skills` 的请求体使用 `{"skill_id":"十进制 Snowflake ID"}`；重复添加返回 `409`，不存在或已停用的技能返回 `404`。删除当前用户自己的关联使用 `DELETE /api/v1/users/me/skills/{skill_id}`。
+
+### 会员准入与技能使用
+
+`GET /api/v1/users/me/membership/access` 使用当前 Cookie 用户身份，不接受用户 ID，响应只包含准入布尔值：
+
+```json
+{"is_member": true}
+```
+
+每次检查先读取 Redis 中按用户隔离的会员状态；缓存未命中时由服务端根据现有会员期限计算并回填。会员数据库是状态权威来源，支付 Webhook 成功入账后会删除该用户缓存。Redis 或缓存未命中时的数据库查询不可用时返回 `503`。访客的 `is_member` 为 `false`。
+
+非会员可以继续浏览技能市场和添加/移除技能。点击“使用”时会显示“关闭”和“去充值”两个选项；充值跳转到现有 `/membership` 页面。后端执行接口也会重复校验会员，未开通时返回 `403`。
+
+以下操作要求会员：对话/Agent 会话创建、消息和题卡提交；记忆训练会话创建、观察启动和答案提交；提醒创建、更新和恢复。只读历史、简历查看与管理、图片结果读取、提醒读取、暂停及取消不要求会员。会员到期后已创建的周期提醒仍会执行，用户仍可暂停或取消。
 
 ### 私有图片结果 API
 
