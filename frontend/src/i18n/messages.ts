@@ -215,7 +215,7 @@ const catalogs: Record<string, MessageMap> = {
     "访客账号 · 默认有效 7 天": "Guest account · valid for 7 days by default",
     "正在退出…": "Signing out…",
     "退出登录": "Sign out",
-    "© OrionAI · 为企业智能体应用而构建": "© OrionAI · Built for enterprise AI agents",
+    "© OrionAI · 为智能体应用而构建": "© OrionAI · Built for AI agent applications",
     "会员中心": "Membership",
     "新建提醒": "New reminder",
     "提醒助手": "Reminders",

@@ -136,7 +136,7 @@ export function PlatformLayout({
           {children}
         </main>
         {!isConversationPage && !isResumePage && !isSessionsPage && (
-          <footer className="platform-footer">{t("© OrionAI · 为企业智能体应用而构建")}</footer>
+          <footer className="platform-footer">{t("© OrionAI · 为智能体应用而构建")}</footer>
         )}
       </div>
     </div>
