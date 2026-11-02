@@ -1,8 +1,9 @@
 """按统一命名将本地训练图片上传到 OSS 并登记公开链接。"""
 
 import argparse
+import hashlib
 import logging
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -51,8 +52,13 @@ def main() -> None:
         object_key = f"{OBJECT_DIRECTORY}/{object_name}"
         image_bytes = image_path.read_bytes()
         _validate_image_signature(image_bytes, content_type)
-        uploaded = _upload_if_needed(storage, object_key, image_bytes, content_type)
-        image_url = storage.build_public_url(object_key)
+        stored_object_key, uploaded = _upload_if_needed(
+            storage,
+            object_key,
+            image_bytes,
+            content_type,
+        )
+        image_url = storage.build_public_url(stored_object_key)
         try:
             with SessionLocal() as session:
                 existing_image = repository.get_image_by_url(session, image_url)
@@ -67,18 +73,20 @@ def main() -> None:
                 existing_image = repository.get_image_by_url(session, image_url)
             if existing_image is None:
                 if uploaded:
-                    storage.delete_object(object_key)
+                    storage.delete_object(stored_object_key)
                 raise
             action = "已存在"
         except SQLAlchemyError:
             if uploaded:
                 try:
-                    storage.delete_object(object_key)
+                    storage.delete_object(stored_object_key)
                 except ObjectStorageError:
                     logger.exception(
-                        "memory_training_upload_compensation_failed object_key=%s", object_key
+                        "memory_training_upload_compensation_failed object_key=%s",
+                        stored_object_key,
                     )
             raise
+        object_name = PurePosixPath(stored_object_key).name
         print(f"{image_path.name} -> {object_name} ({action}) {image_url}")
 
 
@@ -87,8 +95,8 @@ def _upload_if_needed(
     object_key: str,
     image_bytes: bytes,
     content_type: str,
-) -> bool:
-    """若对象已存在则验证字节一致，避免静默覆盖素材。"""
+) -> tuple[str, bool]:
+    """上传素材并返回实际对象键；内容变化时使用内容摘要创建新对象。"""
 
     try:
         existing_object = storage.get_object(object_key)
@@ -99,11 +107,28 @@ def _upload_if_needed(
             content_type=content_type,
             public_read=True,
         )
-        return True
+        return object_key, True
     except ObjectStorageError:
         raise
     if existing_object.data != image_bytes:
-        raise RuntimeError(f"OSS 对象已存在且内容不同，拒绝覆盖：{object_key}")
+        versioned_object_key = _build_versioned_object_key(object_key, image_bytes)
+        try:
+            existing_object = storage.get_object(versioned_object_key)
+        except ObjectNotFoundError:
+            storage.put_object(
+                versioned_object_key,
+                image_bytes,
+                content_type=content_type,
+                public_read=True,
+            )
+            return versioned_object_key, True
+        except ObjectStorageError:
+            raise
+        if existing_object.data != image_bytes:
+            raise RuntimeError(
+                f"OSS 内容版本对象已存在且内容不同，拒绝覆盖：{versioned_object_key}"
+            )
+        object_key = versioned_object_key
     # 再次设置对象级 ACL，保证重复导入也会把相同素材设为公开读。
     storage.put_object(
         object_key,
@@ -111,7 +136,16 @@ def _upload_if_needed(
         content_type=content_type,
         public_read=True,
     )
-    return False
+    return object_key, False
+
+
+def _build_versioned_object_key(object_key: str, image_bytes: bytes) -> str:
+    """根据图片内容生成不可变对象键，避免更新素材时覆盖旧对象。"""
+
+    object_path = PurePosixPath(object_key)
+    content_digest = hashlib.sha256(image_bytes).hexdigest()
+    versioned_name = f"{object_path.stem}-{content_digest}{object_path.suffix}"
+    return str(object_path.with_name(versioned_name))
 
 
 def _validate_image_signature(image_bytes: bytes, content_type: str) -> None:
