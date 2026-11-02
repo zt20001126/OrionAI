@@ -10,7 +10,6 @@ from app.modules.membership.dto import PaymentEventOutcome, VerifiedPaymentEvent
 
 STRIPE_CURRENCY = "cny"
 STRIPE_CHECKOUT_MODE = "payment"
-STRIPE_CARD_METHOD = "card"
 STRIPE_IDEMPOTENCY_PREFIX = "orionai-membership-order-"
 STRIPE_ORDER_METADATA_KEY = "order_id"
 STRIPE_USER_METADATA_KEY = "user_id"
@@ -121,7 +120,6 @@ class StripeCheckoutAdapter:
         frontend_base_url = self._settings.membership_frontend_base_url
         params = {
             "mode": STRIPE_CHECKOUT_MODE,
-            "payment_method_types": [STRIPE_CARD_METHOD],
             "line_items": [
                 {
                     "quantity": 1,

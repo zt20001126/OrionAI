@@ -73,6 +73,7 @@ def test_checkout_creation_uses_server_amount_metadata_and_stable_idempotency_ke
 
     assert sessions.params["line_items"][0]["price_data"]["unit_amount"] == 9990
     assert sessions.params["line_items"][0]["price_data"]["currency"] == "cny"
+    assert "payment_method_types" not in sessions.params
     assert sessions.params["success_url"].startswith("https://orionai.example/membership?")
     assert sessions.params["cancel_url"].startswith(
         "https://orionai.example/membership/checkout/9/order/12345"
