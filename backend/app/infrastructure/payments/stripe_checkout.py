@@ -10,6 +10,7 @@ from app.modules.membership.dto import PaymentEventOutcome, VerifiedPaymentEvent
 
 STRIPE_CURRENCY = "cny"
 STRIPE_CHECKOUT_MODE = "payment"
+STRIPE_CHECKOUT_EXPIRY_SECONDS = 24 * 60 * 60
 STRIPE_IDEMPOTENCY_PREFIX = "orionai-membership-order-"
 STRIPE_ORDER_METADATA_KEY = "order_id"
 STRIPE_USER_METADATA_KEY = "user_id"
@@ -145,7 +146,7 @@ class StripeCheckoutAdapter:
                 "?payment=cancelled"
             ),
             "expires_at": int(datetime.now(UTC).timestamp())
-            + self._settings.stripe_checkout_expiry_seconds,
+            + STRIPE_CHECKOUT_EXPIRY_SECONDS,
         }
         try:
             stripe_session = client.v1.checkout.sessions.create(

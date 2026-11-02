@@ -32,7 +32,7 @@
 
 ### 1.3 已确认的图片维护方式
 
-首版由管理员人工将图片上传到项目配置的 OSS，并维护 `memory_images` 记录；首版不开发图片管理 API 或后台页面。素材按 `memory-training-0001.png` 形式顺序命名，存放于 `memory-training/` 路径；数据库保存图片公开访问 URL。图片需有合法使用权、不含敏感个人信息，并满足当前模型服务的数据处理要求。训练图片不接受普通用户上传。
+训练素材维护在 `frontend/public/memory-training-assets/`，文件使用英文 kebab-case 命名并带两位数字前缀，以固定图片与 OSS 对象编号的对应关系。后端镜像会包含该目录，部署启动时调用上传登记脚本，将素材按文件名排序后上传到项目配置的 OSS，并将公开访问 URL 幂等写入 `memory_images`。对象放在 `memory-training/` 路径，使用 `memory-training-0001.png` 等统一名称；首版不开发图片管理 API 或后台页面。图片需有合法使用权、不含敏感个人信息，并满足当前模型服务的数据处理要求。训练图片不接受普通用户上传。
 
 ### 1.4 已确认的实现约束
 
@@ -238,7 +238,7 @@ sequenceDiagram
 
 ### 7.3 OSS 对象维护
 
-管理员使用 `backend/app/scripts/upload_memory_images.py` 将素材上传至当前配置的 OSS。脚本按文件名排序，使用 `memory-training-0001.png` 到 `memory-training-0005.png` 这样的统一对象名，放在 `memory-training/` 路径并设置公开读 ACL；随后幂等登记公开 URL。若同名 OSS 对象内容不同，脚本拒绝覆盖。停用只阻止新会话抽取，不删除对象。由于链接公开，任何持有链接的人都能读取图片；只应使用已获授权且适合公开访问、适合发送给模型的素材。
+部署命令会调用 `backend/app/scripts/upload_memory_images.py`，读取镜像中的 `/app/memory-training-assets`，上传到当前配置的 OSS。脚本按文件名排序，使用 `memory-training-0001.png` 到 `memory-training-0005.png` 这样的统一对象名，放在 `memory-training/` 路径并设置公开读 ACL；随后幂等登记公开 URL。也可在部署后手动运行该脚本维护素材。若同名 OSS 对象内容不同，脚本拒绝覆盖。停用只阻止新会话抽取，不删除对象。由于链接公开，任何持有链接的人都能读取图片；只应使用已获授权且适合公开访问、适合发送给模型的素材。
 
 ## 8. Redis 会话设计
 
@@ -780,7 +780,7 @@ frontend/src/features/memory-training/
 
 ## 19. 实现登记
 
-- 素材上传入口：`backend/app/scripts/upload_memory_images.py <素材目录>`。该命令读取项目 OSS/数据库配置，校验 PNG/JPEG 文件签名，按排序后的文件名分配 `memory-training-0001.png` 等名称，上传至 `memory-training/` 路径，设置对象公开读并登记公开 URL。已完成首批 5 张素材上传与数据库登记。
+- 素材上传入口：`backend/app/scripts/upload_memory_images.py <素材目录>`。部署时后端镜像将 `frontend/public/memory-training-assets/` 复制为 `/app/memory-training-assets` 并自动调用该脚本；该命令读取项目 OSS/数据库配置，校验 PNG/JPEG 文件签名，按排序后的文件名分配 `memory-training-0001.png` 等名称，上传至 `memory-training/` 路径，设置对象公开读并登记公开 URL。已完成首批 5 张素材上传与数据库登记。
 - 图片表：`memory_images(id, image_url, enabled, created_at)`；不包含 `content_type`、`file_size_bytes`、对象键和图片原始文件名。
 - 模型：`MemoryTrainingQuestionGenerator` 使用 `OpenAICompatibleChatModelProvider` 传入独立的百炼配置，通过图片 URL + 文本提示词和 JSON mode 一次生成五题；平台默认模型保持 DeepSeek 配置。
 - 运行方式：API 在 `memory_training` 队列投递任务；现有 Compose `celery-worker` 同时监听 `reminders,memory_training`，不增加额外容器。

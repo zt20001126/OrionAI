@@ -52,10 +52,11 @@ RUN --mount=type=cache,id=orionai-apt-archives,target=/var/cache/apt,sharing=loc
 COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./alembic.ini
+COPY frontend/public/memory-training-assets ./memory-training-assets
 
 # 源码层变化时只更新本地 editable 安装，不触发第三方依赖解析。
 RUN python -m pip install --no-build-isolation --no-deps -e .
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "alembic upgrade head && python -m app.scripts.upload_memory_images /app/memory-training-assets && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"]

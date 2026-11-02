@@ -158,12 +158,6 @@ class Settings(BaseSettings):
     stripe_webhook_secret: SecretStr = Field(
         default=SecretStr(""), description="Stripe Webhook 签名密钥，必须为 whsec_ 开头。"
     )
-    stripe_checkout_expiry_seconds: int = Field(
-        default=24 * 60 * 60,
-        ge=30 * 60,
-        le=24 * 60 * 60,
-        description="Stripe Checkout Session 有效时间，限制在 30 分钟至 24 小时。",
-    )
     membership_frontend_base_url: str = Field(
         default="http://localhost:5173",
         min_length=1,
