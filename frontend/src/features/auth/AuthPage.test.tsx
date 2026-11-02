@@ -2,7 +2,17 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "../../components/ToastProvider";
+import { login, register } from "./authApi";
 import { AuthPage } from "./AuthPage";
+
+vi.mock("./authApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./authApi")>();
+  return {
+    ...actual,
+    login: vi.fn(),
+    register: vi.fn(),
+  };
+});
 
 afterEach(cleanup);
 
@@ -118,5 +128,60 @@ describe("AuthPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "注册" }));
 
     expect(screen.getByLabelText("邮箱")).toHaveAttribute("type", "email");
+  });
+
+  it("identifies an interactive login separately from restored sessions", async () => {
+    vi.mocked(login).mockResolvedValue({ account: "member@example.com" });
+    const onAuthenticated = vi.fn();
+
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={onAuthenticated} />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "member@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "password" } });
+    fireEvent.submit(screen.getByRole("tabpanel").closest("form")!);
+
+    await waitFor(() =>
+      expect(onAuthenticated).toHaveBeenCalledWith(
+        { account: "member@example.com", is_guest: false },
+        "login",
+      ),
+    );
+  });
+
+  it("identifies a successful registration so only that flow creates the welcome notice", async () => {
+    vi.mocked(register).mockResolvedValue({ account: "new-member@example.com" });
+    const onAuthenticated = vi.fn();
+
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={onAuthenticated} />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
+    fireEvent.click(screen.getByRole("tab", { name: "注册" }));
+    fireEvent.change(screen.getByLabelText("邮箱"), {
+      target: { value: "new-member@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("邮箱验证码"), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText("密码"), { target: { value: "password123" } });
+    fireEvent.change(screen.getByLabelText("确认密码"), {
+      target: { value: "password123" },
+    });
+    fireEvent.submit(screen.getByRole("tabpanel").closest("form")!);
+
+    await waitFor(() =>
+      expect(onAuthenticated).toHaveBeenCalledWith(
+        { account: "new-member@example.com", is_guest: false },
+        "register",
+      ),
+    );
   });
 });

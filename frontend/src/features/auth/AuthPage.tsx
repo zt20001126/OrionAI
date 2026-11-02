@@ -12,6 +12,7 @@ import {
   register,
   requestEmailCode,
   resetPassword,
+  type AuthMethod,
   type AuthPurpose,
   type AuthIdentity,
 } from "./authApi";
@@ -21,7 +22,7 @@ type AuthView = "login" | "register" | "password_reset";
 interface AuthPageProps {
   initialMessage?: string | null;
   initialSuccessMessage?: string | null;
-  onAuthenticated: (identity: AuthIdentity) => void;
+  onAuthenticated: (identity: AuthIdentity, method: AuthMethod) => void | Promise<void>;
 }
 
 const viewContent: Record<AuthView, { title: string; subtitle: string }> = {
@@ -97,10 +98,10 @@ export function AuthPage({
     try {
       if (view === "login") {
         const result = await login(email, password);
-        onAuthenticated({ account: result.account, is_guest: false });
+        await onAuthenticated({ account: result.account, is_guest: false }, "login");
       } else if (view === "register") {
         const result = await register(email, code, password, passwordConfirmation);
-        onAuthenticated({ account: result.account, is_guest: false });
+        await onAuthenticated({ account: result.account, is_guest: false }, "register");
       } else {
         const result = await resetPassword(email, code, password, passwordConfirmation);
         changeView("login");
@@ -117,7 +118,10 @@ export function AuthPage({
     setIsGuestSubmitting(true);
     try {
       const session = await guestLogin();
-      onAuthenticated({ account: session.account, is_guest: session.is_guest === true });
+      await onAuthenticated(
+        { account: session.account, is_guest: session.is_guest === true },
+        "guest",
+      );
     } catch (loginError) {
       showToast("error", getErrorMessage(loginError));
     } finally {

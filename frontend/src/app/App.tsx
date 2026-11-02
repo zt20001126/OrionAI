@@ -27,8 +27,9 @@ import {
   platformPaths,
   type PlatformRoute,
 } from "../features/platform/platformData";
-import { getSession, logout, type AuthIdentity } from "../features/auth/authApi";
+import { getSession, logout, type AuthIdentity, type AuthMethod } from "../features/auth/authApi";
 import { getUserProfile, type UserProfile } from "../features/platform/profileApi";
+import { ensureWelcomeNotification } from "../features/notifications/notificationStorage";
 import { LocaleProvider, useLocale } from "../i18n/LocaleProvider";
 import { LanguageSwitcher } from "../i18n/LanguageSwitcher";
 import { t } from "../i18n/localeStore";
@@ -371,7 +372,14 @@ function AppContent() {
     }
   }
 
-  function handleAuthenticated(authenticatedIdentity: AuthIdentity) {
+  async function handleAuthenticated(authenticatedIdentity: AuthIdentity, method: AuthMethod) {
+    if (method === "register" && !authenticatedIdentity.is_guest && authenticatedIdentity.account) {
+      await ensureWelcomeNotification(authenticatedIdentity.account);
+    }
+    if (method === "login" && !authenticatedIdentity.is_guest) {
+      showToast("info", t("欢迎回来，祝你使用愉快！"));
+    }
+
     setSessionError(null);
     setAuthSuccessMessage(null);
     setHasUnsavedSettings(false);

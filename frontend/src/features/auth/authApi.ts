@@ -2,6 +2,7 @@ import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
 import { t } from "../../i18n/localeStore";
 
 export type AuthPurpose = "register" | "password_reset";
+export type AuthMethod = "login" | "register" | "guest";
 
 export interface AuthSession {
   authenticated: boolean;

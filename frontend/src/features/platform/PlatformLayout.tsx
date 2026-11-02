@@ -4,8 +4,8 @@ import "./platform.css";
 
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
-import { PlatformIcon } from "./PlatformIcon";
 import { MembershipEntry } from "../membership/MembershipEntry";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { t } from "../../i18n/localeStore";
 import {
   isMembershipCheckoutPath,
@@ -113,10 +113,7 @@ export function PlatformLayout({
           </div>
           <div className="platform-topbar__actions">
             <MembershipEntry onNavigate={onNavigate} />
-            <button aria-label={t("通知")} className="notification-button" type="button">
-              <PlatformIcon name="bell" />
-              <span aria-hidden="true" />
-            </button>
+            <NotificationBell account={isGuest ? null : account} isGuest={isGuest} />
             <ProfileMenu
               account={account}
               avatarUrl={avatarUrl}
