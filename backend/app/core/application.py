@@ -24,7 +24,9 @@ from app.modules.conversations.title import ModelConversationTitleGenerator
 from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
 from app.modules.image_generation.providers.tokenhub_client import TokenHubImageClient
 from app.modules.image_generation.service import TaskResultStore
+from app.modules.membership.errors import MembershipError
 from app.modules.memory_training.errors import MemoryTrainingError
+from app.modules.payment.errors import PaymentError
 from app.modules.reminders.errors import ReminderError
 from app.modules.resume.dependencies import get_resume_photo_storage
 from app.modules.resume.errors import ResumeError
@@ -170,6 +172,14 @@ def create_app(
             status_code=error.status_code,
             content={"detail": error.detail, "code": error.code},
         )
+
+    @application.exception_handler(MembershipError)
+    async def handle_membership_error(_request: Request, error: MembershipError) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+    @application.exception_handler(PaymentError)
+    async def handle_payment_error(_request: Request, error: PaymentError) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
     application.add_middleware(
         CORSMiddleware,

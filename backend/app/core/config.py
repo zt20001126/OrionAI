@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -22,7 +23,11 @@ def _normalize_postgres_url_for_runtime(raw_url: str, *, in_container: bool) -> 
 
 
 class Settings(BaseSettings):
-    """应用配置，控制 API、Agent、SMTP 和后台提醒 Worker 的运行行为。"""
+    """应用配置，控制 API、Agent、邮件、提醒 Worker 与会员支付的运行行为。
+
+    Stripe 首期仅允许测试密钥；上线前应在环境变量中配置测试密钥、Webhook 签名密钥
+    和受控的前端根地址。支付凭据由 SecretStr 保管，不得写入日志。
+    """
 
     app_name: str = "OrionAI"
     environment: str = "development"
@@ -147,6 +152,23 @@ class Settings(BaseSettings):
         le=1022,
         description="Snowflake 节点 ID；同一时刻运行的 backend 实例必须唯一。",
     )
+    stripe_secret_key: SecretStr = Field(
+        default=SecretStr(""), description="Stripe Sandbox 密钥，必须为 sk_test_ 开头。"
+    )
+    stripe_webhook_secret: SecretStr = Field(
+        default=SecretStr(""), description="Stripe Webhook 签名密钥，必须为 whsec_ 开头。"
+    )
+    stripe_checkout_expiry_seconds: int = Field(
+        default=24 * 60 * 60,
+        ge=30 * 60,
+        le=24 * 60 * 60,
+        description="Stripe Checkout Session 有效时间，限制在 30 分钟至 24 小时。",
+    )
+    membership_frontend_base_url: str = Field(
+        default="http://localhost:5173",
+        min_length=1,
+        description="Stripe 支付完成或取消后返回 OrionAI 前端的受控根地址。",
+    )
 
     @field_validator("auth_cookie_secure", mode="before")
     @classmethod
@@ -161,6 +183,23 @@ class Settings(BaseSettings):
 
         if self.reminder_sending_lease_seconds <= self.smtp_timeout_seconds:
             raise ValueError("提醒发送租约必须长于 SMTP 超时时间。")
+
+        stripe_key = self.stripe_secret_key.get_secret_value().strip()
+        webhook_secret = self.stripe_webhook_secret.get_secret_value().strip()
+        if stripe_key and not stripe_key.startswith("sk_test_"):
+            raise ValueError("会员首期仅支持 Stripe Sandbox 密钥（sk_test_）。")
+        if webhook_secret and not webhook_secret.startswith("whsec_"):
+            raise ValueError("Stripe Webhook 签名密钥格式无效。")
+
+        frontend_url = urlsplit(self.membership_frontend_base_url)
+        if (
+            frontend_url.scheme not in {"http", "https"}
+            or not frontend_url.netloc
+            or frontend_url.query
+            or frontend_url.fragment
+        ):
+            raise ValueError("会员支付前端根地址必须是无查询参数的 HTTP(S) 地址。")
+        self.membership_frontend_base_url = self.membership_frontend_base_url.rstrip("/")
 
         in_container = Path("/.dockerenv").is_file()
         self.database_url = _normalize_postgres_url_for_runtime(
@@ -187,6 +226,15 @@ class Settings(BaseSettings):
     def tokenhub_configured(self) -> bool:
         """判断图片生成服务是否配置了 API 密钥。"""
         return bool(self.tokenhub_api_key.get_secret_value().strip())
+
+    @property
+    def stripe_checkout_configured(self) -> bool:
+        """仅在测试密钥与 Webhook 签名密钥都配置后开放会员支付。"""
+
+        return bool(
+            self.stripe_secret_key.get_secret_value().strip()
+            and self.stripe_webhook_secret.get_secret_value().strip()
+        )
 
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",

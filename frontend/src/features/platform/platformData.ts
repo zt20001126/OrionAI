@@ -10,16 +10,72 @@ export const platformPaths = {
   memoryTraining: "/memory-training",
   settings: "/settings",
   securitySettings: "/settings/security",
+  feedbackSettings: "/settings/feedback",
+  membership: "/membership",
+  membershipCheckout: "/membership/checkout",
+  membershipOrders: "/membership/orders",
   chat: "/chat",
   login: "/login",
 } as const;
 
 export type PlatformPath = Exclude<
   (typeof platformPaths)[keyof typeof platformPaths],
-  "/login" | "/chat"
+  "/login" | "/chat" | "/membership/checkout"
 >;
 export type ConversationPath = typeof platformPaths.chat | `${typeof platformPaths.chat}/${string}`;
-export type PlatformRoute = PlatformPath | ConversationPath;
+export type MembershipCheckoutPath = string & { readonly __membershipCheckoutPath: unique symbol };
+export type MembershipOrderDetailPath = string & {
+  readonly __membershipOrderDetailPath: unique symbol;
+};
+export type PlatformRoute =
+  PlatformPath | ConversationPath | MembershipCheckoutPath | MembershipOrderDetailPath;
+
+export function isSettingsPath(pathname: string): boolean {
+  return (
+    pathname === platformPaths.settings ||
+    pathname === platformPaths.securitySettings ||
+    pathname === platformPaths.feedbackSettings
+  );
+}
+
+export function createMembershipCheckoutPath(
+  planId: string,
+  orderId?: string,
+): MembershipCheckoutPath {
+  const checkoutPath = `${platformPaths.membershipCheckout}/${encodeURIComponent(planId)}`;
+  return (
+    orderId ? `${checkoutPath}/order/${encodeURIComponent(orderId)}` : checkoutPath
+  ) as MembershipCheckoutPath;
+}
+
+export function createMembershipOrderDetailPath(orderId: string): MembershipOrderDetailPath {
+  return `${platformPaths.membershipOrders}/${encodeURIComponent(orderId)}` as MembershipOrderDetailPath;
+}
+
+export function getMembershipCheckoutPlanId(pathname: string): string | null {
+  const match = pathname.match(/^\/membership\/checkout\/([0-9]+)(?:\/order\/[0-9]+)?$/);
+  return match?.[1] ?? null;
+}
+
+export function getMembershipCheckoutOrderId(pathname: string): string | null {
+  const match = pathname.match(/^\/membership\/checkout\/[0-9]+\/order\/([0-9]+)$/);
+  return match?.[1] ?? null;
+}
+
+export function getMembershipOrderId(pathname: string): string | null {
+  const match = pathname.match(/^\/membership\/orders\/([0-9]+)$/);
+  return match?.[1] ?? null;
+}
+
+export function isMembershipCheckoutPath(pathname: string): pathname is MembershipCheckoutPath {
+  return getMembershipCheckoutPlanId(pathname) !== null;
+}
+
+export function isMembershipOrderDetailPath(
+  pathname: string,
+): pathname is MembershipOrderDetailPath {
+  return getMembershipOrderId(pathname) !== null;
+}
 
 export function isPlatformPath(pathname: string): pathname is PlatformRoute {
   if (pathname === platformPaths.chat) return true;
@@ -28,8 +84,14 @@ export function isPlatformPath(pathname: string): pathname is PlatformRoute {
     return /^\/chat\/\d+$/.test(pathname);
   }
 
+  if (isMembershipCheckoutPath(pathname) || isMembershipOrderDetailPath(pathname)) return true;
+
   return Object.values(platformPaths).some(
-    (path) => path !== platformPaths.login && path !== platformPaths.chat && path === pathname,
+    (path) =>
+      path !== platformPaths.login &&
+      path !== platformPaths.chat &&
+      path !== platformPaths.membershipCheckout &&
+      path === pathname,
   );
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { ToastProvider, useToast } from "../components/ToastProvider";
 import { AuthPage } from "../features/auth/AuthPage";
@@ -13,10 +13,17 @@ import { MySkillsPage } from "../features/skills/MySkillsPage";
 import { ResumePage } from "../features/resume/ResumePage";
 import { ReminderPage } from "../features/reminders/ReminderPage";
 import { MemoryTrainingPage } from "../features/memory-training/pages/MemoryTrainingPage";
+import { MembershipStatusProvider } from "../features/membership/MembershipStatusContext";
 import {
+  getMembershipCheckoutPlanId,
+  getMembershipCheckoutOrderId,
+  getMembershipOrderId,
   getConversationId,
   isConversationPath,
+  isMembershipCheckoutPath,
+  isMembershipOrderDetailPath,
   isPlatformPath,
+  isSettingsPath,
   platformPaths,
   type PlatformRoute,
 } from "../features/platform/platformData";
@@ -25,6 +32,27 @@ import { getUserProfile, type UserProfile } from "../features/platform/profileAp
 
 type AppPath = PlatformRoute | typeof platformPaths.login;
 type PopNavigationStage = "restoring" | "confirming" | "navigating";
+
+const MembershipPage = lazy(() =>
+  import("../features/membership/MembershipPage").then((module) => ({
+    default: module.MembershipPage,
+  })),
+);
+const MembershipCheckoutPage = lazy(() =>
+  import("../features/membership/MembershipCheckoutPage").then((module) => ({
+    default: module.MembershipCheckoutPage,
+  })),
+);
+const MembershipOrdersPage = lazy(() =>
+  import("../features/membership/MembershipOrdersPage").then((module) => ({
+    default: module.MembershipOrdersPage,
+  })),
+);
+const MembershipOrderDetailPage = lazy(() =>
+  import("../features/membership/MembershipOrderDetailPage").then((module) => ({
+    default: module.MembershipOrderDetailPage,
+  })),
+);
 
 interface PendingPopNavigation {
   currentIndex: number;
@@ -80,10 +108,8 @@ function AppContent() {
 
   const navigate = useCallback(
     async (path: AppPath, replace = false) => {
-      const isSettingsPath =
-        pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
       const shouldConfirmLeave =
-        (isSettingsPath && hasUnsavedSettings) ||
+        (isSettingsPath(pathname) && hasUnsavedSettings) ||
         (pathname === platformPaths.resume && hasUnsavedResume);
       if (path !== pathname && shouldConfirmLeave) {
         if (pendingNavigationRef.current) return;
@@ -189,10 +215,8 @@ function AppContent() {
         }
         return;
       }
-      const isSettingsPath =
-        pathname === platformPaths.settings || pathname === platformPaths.securitySettings;
       const shouldConfirmLeave =
-        (isSettingsPath && hasUnsavedSettings) ||
+        (isSettingsPath(pathname) && hasUnsavedSettings) ||
         (pathname === platformPaths.resume && hasUnsavedResume);
       if (nextPath !== pathname && shouldConfirmLeave) {
         const currentIndex = historyIndexRef.current ?? 0;
@@ -418,10 +442,35 @@ function AppContent() {
     if (safePathname === platformPaths.memoryTraining) {
       return <MemoryTrainingPage onNavigate={navigate} />;
     }
+    if (safePathname === platformPaths.membership) {
+      return <MembershipPage isGuest={isGuest} onNavigate={navigate} />;
+    }
+    if (isMembershipCheckoutPath(safePathname)) {
+      return (
+        <MembershipCheckoutPage
+          isGuest={isGuest}
+          orderId={getMembershipCheckoutOrderId(safePathname)}
+          planId={getMembershipCheckoutPlanId(safePathname) ?? ""}
+          onNavigate={navigate}
+        />
+      );
+    }
+    if (safePathname === platformPaths.membershipOrders) {
+      return <MembershipOrdersPage onNavigate={navigate} />;
+    }
+    if (isMembershipOrderDetailPath(safePathname)) {
+      return (
+        <MembershipOrderDetailPage
+          onNavigate={navigate}
+          orderId={getMembershipOrderId(safePathname) ?? ""}
+        />
+      );
+    }
     if (safePathname === platformPaths.sessions) return <SessionsPage onNavigate={navigate} />;
     if (
       safePathname === platformPaths.settings ||
-      safePathname === platformPaths.securitySettings
+      safePathname === platformPaths.securitySettings ||
+      safePathname === platformPaths.feedbackSettings
     ) {
       return (
         <SettingsPage
@@ -442,18 +491,28 @@ function AppContent() {
   })();
 
   return (
-    <PlatformLayout
-      account={account ?? "访客用户"}
-      avatarUrl={userProfile?.avatar_url}
-      isGuest={isGuest}
-      isLoggingOut={isLoggingOut}
-      nickname={userProfile?.nickname}
-      onLogout={() => void handleLogout()}
-      onNavigate={navigate}
-      pathname={safePathname}
-    >
-      {page}
-    </PlatformLayout>
+    <MembershipStatusProvider isGuest={isGuest}>
+      <PlatformLayout
+        account={account ?? "访客用户"}
+        avatarUrl={userProfile?.avatar_url}
+        isGuest={isGuest}
+        isLoggingOut={isLoggingOut}
+        nickname={userProfile?.nickname}
+        onLogout={() => void handleLogout()}
+        onNavigate={navigate}
+        pathname={safePathname}
+      >
+        <Suspense
+          fallback={
+            <div className="membership-route-loading" role="status">
+              正在打开页面…
+            </div>
+          }
+        >
+          {page}
+        </Suspense>
+      </PlatformLayout>
+    </MembershipStatusProvider>
   );
 }
 

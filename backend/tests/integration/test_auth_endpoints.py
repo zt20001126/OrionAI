@@ -214,6 +214,7 @@ def test_register_creates_one_user_and_uses_httponly_cookie(
         "id",
         "account",
         "password_hash",
+        "is_guest",
         "created_at",
         "last_login_at",
         "nickname",

@@ -1,0 +1,196 @@
+.feedback-dialog-backdrop {
+  z-index: 40;
+}
+
+.feedback-dialog {
+  position: relative;
+  width: min(100%, 600px);
+  max-height: min(760px, calc(100svh - 40px));
+  overflow-y: auto;
+  padding: var(--space-7);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-dialog);
+  animation: platform-dialog-in var(--motion-normal) both;
+}
+
+.feedback-form__header h1,
+.feedback-form__header h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.feedback-form__header p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.feedback-settings .feedback-form__header h1 {
+  font-size: var(--font-size-2xl);
+}
+
+.feedback-dialog .feedback-form__header {
+  padding-right: var(--space-7);
+}
+
+.feedback-dialog .feedback-form__header h2 {
+  font-size: var(--font-size-xl);
+}
+
+.feedback-form {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.feedback-form--dialog {
+  margin-top: var(--space-6);
+}
+
+.feedback-form--settings {
+  flex: 1 1 auto;
+  padding-top: var(--space-5);
+}
+
+.feedback-form__field {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.feedback-form__field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.feedback-form__field-heading label {
+  color: var(--color-text-label);
+  font-size: var(--font-size-sm);
+  font-weight: 550;
+}
+
+.feedback-form__field-heading span {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.feedback-form__field input,
+.feedback-form__field textarea {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  background: var(--color-surface);
+  font: inherit;
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+
+.feedback-form__field input {
+  min-height: 42px;
+  padding: 0 var(--space-3);
+}
+
+.feedback-form__field textarea {
+  min-height: 130px;
+  padding: var(--space-3);
+  line-height: var(--line-height-relaxed);
+  resize: vertical;
+}
+
+.feedback-form__field input::placeholder,
+.feedback-form__field textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.feedback-form__field input:focus,
+.feedback-form__field textarea:focus {
+  border-color: var(--color-brand);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+.feedback-form__field input[aria-invalid="true"],
+.feedback-form__field textarea[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+
+.feedback-form__field input:disabled,
+.feedback-form__field textarea:disabled {
+  background: var(--color-control-disabled);
+  cursor: not-allowed;
+}
+
+.feedback-form__error {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-normal);
+}
+
+.feedback-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.feedback-form--settings .feedback-form__actions {
+  gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-5);
+}
+
+.feedback-form__actions .button {
+  gap: var(--space-2);
+}
+
+.feedback-form__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-pill);
+  animation: feedback-spin 700ms linear infinite;
+}
+
+@keyframes feedback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .feedback-settings .feedback-form__header h1 {
+    font-size: var(--font-size-xl);
+  }
+
+  .feedback-dialog-backdrop {
+    padding: var(--space-3);
+  }
+
+  .feedback-dialog {
+    max-height: calc(100svh - 24px);
+    padding: var(--space-6) var(--space-4) var(--space-4);
+  }
+
+  .feedback-dialog .feedback-form__header {
+    padding-right: var(--space-6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-dialog,
+  .feedback-form__spinner {
+    animation: none;
+  }
+}

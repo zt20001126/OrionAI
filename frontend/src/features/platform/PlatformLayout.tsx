@@ -5,7 +5,13 @@ import "./platform.css";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
 import { PlatformIcon } from "./PlatformIcon";
-import { platformPaths, type PlatformRoute } from "./platformData";
+import { MembershipEntry } from "../membership/MembershipEntry";
+import {
+  isMembershipCheckoutPath,
+  isMembershipOrderDetailPath,
+  platformPaths,
+  type PlatformRoute,
+} from "./platformData";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "orionai:platform-sidebar-collapsed";
 
@@ -55,9 +61,20 @@ export function PlatformLayout({
                 ? "个人设置"
                 : pathname === platformPaths.securitySettings
                   ? "安全设置"
-                  : pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`)
-                    ? "对话助手"
-                    : "OrionAI";
+                  : pathname === platformPaths.feedbackSettings
+                    ? "问题反馈"
+                    : pathname === platformPaths.chat ||
+                        pathname.startsWith(`${platformPaths.chat}/`)
+                      ? "对话助手"
+                      : pathname === platformPaths.membership
+                        ? "会员中心"
+                        : isMembershipCheckoutPath(pathname)
+                          ? "确认支付"
+                          : pathname === platformPaths.membershipOrders
+                            ? "我的订单"
+                            : isMembershipOrderDetailPath(pathname)
+                              ? "订单详情"
+                              : "OrionAI";
 
   function toggleSidebar() {
     const nextCollapsed = !sidebarCollapsed;
@@ -94,6 +111,7 @@ export function PlatformLayout({
             <strong>{pageTitle}</strong>
           </div>
           <div className="platform-topbar__actions">
+            <MembershipEntry onNavigate={onNavigate} />
             <button aria-label="通知" className="notification-button" type="button">
               <PlatformIcon name="bell" />
               <span aria-hidden="true" />

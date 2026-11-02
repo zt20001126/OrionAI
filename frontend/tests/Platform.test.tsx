@@ -245,6 +245,59 @@ describe("OrionAI platform", () => {
     expect(persistedNickname?.value).toBe("待保存昵称");
   });
 
+  it("restores the feedback settings route and submits from the shared settings form", async () => {
+    window.history.replaceState({}, "", "/settings/feedback");
+    const sessionFetch = mockSession();
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/v1/feedback") {
+        return {
+          ok: true,
+          json: async () => ({ message: "反馈提交成功" }),
+        } as Response;
+      }
+      return sessionFetch(input, init);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "问题反馈" })).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/settings/feedback");
+    expect(screen.getByRole("button", { name: "问题反馈" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByText("感谢你的反馈，这将帮助我们不断改进产品体验。")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "标题" }), {
+      target: { value: "设置页反馈" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "内容" }), {
+      target: { value: "从设置页面提交反馈。" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "提交" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("反馈提交成功，感谢你的支持！");
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "标题" })).toHaveValue("");
+      expect(screen.getByRole("textbox", { name: "内容" })).toHaveValue("");
+    });
+    const feedbackCall = fetchMock.mock.calls.find(
+      ([input]) => String(input) === "/api/v1/feedback",
+    );
+    expect(JSON.parse(String(feedbackCall?.[1]?.body))).toEqual({
+      title: "设置页反馈",
+      content: "从设置页面提交反馈。",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "个人设置" }));
+    await waitFor(() => expect(window.location.pathname).toBe("/settings"));
+    expect(screen.getByRole("button", { name: "个人设置" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   it("keeps browser forward navigation on the requested route after confirmation", async () => {
     vi.stubGlobal("fetch", mockSession());
     render(<App />);

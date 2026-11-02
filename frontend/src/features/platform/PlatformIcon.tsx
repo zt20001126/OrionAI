@@ -8,6 +8,8 @@ export type PlatformIconName =
   | "logout"
   | "search"
   | "bell"
+  | "crown"
+  | "check"
   | "more"
   | "chevron"
   | "arrow"
@@ -22,7 +24,9 @@ export type PlatformIconName =
   | "history"
   | "plus"
   | "collapse"
-  | "expand";
+  | "expand"
+  | "message"
+  | "send";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -95,6 +99,13 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
           <path d="M10 21h4" />
         </>
       )}
+      {name === "crown" && (
+        <>
+          <path d="m4 8 4.1 3.1L12 5l3.9 6.1L20 8l-1.5 10H5.5L4 8Z" />
+          <path d="M6 21h12M6.1 15.5h11.8" />
+        </>
+      )}
+      {name === "check" && <path d="m5 12.5 4.2 4.2L19 7" />}
       {name === "more" && (
         <>
           <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
@@ -168,6 +179,13 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
           <path d="M9 5v14m6-4-3-3 3-3" />
         </>
       )}
+      {name === "message" && (
+        <>
+          <path d="M20 11.5a7.8 7.8 0 0 1-8 7.5 8.4 8.4 0 0 1-3.7-.8L4 20l1.2-3.7A7.2 7.2 0 0 1 4 12c0-4.1 3.6-7.5 8-7.5s8 3.1 8 7Z" />
+          <path d="M8 11h8M8 14h5" />
+        </>
+      )}
+      {name === "send" && <path d="m21 3-7.2 18-3.7-7.1L3 10.2 21 3Zm0 0L10.1 13.9" />}
     </svg>
   );
 }

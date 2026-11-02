@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ToastProvider } from "../../components/ToastProvider";
 import { ProfileMenu } from "./ProfileMenu";
 
 afterEach(cleanup);
@@ -65,8 +66,38 @@ describe("ProfileMenu", () => {
     expect(props.onNavigate).toHaveBeenCalledWith("/settings");
 
     fireEvent.click(screen.getByRole("button", { name: "侧边栏用户菜单" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "安全设置" }));
+    expect(props.onNavigate).toHaveBeenCalledWith("/settings/security");
+
+    fireEvent.click(screen.getByRole("button", { name: "侧边栏用户菜单" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "退出登录" }));
     expect(props.onLogout).toHaveBeenCalledOnce();
+  });
+
+  it("opens the feedback dialog from the user menu and restores focus", async () => {
+    const props: ComponentProps<typeof ProfileMenu> = {
+      account: "orion@example.com",
+      isLoggingOut: false,
+      onLogout: vi.fn(),
+      onNavigate: vi.fn(),
+      triggerLabel: "侧边栏用户菜单",
+      variant: "sidebar",
+    };
+    render(
+      <ToastProvider>
+        <ProfileMenu {...props} />
+      </ToastProvider>,
+    );
+    const trigger = screen.getByRole("button", { name: "侧边栏用户菜单" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("menu")).toHaveTextContent("问题反馈");
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "问题反馈" }));
+
+    expect(screen.getByRole("dialog", { name: "问题反馈" })).toBeInTheDocument();
+    expect(screen.getByLabelText("标题")).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "关闭问题反馈" }));
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("shows the latest nickname and avatar supplied by the profile", () => {

@@ -24,6 +24,7 @@ dependencies = [
     "python-dotenv>=1.0,<2",
     "redis>=5.2,<7",
     "sqlalchemy==2.0.55",
+    "stripe>=16,<17",
     "uvicorn[standard]>=0.35,<1",
 ]
 

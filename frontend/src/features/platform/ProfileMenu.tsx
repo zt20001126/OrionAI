@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { getDisplayName, platformPaths, type PlatformPath } from "./platformData";
 import { PlatformIcon } from "./PlatformIcon";
+import { FeedbackDialog } from "../feedback/FeedbackDialog";
 
 interface ProfileMenuProps {
   account: string;
@@ -32,6 +33,7 @@ export function ProfileMenu({
 }: ProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPresent, setIsPresent] = useState(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -74,6 +76,16 @@ export function ProfileMenu({
   function openSettings() {
     closeMenu();
     onNavigate(platformPaths.settings);
+  }
+
+  function openSecuritySettings() {
+    closeMenu();
+    onNavigate(platformPaths.securitySettings);
+  }
+
+  function openFeedback() {
+    closeMenu();
+    setIsFeedbackOpen(true);
   }
 
   function logout() {
@@ -141,6 +153,24 @@ export function ProfileMenu({
             个人设置
           </button>
           <button
+            className="profile-menu__item"
+            onClick={openSecuritySettings}
+            role="menuitem"
+            type="button"
+          >
+            <PlatformIcon name="settings" size={17} />
+            安全设置
+          </button>
+          <button
+            className="profile-menu__item"
+            onClick={openFeedback}
+            role="menuitem"
+            type="button"
+          >
+            <PlatformIcon name="message" size={17} />
+            问题反馈
+          </button>
+          <button
             className="profile-menu__item profile-menu__item--danger"
             disabled={isLoggingOut}
             onClick={logout}
@@ -151,6 +181,12 @@ export function ProfileMenu({
             {isLoggingOut ? "正在退出…" : "退出登录"}
           </button>
         </div>
+      )}
+      {isFeedbackOpen && (
+        <FeedbackDialog
+          onClose={() => setIsFeedbackOpen(false)}
+          restoreFocus={() => triggerRef.current?.focus()}
+        />
       )}
     </div>
   );

@@ -1099,7 +1099,10 @@
 }
 
 .account-settings-nav__item {
+  display: flex;
   min-height: 42px;
+  align-items: center;
+  gap: var(--space-2);
   padding: 0 var(--space-3);
   border: 1px solid transparent;
   border-radius: var(--radius-control);
@@ -1115,6 +1118,10 @@
     background-color var(--motion-fast);
 }
 
+.account-settings-nav__item .platform-icon {
+  color: var(--color-text-tertiary);
+}
+
 .account-settings-nav__item:hover {
   color: var(--color-text);
   background: var(--color-surface-muted);
@@ -1125,6 +1132,10 @@
   color: var(--color-brand-active);
   background: var(--color-brand-soft);
   font-weight: 550;
+}
+
+.account-settings-nav__item.is-active .platform-icon {
+  color: var(--color-brand-active);
 }
 
 .account-settings-nav__item:focus-visible {

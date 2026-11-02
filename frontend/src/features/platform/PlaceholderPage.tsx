@@ -12,6 +12,9 @@ type PlaceholderPath = Exclude<
   | typeof platformPaths.memoryTraining
   | typeof platformPaths.settings
   | typeof platformPaths.securitySettings
+  | typeof platformPaths.feedbackSettings
+  | typeof platformPaths.membership
+  | typeof platformPaths.membershipOrders
 >;
 
 const pageContent: Record<PlaceholderPath, { title: string; icon: PlatformIconName }> = {
