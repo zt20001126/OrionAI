@@ -145,7 +145,10 @@ export function ProfileMenu({
             </span>
           </div>
           <div className="profile-menu__divider" />
-          <LanguageSwitcher variant="menu-item" />
+          <LanguageSwitcher
+            icon={<PlatformIcon name="language" size={17} />}
+            variant="menu-item"
+          />
           <button
             className="profile-menu__item"
             onClick={openSettings}

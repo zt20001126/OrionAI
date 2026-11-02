@@ -5,6 +5,7 @@ export type PlatformIconName =
   | "knowledge"
   | "tools"
   | "settings"
+  | "language"
   | "logout"
   | "search"
   | "bell"
@@ -79,6 +80,12 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
         <>
           <path d="M12 8.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6Z" />
           <path d="m19.1 13.6 1.2.9-1.8 3.1-1.4-.6a8 8 0 0 1-1.6.9l-.2 1.5h-3.6l-.2-1.5a8 8 0 0 1-1.6-.9l-1.4.6-1.8-3.1 1.2-.9a7 7 0 0 1 0-1.8l-1.2-.9 1.8-3.1 1.4.6a8 8 0 0 1 1.6-.9l.2-1.5h3.6l.2 1.5a8 8 0 0 1 1.6.9l1.4-.6 1.8 3.1-1.2.9a7 7 0 0 1 0 1.8Z" />
+        </>
+      )}
+      {name === "language" && (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M3.5 12h17M12 3.5c2.4 2.3 3.5 5.2 3.5 8.5S14.4 18.2 12 20.5C9.6 18.2 8.5 15.3 8.5 12S9.6 5.8 12 3.5Z" />
         </>
       )}
       {name === "logout" && (

@@ -1,12 +1,19 @@
+import type { ReactNode } from "react";
+
 import { setLocale, t, type Locale } from "./localeStore";
 import { useLocale } from "./LocaleProvider";
 
 interface LanguageSwitcherProps {
   variant?: "button" | "menu-item";
   className?: string;
+  icon?: ReactNode;
 }
 
-export function LanguageSwitcher({ variant = "button", className = "" }: LanguageSwitcherProps) {
+export function LanguageSwitcher({
+  variant = "button",
+  className = "",
+  icon,
+}: LanguageSwitcherProps) {
   const locale = useLocale();
   const nextLocale: Locale = locale === "zh-CN" ? "en" : "zh-CN";
 
@@ -18,6 +25,7 @@ export function LanguageSwitcher({ variant = "button", className = "" }: Languag
       role={variant === "menu-item" ? "menuitem" : undefined}
       type="button"
     >
+      {icon}
       {locale === "zh-CN" ? "EN" : t("中文")}
     </button>
   );
