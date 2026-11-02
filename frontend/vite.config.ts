@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       host: "0.0.0.0",
+      allowedHosts: ["orionaihub.ltd", "www.orionaihub.ltd"],
       proxy: {
         "/api": {
           target: env.API_PROXY_TARGET || "http://localhost:8000",
