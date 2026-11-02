@@ -1,4 +1,22 @@
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/docker/frontend.Dockerfile
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend/src:/workspace/frontend/src
+      - ./frontend/public:/workspace/frontend/public
+      - ./frontend/index.html:/workspace/frontend/index.html
+      - ./frontend/vite.config.ts:/workspace/frontend/vite.config.ts
+    depends_on:
+      backend:
+        condition: service_healthy
+
   backend:
     build:
       context: .
@@ -12,7 +30,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in the project .env}
       CHECKPOINT_DATABASE_URL: ${CHECKPOINT_DATABASE_URL:?CHECKPOINT_DATABASE_URL must be set in the project .env}
       REDIS_URL: redis://redis:6379/0
-      CORS_ORIGINS: '["http://localhost:5173"]'
+      CORS_ORIGINS: "[\"http://localhost:${FRONTEND_PORT:-5173}\"]"
       AUTH_CODE_PEPPER: ${AUTH_CODE_PEPPER:-}
       ALIYUN_OSS_ACCESS_KEY_ID: ${ALIYUN_OSS_ACCESS_KEY_ID:-}
       ALIYUN_OSS_ACCESS_KEY_SECRET: ${ALIYUN_OSS_ACCESS_KEY_SECRET:-}

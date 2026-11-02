@@ -71,12 +71,13 @@ docker compose up -d --build
 
 Compose 启用 Uvicorn 热重载并监视 `.py` 和 `.md` 文件。后端代码通过目录挂载同步到容器，日常修改 Python、Agent 或 Prompt 文件不需要重新构建；依赖或 `pyproject.toml` 变化时再执行 `--build`。
 
-Compose 启动后端、PostgreSQL、Redis、提醒 Celery Worker 和 Beat。前端在另一个终端单独运行：
+Compose 启动前端 Vite 开发服务器、后端、PostgreSQL、Redis、提醒 Celery Worker 和 Beat。前端源代码目录挂载到容器中，修改页面代码会触发热更新；修改 `package.json` 或 `package-lock.json` 后需要重新构建前端镜像：
 
 ~~~powershell
-Set-Location frontend
-npm run dev
+docker compose up -d --build frontend
 ~~~
+
+前端容器通过 Compose 内部网络将 `/api` 请求代理到 `backend:8000`。如果只在宿主机启动前后端，可按下方“分别启动前后端”操作。
 
 Compose 文件中的 API、Worker 和 Beat 均等待 PostgreSQL 与 Redis 健康检查；仅 API 容器在启动 Uvicorn 前执行 Alembic 迁移。提醒扫描由 Celery Beat 每 30 秒触发，Beat 必须保持单实例。提醒规则和执行状态以 PostgreSQL 为准，Redis 仅作为 Celery broker。
 
