@@ -6,6 +6,7 @@ import type {
   WorkItem,
 } from "../model/types";
 import { documentFromText } from "../model/types";
+import { createUuid } from "../../../utils/createUuid";
 import { ResumeParagraphEditor } from "./ResumeParagraphEditor";
 
 type UpdateDraft = (update: (current: ResumeDraft) => ResumeDraft) => void;
@@ -150,7 +151,7 @@ export function ResumeEditor({
                 educations: [
                   ...current.content.educations,
                   {
-                    id: crypto.randomUUID(),
+                    id: createUuid(),
                     school: "",
                     major: "",
                     degree: "",
@@ -214,7 +215,7 @@ export function ResumeEditor({
                 works: [
                   ...current.content.works,
                   {
-                    id: crypto.randomUUID(),
+                    id: createUuid(),
                     company: "",
                     position: "",
                     start_month: "2022-01",
@@ -262,7 +263,7 @@ export function ResumeEditor({
                 projects: [
                   ...current.content.projects,
                   {
-                    id: crypto.randomUUID(),
+                    id: createUuid(),
                     name: "",
                     role: "",
                     technology_stack: "",

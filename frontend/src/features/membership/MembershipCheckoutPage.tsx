@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useToast } from "../../components/ToastProvider";
+import { createUuid } from "../../utils/createUuid";
 import { PlatformIcon } from "../platform/PlatformIcon";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { PaymentMethodSelector } from "./components/PaymentMethodSelector";
@@ -112,7 +113,7 @@ export function MembershipCheckoutPage({
           return;
         }
 
-        if (!requestIdRef.current) requestIdRef.current = window.crypto.randomUUID();
+        if (!requestIdRef.current) requestIdRef.current = createUuid();
         const created = await createMembershipOrder(plan.id, requestIdRef.current);
         requestIdRef.current = null;
         order = {
