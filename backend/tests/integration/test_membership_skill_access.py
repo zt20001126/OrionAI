@@ -19,7 +19,7 @@ from app.infrastructure.redis.client import get_redis_client
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
 from app.modules.membership.dependencies import get_membership_access_service
-from app.modules.membership.errors import MembershipRequiredError
+from app.modules.membership.errors import MembershipRequiredError, MembershipUnavailableError
 from app.modules.reminders.models import Reminder
 
 
@@ -28,9 +28,12 @@ class StubMembershipAccessService:
 
     def __init__(self) -> None:
         self.is_member_value = False
+        self.is_unavailable = False
         self.require_calls = 0
 
     def is_member(self, _user_id: int, *, is_guest: bool = False) -> bool:
+        if self.is_unavailable:
+            raise MembershipUnavailableError
         return self.is_member_value and not is_guest
 
     def require_member(self, _user_id: int, *, is_guest: bool = False) -> None:
@@ -128,6 +131,34 @@ def test_access_endpoint_reports_current_service_result(
     member_response = client.get("/api/v1/users/me/membership/access")
     assert member_response.status_code == 200
     assert member_response.json() == {"is_member": True}
+
+
+def test_access_endpoint_reports_guest_as_nonmember(
+    membership_access_client: tuple[TestClient, dict[str, Any]],
+) -> None:
+    """访客可读取准入接口，但不会获得会员权限。"""
+
+    client, state = membership_access_client
+    state["user"].is_guest = True
+
+    response = client.get("/api/v1/users/me/membership/access")
+
+    assert response.status_code == 200
+    assert response.json() == {"is_member": False}
+
+
+def test_access_endpoint_maps_membership_dependency_failure_to_503(
+    membership_access_client: tuple[TestClient, dict[str, Any]],
+) -> None:
+    """准入服务不可用时，HTTP 接口返回稳定的 503 响应。"""
+
+    client, state = membership_access_client
+    state["access_service"].is_unavailable = True
+
+    response = client.get("/api/v1/users/me/membership/access")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "会员服务暂时不可用，请稍后重试。"}
 
 
 def test_nonmember_cannot_start_skills_but_can_read_or_stop_existing_data(
