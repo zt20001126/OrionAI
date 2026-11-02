@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { PlatformIcon, type PlatformIconName } from "./PlatformIcon";
 import type { MarketSkill } from "./skillApi";
+import { t } from "../../i18n/localeStore";
 
 interface SkillCardProps {
   actions: ReactNode;
@@ -89,22 +90,22 @@ export function SkillCard({ actions, onView, skill }: SkillCardProps) {
           </div>
           <div className="skill-card__heading">
             <h3>{skill.name}</h3>
-            <span className="skill-card__type">{category}</span>
+            <span className="skill-card__type">{t(category)}</span>
           </div>
         </div>
-        <span className={`skill-card__status skill-card__status--${statusClass}`}>{status}</span>
+        <span className={`skill-card__status skill-card__status--${statusClass}`}>{t(status)}</span>
       </div>
       <div className="skill-card__content">
         <p>{skill.description}</p>
       </div>
       <div className="skill-card__actions">
         <button
-          aria-label={`查看 ${skill.name} 详情`}
+          aria-label={t("查看 {name} 详情", { name: skill.name })}
           className="skill-card__action"
           onClick={() => onView(skill)}
           type="button"
         >
-          查看详情
+          {t("查看详情")}
           <PlatformIcon name="arrow" size={16} />
         </button>
         <div className="skill-card__action-group">{actions}</div>

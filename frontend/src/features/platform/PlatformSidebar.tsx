@@ -2,6 +2,7 @@ import { BrandMark } from "../auth/ProductIntro";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformIcon } from "./PlatformIcon";
 import { navigationItems, platformPaths, type PlatformRoute } from "./platformData";
+import { t } from "../../i18n/localeStore";
 
 interface PlatformSidebarProps {
   account: string;
@@ -35,11 +36,11 @@ export function PlatformSidebar({
   return (
     <aside
       className={`platform-sidebar${collapsed ? " platform-sidebar--collapsed" : ""}`}
-      aria-label="平台侧边栏"
+      aria-label={t("平台侧边栏")}
     >
       <div className="platform-sidebar__top">
         <a
-          aria-label="OrionAI 首页"
+          aria-label={t("OrionAI 首页")}
           className="platform-brand"
           href={platformPaths.market}
           onClick={(event) => {
@@ -51,23 +52,23 @@ export function PlatformSidebar({
           <span>OrionAI</span>
         </a>
         <button
-          aria-label={collapsed ? "展开导航栏" : "收起导航栏"}
+          aria-label={t(collapsed ? t("展开导航栏") : t("收起导航栏"))}
           aria-expanded={!collapsed}
           className="platform-sidebar__toggle"
           onClick={onToggleCollapsed}
-          title={collapsed ? "展开导航栏" : "收起导航栏"}
+          title={t(collapsed ? t("展开导航栏") : t("收起导航栏"))}
           type="button"
         >
           <PlatformIcon name={collapsed ? "expand" : "collapse"} size={18} />
         </button>
       </div>
 
-      <nav aria-label="主导航" className="platform-navigation">
+      <nav aria-label={t("主导航")} className="platform-navigation">
         {navigationItems.map(({ path, label, icon }) => (
           <a
             aria-current={activePath === path ? "page" : undefined}
             className={`platform-navigation__item${activePath === path ? " is-active" : ""}`}
-            data-tooltip={label}
+            data-tooltip={t(label)}
             href={path}
             key={path}
             onClick={(event) => {
@@ -76,7 +77,7 @@ export function PlatformSidebar({
             }}
           >
             <PlatformIcon name={icon} />
-            <span>{label}</span>
+            <span>{t(label)}</span>
           </a>
         ))}
       </nav>
@@ -91,7 +92,7 @@ export function PlatformSidebar({
             nickname={nickname}
             onLogout={onLogout}
             onNavigate={onNavigate}
-            triggerLabel="侧边栏用户菜单"
+            triggerLabel={t("侧边栏用户菜单")}
             variant="sidebar"
             tooltipLabel={account}
             collapsed={collapsed}

@@ -8,6 +8,7 @@ import { SkillDetailsDialog } from "./SkillDetailsDialog";
 import { skillCategories, type PlatformRoute, type SkillCategory } from "./platformData";
 import { addSkillToMySkills, listMarketSkills, type MarketSkill } from "./skillApi";
 import { canLaunchSkill, ensureSkillMembership, launchSkill } from "./skillUsage";
+import { t } from "../../i18n/localeStore";
 
 interface SkillMarketPageProps {
   onNavigate: (path: PlatformRoute) => void;
@@ -48,7 +49,7 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setLoadState({
-          error: error instanceof Error ? error.message : "技能列表加载失败，请稍后重试。",
+          error: error instanceof Error ? error.message : t("技能列表加载失败，请稍后重试。"),
           requestVersion: reloadVersion,
           status: "error",
         });
@@ -78,13 +79,13 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
           ),
         };
       });
-      showToast("success", `已添加「${skill.name}」到我的技能。`);
+      showToast("success", t("已添加「{name}」到我的技能。", { name: skill.name }));
     } catch (error) {
       showToast(
         "error",
-        error instanceof Error && error.message === "网络连接异常，请检查网络后重试。"
-          ? "网络连接异常，请检查网络后重试。"
-          : "添加技能失败，请稍后重试。",
+        error instanceof Error && error.message === t("网络连接异常，请检查网络后重试。")
+          ? t("网络连接异常，请检查网络后重试。")
+          : t("添加技能失败，请稍后重试。"),
       );
     } finally {
       setAddingSkillIds((current) => {
@@ -133,17 +134,17 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
       <section aria-labelledby="market-title" className="market-intro">
         <header className="market-header">
           <div>
-            <h1 id="market-title">探索 AI 技能，构建专属智能体</h1>
-            <p>发现、使用和管理各类可复用的 AI 能力，快速搭建你的智能体应用。</p>
+            <h1 id="market-title">{t("探索 AI 技能，构建专属智能体")}</h1>
+            <p>{t("发现、使用和管理各类可复用的 AI 能力，快速搭建你的智能体应用。")}</p>
           </div>
         </header>
 
-        <section aria-label="搜索技能" className="market-search">
+        <section aria-label={t("搜索技能")} className="market-search">
           <PlatformIcon name="search" size={21} />
           <input
-            aria-label="搜索技能"
+            aria-label={t("搜索技能")}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="搜索技能名称、说明或编码"
+            placeholder={t("搜索技能名称、说明或编码")}
             type="search"
             value={search}
           />
@@ -153,11 +154,11 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
       <section className="market-section" aria-labelledby="category-title">
         <div className="market-section__heading market-section__heading--compact">
           <div>
-            <h2 id="category-title">技能分类</h2>
+            <h2 id="category-title">{t("技能分类")}</h2>
           </div>
-          <span className="market-section__hint">按技能类型筛选</span>
+          <span className="market-section__hint">{t("按技能类型筛选")}</span>
         </div>
-        <div aria-label="技能分类" className="category-list" role="group">
+        <div aria-label={t("技能分类")} className="category-list" role="group">
           {skillCategories.map((category) => (
             <button
               aria-pressed={activeCategory === category}
@@ -166,7 +167,7 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
               onClick={() => setActiveCategory(category)}
               type="button"
             >
-              {category}
+              {t(category)}
             </button>
           ))}
         </div>
@@ -175,27 +176,31 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
       <section className="market-section" aria-labelledby="skill-list-title">
         <div className="market-section__heading">
           <div>
-            <h2 id="skill-list-title">技能列表</h2>
+            <h2 id="skill-list-title">{t("技能列表")}</h2>
           </div>
           <span className="skill-count">
-            {isLoading ? "加载中" : loadError ? "加载失败" : `${visibleSkills.length} 项技能`}
+            {isLoading
+              ? t("加载中")
+              : loadError
+                ? t("加载失败")
+                : t("{count} 项技能", { count: visibleSkills.length })}
           </span>
         </div>
 
         {isLoading ? (
           <div className="market-no-results" role="status">
-            正在加载技能列表…
+            {t("正在加载技能列表…")}
           </div>
         ) : loadError ? (
           <div className="market-no-results" role="alert">
-            <strong>技能列表加载失败</strong>
+            <strong>{t("技能列表加载失败")}</strong>
             <span>{loadError}</span>
             <button
               className="button button--outline"
               onClick={() => setReloadVersion((version) => version + 1)}
               type="button"
             >
-              重试
+              {t("重试")}
             </button>
           </div>
         ) : visibleSkills.length > 0 ? (
@@ -205,7 +210,7 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
                 actions={
                   skill.status === "disabled" ? (
                     <button className="button button--secondary" disabled type="button">
-                      暂不可添加
+                      {t("暂不可添加")}
                     </button>
                   ) : skill.is_added ? (
                     <button
@@ -215,10 +220,10 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
                       type="button"
                     >
                       {startingSkillIds.has(skill.id)
-                        ? "正在启动…"
+                        ? t("正在启动…")
                         : canLaunchSkill(skill.code)
-                          ? "使用"
-                          : "运行入口未接入"}
+                          ? t("使用")
+                          : t("运行入口未接入")}
                     </button>
                   ) : (
                     <button
@@ -227,7 +232,7 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
                       onClick={() => void handleAddSkill(skill)}
                       type="button"
                     >
-                      {addingSkillIds.has(skill.id) ? "添加中…" : "添加技能"}
+                      {addingSkillIds.has(skill.id) ? t("添加中…") : t("添加技能")}
                     </button>
                   )
                 }
@@ -242,11 +247,11 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
             <span className="market-no-results__icon">
               <PlatformIcon name="search" size={20} />
             </span>
-            <strong>{skills.length === 0 ? "暂无技能" : "暂未找到匹配技能"}</strong>
+            <strong>{skills.length === 0 ? t("暂无技能") : t("暂未找到匹配技能")}</strong>
             <span>
               {skills.length === 0
-                ? "技能目录中还没有可展示的内容。"
-                : "试试更换关键词或选择其他分类。"}
+                ? t("技能目录中还没有可展示的内容。")
+                : t("试试更换关键词或选择其他分类。")}
             </span>
           </div>
         )}

@@ -12,8 +12,15 @@ from sqlalchemy.orm import Session
 
 from app.modules.membership import repository
 from app.modules.membership.access_cache import MembershipAccessCache
-from app.modules.membership.constants import MembershipOrderStatus
+from app.modules.membership.constants import (
+    MAX_MEMBERSHIP_GRANT_REASON_LENGTH,
+    MONTHLY_MEMBERSHIP_DURATION_DAYS,
+    MONTHLY_MEMBERSHIP_PLAN_NAME,
+    MembershipOrderStatus,
+    MembershipOrderType,
+)
 from app.modules.membership.dto import (
+    MembershipGrantResult,
     PaymentEventOutcome,
     PaymentOrderContext,
     VerifiedPaymentEvent,
@@ -76,6 +83,7 @@ def _order_response(order: MembershipOrder, plan: MembershipPlan) -> MembershipO
         plan_id=str(order.plan_id),
         plan_name=plan.name,
         amount=_amount_text(order.amount),
+        order_type=MembershipOrderType(order.order_type),
         duration_days=order.duration_days,
         status=MembershipOrderStatus(order.status),
         created_at=order.created_at,
@@ -181,6 +189,113 @@ class MembershipService:
             self._session.rollback()
             logger.exception("membership_order_create_failed user_id=%s", user_id)
             raise MembershipUnavailableError from None
+
+    def grant_monthly_membership(
+        self,
+        *,
+        email: str,
+        reason: str,
+        request_id: UUID,
+    ) -> MembershipGrantResult:
+        """按月度套餐免费发放会员，并将期限排在现有会员之后。
+
+        Step 1: 锁定注册用户并检查月度套餐和赠送原因。
+        Step 2: 按幂等请求键复用已完成的赠送，避免脚本重试重复加期。
+        Step 3: 创建零金额赠送订单与会员期限并在同一事务提交。
+        Step 4: 提交后清除该用户的会员准入缓存。
+        """
+
+        normalized_email = email.strip().lower()
+        normalized_reason = reason.strip()
+        if not normalized_email:
+            raise MembershipConflictError("目标邮箱不能为空。")
+        if not normalized_reason or len(normalized_reason) > MAX_MEMBERSHIP_GRANT_REASON_LENGTH:
+            raise MembershipConflictError("赠送原因不能为空且不能超过 500 个字符。")
+
+        try:
+            user = repository.get_registered_user_by_account(
+                self._session,
+                normalized_email,
+                for_update=True,
+            )
+            if user is None:
+                raise MembershipNotFoundError("未找到该邮箱对应的注册用户。")
+
+            plan = repository.get_plan_by_name(
+                self._session,
+                MONTHLY_MEMBERSHIP_PLAN_NAME,
+                enabled_only=True,
+            )
+            if plan is None or plan.duration_days != MONTHLY_MEMBERSHIP_DURATION_DAYS:
+                raise MembershipUnavailableError
+
+            existing_order = repository.get_order_by_request(
+                self._session,
+                user.id,
+                str(request_id),
+            )
+            if existing_order is not None:
+                if (
+                    existing_order.order_type != MembershipOrderType.MANUAL_GRANT
+                    or existing_order.plan_id != plan.id
+                ):
+                    raise MembershipConflictError("该幂等请求键已用于其他会员订单。")
+                existing_period = repository.get_period_by_order(self._session, existing_order.id)
+                if existing_period is None:
+                    raise MembershipUnavailableError
+                result = MembershipGrantResult(
+                    order_id=str(existing_order.id),
+                    user_id=user.id,
+                    email=normalized_email,
+                    plan_name=plan.name,
+                    starts_at=_as_utc(existing_period.starts_at),
+                    expires_at=_as_utc(existing_period.expires_at),
+                    already_applied=True,
+                )
+                self._session.commit()
+            else:
+                granted_at = _as_utc(self._clock())
+                order = repository.create_manual_grant_order(
+                    self._session,
+                    user_id=user.id,
+                    plan=plan,
+                    request_id=str(request_id),
+                    reason=normalized_reason,
+                )
+                latest_expiry = repository.latest_period_expiry(self._session, user.id)
+                starts_at = granted_at
+                if latest_expiry is not None:
+                    starts_at = max(granted_at, _as_utc(latest_expiry))
+                expires_at = starts_at + timedelta(days=plan.duration_days)
+                repository.create_period(
+                    self._session,
+                    order_id=order.id,
+                    user_id=user.id,
+                    starts_at=starts_at,
+                    expires_at=expires_at,
+                )
+                order_id = str(order.id)
+                user_id = user.id
+                self._session.commit()
+                result = MembershipGrantResult(
+                    order_id=order_id,
+                    user_id=user_id,
+                    email=normalized_email,
+                    plan_name=plan.name,
+                    starts_at=starts_at,
+                    expires_at=expires_at,
+                    already_applied=False,
+                )
+        except (MembershipConflictError, MembershipNotFoundError, MembershipUnavailableError):
+            self._session.rollback()
+            raise
+        except SQLAlchemyError:
+            self._session.rollback()
+            logger.exception("membership_manual_grant_failed email=%s", normalized_email)
+            raise MembershipUnavailableError from None
+
+        self._invalidate_access_cache(result.user_id)
+        return result
 
     def get_order(self, *, user_id: int, order_id: int) -> MembershipOrderResponse:
         """读取当前用户自己的会员订单详情。"""
@@ -463,6 +578,7 @@ class MembershipService:
         session_matches = order.stripe_session_id in {None, event.session_id}
         return all(
             (
+                order.order_type == MembershipOrderType.PURCHASE,
                 not event.is_live,
                 event.mode == CHECKOUT_MODE,
                 event.order_reference == str(order.id),
@@ -484,6 +600,7 @@ class MembershipService:
             order_id=str(order.id),
             status=MembershipOrderStatus(order.status),
             amount=_amount_text(order.amount),
+            order_type=MembershipOrderType(order.order_type),
             duration_days=order.duration_days,
             created_at=order.created_at,
         )

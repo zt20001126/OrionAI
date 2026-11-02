@@ -1,4 +1,5 @@
 import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+import { t } from "../../i18n/localeStore";
 
 export interface ConversationSummary {
   id: string;
@@ -123,7 +124,7 @@ async function request<T>(
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ConversationApiError("暂时无法连接对话服务，请检查后端状态后重试。", 0);
+    throw new ConversationApiError(t("暂时无法连接对话服务，请检查后端状态后重试。"), 0);
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -142,13 +143,13 @@ function getResponseError(response: Response, payload: unknown): ConversationApi
 }
 
 function getUserFacingErrorMessage(detail: unknown, status: number): string {
-  if (status === 401) return "登录状态已失效，请刷新页面后重新登录。";
-  if (status === 404) return "会话不存在或无权访问，无法打开。";
-  if (status === 409) return "当前会话正在等待题卡答案，请先完成题卡。";
-  if (status === 422) return "请检查填写内容是否正确。";
-  if (status === 503) return "对话服务暂不可用，请稍后重试。";
-  if (status >= 500) return "对话服务暂不可用，请稍后重试。";
-  return getSafeErrorDetail(detail, "请求失败，请稍后重试。");
+  if (status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
+  if (status === 404) return t("会话不存在或无权访问，无法打开。");
+  if (status === 409) return t("当前会话正在等待题卡答案，请先完成题卡。");
+  if (status === 422) return t("请检查填写内容是否正确。");
+  if (status === 503) return t("对话服务暂不可用，请稍后重试。");
+  if (status >= 500) return t("对话服务暂不可用，请稍后重试。");
+  return getSafeErrorDetail(detail, t("请求失败，请稍后重试。"));
 }
 
 export function createConversation(skillCode?: string): Promise<ConversationSummary> {
@@ -230,8 +231,8 @@ async function streamConversationTurn(
       signal,
     });
   } catch {
-    if (signal.aborted) throw new ConversationApiError("本次生成已中断。", 0);
-    throw new ConversationApiError("暂时无法连接对话服务，请检查后端状态后重试。", 0);
+    if (signal.aborted) throw new ConversationApiError(t("本次生成已中断。"), 0);
+    throw new ConversationApiError(t("暂时无法连接对话服务，请检查后端状态后重试。"), 0);
   }
 
   if (!response.ok) {
@@ -239,7 +240,7 @@ async function streamConversationTurn(
     throw getResponseError(response, payload);
   }
   if (!response.headers.get("content-type")?.startsWith("text/event-stream") || !response.body) {
-    throw new ConversationApiError("对话服务未返回有效的流式响应。", response.status);
+    throw new ConversationApiError(t("对话服务未返回有效的流式响应。"), response.status);
   }
 
   const reader = response.body.getReader();
@@ -261,7 +262,7 @@ async function streamConversationTurn(
     try {
       event = JSON.parse(data.join("\n")) as ConversationStreamEnvelope;
     } catch {
-      throw new ConversationApiError("对话服务返回了无法读取的流式数据。", response.status);
+      throw new ConversationApiError(t("对话服务返回了无法读取的流式数据。"), response.status);
     }
 
     if (event.event_type === "message" && event.data && typeof event.data === "object") {
@@ -294,9 +295,9 @@ async function streamConversationTurn(
 
     if (buffer.trim()) consumeFrame(buffer);
   } catch (error) {
-    if (signal.aborted) throw new ConversationApiError("本次生成已中断。", 0);
+    if (signal.aborted) throw new ConversationApiError(t("本次生成已中断。"), 0);
     if (error instanceof ConversationApiError) throw error;
-    throw new ConversationApiError("读取对话流时连接中断，请重新加载会话后再试。", 0);
+    throw new ConversationApiError(t("读取对话流时连接中断，请重新加载会话后再试。"), 0);
   } finally {
     reader.releaseLock();
   }
@@ -304,8 +305,8 @@ async function streamConversationTurn(
   if (endStatus !== "completed") {
     throw new ConversationApiError(
       endStatus === "failed"
-        ? "助手生成中断，部分内容尚未保存；请检查会话后再决定是否重试。"
-        : "对话连接已结束，但没有收到完整的结束事件。",
+        ? t("助手生成中断，部分内容尚未保存；请检查会话后再决定是否重试。")
+        : t("对话连接已结束，但没有收到完整的结束事件。"),
       0,
     );
   }
@@ -328,12 +329,12 @@ export async function listAllMessages(conversationId: string): Promise<MessageLi
 
 export function getConversationErrorMessage(error: unknown): string {
   if (!(error instanceof ConversationApiError)) {
-    return "请求失败，请稍后重试。";
+    return t("请求失败，请稍后重试。");
   }
 
-  if (error.status === 401) return "登录状态已失效，请刷新页面后重新登录。";
-  if (error.status === 404) return "会话不存在或无权访问，无法打开。";
-  if (error.status === 409) return "当前会话正在等待题卡答案，请先完成题卡。";
-  if (error.status === 503) return error.message || "对话服务暂不可用，请稍后重试。";
+  if (error.status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
+  if (error.status === 404) return t("会话不存在或无权访问，无法打开。");
+  if (error.status === 409) return t("当前会话正在等待题卡答案，请先完成题卡。");
+  if (error.status === 503) return error.message || t("对话服务暂不可用，请稍后重试。");
   return error.message;
 }

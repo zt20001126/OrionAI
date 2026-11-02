@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.modules.auth.models import User
+from app.modules.membership.constants import MembershipOrderStatus, MembershipOrderType
 from app.modules.membership.models import Membership, MembershipOrder, MembershipPlan
 
 
@@ -26,6 +27,34 @@ def get_plan(session: Session, plan_id: int, *, enabled_only: bool) -> Membershi
     statement = select(MembershipPlan).where(MembershipPlan.id == plan_id)
     if enabled_only:
         statement = statement.where(MembershipPlan.is_enabled.is_(True))
+    return session.scalar(statement)
+
+
+def get_plan_by_name(
+    session: Session,
+    name: str,
+    *,
+    enabled_only: bool,
+) -> MembershipPlan | None:
+    """按套餐稳定名称读取套餐，可要求仅返回启用项。"""
+
+    statement = select(MembershipPlan).where(MembershipPlan.name == name)
+    if enabled_only:
+        statement = statement.where(MembershipPlan.is_enabled.is_(True))
+    return session.scalar(statement)
+
+
+def get_registered_user_by_account(
+    session: Session,
+    account: str,
+    *,
+    for_update: bool = False,
+) -> User | None:
+    """按规范化邮箱读取注册用户，并可锁定用户行以串行化会员排期。"""
+
+    statement = select(User).where(func.lower(User.account) == account, User.is_guest.is_(False))
+    if for_update:
+        statement = statement.with_for_update()
     return session.scalar(statement)
 
 
@@ -58,6 +87,31 @@ def create_order(
         amount=plan.price,
         duration_days=plan.duration_days,
         request_id=request_id,
+    )
+    session.add(order)
+    session.flush()
+    return order
+
+
+def create_manual_grant_order(
+    session: Session,
+    *,
+    user_id: int,
+    plan: MembershipPlan,
+    request_id: str,
+    reason: str,
+) -> MembershipOrder:
+    """创建金额为零且带赠送原因的后台会员发放记录。"""
+
+    order = MembershipOrder(
+        user_id=user_id,
+        plan_id=plan.id,
+        amount=0,
+        duration_days=plan.duration_days,
+        request_id=request_id,
+        order_type=MembershipOrderType.MANUAL_GRANT,
+        grant_reason=reason,
+        status=MembershipOrderStatus.PAID,
     )
     session.add(order)
     session.flush()

@@ -47,3 +47,16 @@ class PaymentOrderContext:
     duration_days: int
     status: str
     stripe_session_id: str | None
+
+
+@dataclass(frozen=True)
+class MembershipGrantResult:
+    """管理员赠送会员成功后的订单和有效期摘要。"""
+
+    order_id: str
+    user_id: int
+    email: str
+    plan_name: str
+    starts_at: datetime
+    expires_at: datetime
+    already_applied: bool

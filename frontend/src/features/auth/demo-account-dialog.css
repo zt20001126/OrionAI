@@ -1,0 +1,154 @@
+.demo-account-dialog-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--color-overlay);
+  backdrop-filter: blur(2px);
+  place-items: center;
+}
+
+.demo-account-dialog {
+  position: relative;
+  width: min(100%, 420px);
+  max-height: calc(100svh - var(--space-8));
+  overflow-y: auto;
+  padding: var(--space-7);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-dialog);
+  animation: demo-account-dialog-in var(--motion-normal) both;
+}
+
+.demo-account-dialog h2 {
+  margin: 0;
+  padding-right: var(--space-8);
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  line-height: var(--line-height-tight);
+}
+
+.demo-account-dialog__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: grid;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  color: var(--color-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+  transition:
+    color var(--motion-fast),
+    background-color var(--motion-fast);
+}
+
+.demo-account-dialog__close:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.demo-account-dialog .platform-icon {
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.demo-account-dialog__credentials {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.demo-account-dialog__field {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.demo-account-dialog__label {
+  color: var(--color-text-label);
+  font-size: var(--font-size-sm);
+  font-weight: 550;
+}
+
+.demo-account-dialog__account-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.demo-account-dialog code {
+  min-width: 0;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--font-size-md);
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.demo-account-dialog__copy {
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding-inline: var(--space-3);
+}
+
+.demo-account-dialog > p {
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}
+
+.demo-account-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-6);
+}
+
+.demo-account-dialog__actions .button {
+  min-height: 42px;
+  min-width: 120px;
+}
+
+@keyframes demo-account-dialog-in {
+  from {
+    transform: translateY(5px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  .demo-account-dialog-backdrop {
+    padding: var(--space-3);
+  }
+
+  .demo-account-dialog {
+    max-height: calc(100svh - var(--space-6));
+    padding: var(--space-6) var(--space-4) var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-account-dialog {
+    animation: none;
+  }
+}

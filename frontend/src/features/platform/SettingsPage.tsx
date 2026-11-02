@@ -6,6 +6,7 @@ import { ProfileSettingsPage } from "./ProfileSettingsPage";
 import { SecuritySettingsPage } from "./SecuritySettingsPage";
 import { PlatformIcon } from "./PlatformIcon";
 import { FeedbackSettingsPage } from "../feedback/FeedbackSettingsPage";
+import { t } from "../../i18n/localeStore";
 
 interface SettingsPageProps {
   account: string;
@@ -51,8 +52,8 @@ export function SettingsPage({
   }
 
   return (
-    <section aria-label="用户设置" className="account-settings-layout">
-      <nav aria-label="设置导航" className="account-settings-nav">
+    <section aria-label={t("用户设置")} className="account-settings-layout">
+      <nav aria-label={t("设置导航")} className="account-settings-nav">
         <button
           aria-current={isProfileSettings ? "page" : undefined}
           className={`account-settings-nav__item${isProfileSettings ? " is-active" : ""}`}
@@ -60,7 +61,7 @@ export function SettingsPage({
           type="button"
         >
           <PlatformIcon name="user" size={17} />
-          个人设置
+          {t("个人设置")}
         </button>
         {!isGuest && (
           <button
@@ -70,7 +71,7 @@ export function SettingsPage({
             type="button"
           >
             <PlatformIcon name="settings" size={17} />
-            安全设置
+            {t("安全设置")}
           </button>
         )}
         <button
@@ -80,7 +81,7 @@ export function SettingsPage({
           type="button"
         >
           <PlatformIcon name="message" size={17} />
-          问题反馈
+          {t("问题反馈")}
         </button>
       </nav>
 

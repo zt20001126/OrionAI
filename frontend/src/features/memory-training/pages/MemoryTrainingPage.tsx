@@ -6,6 +6,7 @@ import { TrainingResult } from "../components/TrainingResult";
 import { useMemoryTrainingSession } from "../hooks/useMemoryTrainingSession";
 import type { PlatformRoute } from "../../platform/platformData";
 import "../memory-training.css";
+import { t } from "../../../i18n/localeStore";
 
 interface MemoryTrainingPageProps {
   onNavigate: (path: PlatformRoute, replace?: boolean) => Promise<void> | void;
@@ -20,7 +21,7 @@ export function MemoryTrainingPage({ onNavigate }: MemoryTrainingPageProps) {
     return (
       <main className="memory-training memory-training__loading" role="status">
         <span className="memory-training__spinner" aria-hidden="true" />
-        <p>正在恢复训练状态…</p>
+        <p>{t("正在恢复训练状态…")}</p>
       </main>
     );
   }
@@ -28,10 +29,10 @@ export function MemoryTrainingPage({ onNavigate }: MemoryTrainingPageProps) {
   if (session.phase === "error") {
     return (
       <main className="memory-training memory-training__error-state">
-        <h1>记忆训练暂不可用</h1>
+        <h1>{t("记忆训练暂不可用")}</h1>
         <p role="alert">{session.error}</p>
         <button className="button button--outline" onClick={() => void training.restore()} type="button">
-          重试
+          {t("重试")}
         </button>
       </main>
     );
@@ -54,7 +55,7 @@ export function MemoryTrainingPage({ onNavigate }: MemoryTrainingPageProps) {
     return (
       <main className="memory-training memory-training__loading">
         <span className="memory-training__spinner" aria-hidden="true" />
-        <p>正在加载训练图片</p>
+        <p>{t("正在加载训练图片")}</p>
         {session.error && <p className="memory-training__error" role="alert">{session.error}</p>}
         <button
           className="button button--outline"
@@ -62,7 +63,7 @@ export function MemoryTrainingPage({ onNavigate }: MemoryTrainingPageProps) {
           onClick={() => void training.retryImageLoading()}
           type="button"
         >
-          {session.busy ? "正在加载…" : "重试加载图片"}
+          {session.busy ? t("正在加载…") : t("重试加载图片")}
         </button>
       </main>
     );
@@ -119,10 +120,10 @@ export function MemoryTrainingPage({ onNavigate }: MemoryTrainingPageProps) {
 
   return (
     <main className="memory-training memory-training__error-state">
-      <h1>本次训练未能完成</h1>
-      <p role="alert">{session.error ?? "题目准备失败，请重新开始训练。"}</p>
+      <h1>{t("本次训练未能完成")}</h1>
+      <p role="alert">{session.error ?? t("题目准备失败，请重新开始训练。")}</p>
       <button className="button button--primary" onClick={() => void training.startAgain()} type="button">
-        重新开始
+        {t("重新开始")}
       </button>
     </main>
   );

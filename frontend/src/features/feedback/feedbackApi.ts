@@ -1,6 +1,7 @@
 /** 集中定义问题反馈 API 请求与响应结构。 */
 
 import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+import { t } from "../../i18n/localeStore";
 
 export interface FeedbackInput {
   title: string;
@@ -22,7 +23,7 @@ export async function submitFeedback(input: FeedbackInput): Promise<FeedbackResp
       body: JSON.stringify(input),
     });
   } catch {
-    throw new Error("网络连接异常，请检查网络后重试。");
+    throw new Error(t("网络连接异常，请检查网络后重试。"));
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -38,8 +39,8 @@ export async function submitFeedback(input: FeedbackInput): Promise<FeedbackResp
 }
 
 function getErrorMessage(detail: unknown, status: number): string {
-  if (status === 401) return "登录状态已失效，请刷新页面后重新登录。";
-  if (status === 429) return "提交过于频繁，请稍后重试。";
-  if (status >= 500) return "反馈服务暂时不可用，请稍后重试。";
-  return getSafeErrorDetail(detail, "反馈提交失败，请稍后重试。");
+  if (status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
+  if (status === 429) return t("提交过于频繁，请稍后重试。");
+  if (status >= 500) return t("反馈服务暂时不可用，请稍后重试。");
+  return getSafeErrorDetail(detail, t("反馈提交失败，请稍后重试。"));
 }

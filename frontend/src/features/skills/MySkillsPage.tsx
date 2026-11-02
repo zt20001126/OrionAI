@@ -12,6 +12,7 @@ import {
   type MySkill,
 } from "../platform/skillApi";
 import { canLaunchSkill, ensureSkillMembership, launchSkill } from "../platform/skillUsage";
+import { t } from "../../i18n/localeStore";
 
 interface MySkillsPageProps {
   onNavigate: (path: PlatformRoute) => void;
@@ -44,7 +45,7 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
         setLoadState({
-          error: error instanceof Error ? error.message : "我的技能加载失败，请稍后重试。",
+          error: error instanceof Error ? error.message : t("我的技能加载失败，请稍后重试。"),
           requestVersion: reloadVersion,
           status: "error",
         });
@@ -70,13 +71,13 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
           items: current.items.filter((item) => item.id !== skill.id),
         };
       });
-      showToast("success", `已从我的技能移除「${skill.name}」。`);
+      showToast("success", t("已从我的技能移除「{name}」。", { name: skill.name }));
     } catch (error) {
       showToast(
         "error",
-        error instanceof Error && error.message === "网络连接异常，请检查网络后重试。"
-          ? "网络连接异常，请检查网络后重试。"
-          : "移除技能失败，请稍后重试。",
+        error instanceof Error && error.message === t("网络连接异常，请检查网络后重试。")
+          ? t("网络连接异常，请检查网络后重试。")
+          : t("移除技能失败，请稍后重试。"),
       );
     } finally {
       setRemovingSkillIds((current) => {
@@ -112,35 +113,35 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
     <div className="market-page">
       <section className="market-header" aria-labelledby="my-skills-title">
         <div>
-          <h1 id="my-skills-title">我的技能</h1>
-          <p>已添加的技能会显示在这里；从技能市场添加后即可使用可运行的技能。</p>
+          <h1 id="my-skills-title">{t("我的技能")}</h1>
+          <p>{t("已添加的技能会显示在这里；从技能市场添加后即可使用可运行的技能。")}</p>
         </div>
       </section>
 
       <section className="market-section" aria-labelledby="my-skills-list-title">
         <div className="market-section__heading">
           <div>
-            <h2 id="my-skills-list-title">已添加技能</h2>
+            <h2 id="my-skills-list-title">{t("已添加技能")}</h2>
           </div>
           <span className="skill-count">
-            {isLoading ? "加载中" : loadError ? "加载失败" : `${skills.length} 项技能`}
+            {isLoading ? t("加载中") : loadError ? t("加载失败") : `${skills.length} 项技能`}
           </span>
         </div>
 
         {isLoading ? (
           <div className="market-no-results" role="status">
-            正在加载我的技能…
+            {t("正在加载我的技能…")}
           </div>
         ) : loadError ? (
           <div className="market-no-results" role="alert">
-            <strong>我的技能加载失败</strong>
+            <strong>{t("我的技能加载失败")}</strong>
             <span>{loadError}</span>
             <button
               className="button button--outline"
               onClick={() => setReloadVersion((version) => version + 1)}
               type="button"
             >
-              重试
+              {t("重试")}
             </button>
           </div>
         ) : skills.length > 0 ? (
@@ -155,7 +156,7 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
                       onClick={() => void handleRemoveSkill(skill)}
                       type="button"
                     >
-                      {removingSkillIds.has(skill.id) ? "移除中…" : "移除"}
+                      {removingSkillIds.has(skill.id) ? t("移除中…") : t("移除")}
                     </button>
                     <button
                       className="button button--primary"
@@ -164,10 +165,10 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
                       type="button"
                     >
                       {startingSkillIds.has(skill.id)
-                        ? "正在启动…"
+                        ? t("正在启动…")
                         : canLaunchSkill(skill.code)
-                          ? "使用"
-                          : "运行入口未接入"}
+                          ? t("使用")
+                          : t("运行入口未接入")}
                     </button>
                   </>
                 }
@@ -179,14 +180,14 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
           </div>
         ) : (
           <div className="market-no-results" role="status">
-            <strong>还没有添加技能</strong>
-            <span>前往技能市场添加已发布的技能，再从这里使用。</span>
+            <strong>{t("还没有添加技能")}</strong>
+            <span>{t("前往技能市场添加已发布的技能，再从这里使用。")}</span>
             <button
               className="button button--primary"
               onClick={() => onNavigate(platformPaths.market)}
               type="button"
             >
-              浏览技能市场
+              {t("浏览技能市场")}
             </button>
           </div>
         )}

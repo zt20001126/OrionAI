@@ -29,6 +29,9 @@ import {
 } from "../features/platform/platformData";
 import { getSession, logout, type AuthIdentity } from "../features/auth/authApi";
 import { getUserProfile, type UserProfile } from "../features/platform/profileApi";
+import { LocaleProvider, useLocale } from "../i18n/LocaleProvider";
+import { LanguageSwitcher } from "../i18n/LanguageSwitcher";
+import { t } from "../i18n/localeStore";
 
 type AppPath = PlatformRoute | typeof platformPaths.login;
 type PopNavigationStage = "restoring" | "confirming" | "navigating";
@@ -71,13 +74,16 @@ function getCurrentPath(): string {
 
 export default function App() {
   return (
-    <ToastProvider>
-      <AppContent />
-    </ToastProvider>
+    <LocaleProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </LocaleProvider>
   );
 }
 
 function AppContent() {
+  useLocale();
   const { confirm, showToast } = useToast();
   const [identity, setIdentity] = useState<AuthIdentity | null>(null);
   const account = identity?.account ?? null;
@@ -359,7 +365,7 @@ function AppContent() {
       );
       setPathname(platformPaths.login);
     } catch {
-      showToast("error", "退出失败，请检查连接后重试。");
+      showToast("error", t("退出失败，请检查连接后重试。"));
     } finally {
       setIsLoggingOut(false);
     }
@@ -394,14 +400,15 @@ function AppContent() {
       <main className="auth-layout">
         <ProductIntro />
         <section className="auth-panel">
+          <LanguageSwitcher className="language-switcher--auth" />
           <section className="auth-card status-card" aria-live="polite">
             <div className="auth-card-brand">
               <BrandMark />
               <span>OrionAI</span>
             </div>
             <span className="status-spinner" aria-hidden="true" />
-            <h1>正在恢复登录状态</h1>
-            <p>请稍候，我们正在确认你的安全会话。</p>
+            <h1>{t("正在恢复登录状态")}</h1>
+            <p>{t("请稍候，我们正在确认你的安全会话。")}</p>
           </section>
         </section>
       </main>
@@ -411,7 +418,7 @@ function AppContent() {
   if (!identity) {
     return (
       <AuthPage
-        initialMessage={sessionError}
+        initialMessage={sessionError ? t(sessionError) : null}
         initialSuccessMessage={authSuccessMessage}
         onAuthenticated={handleAuthenticated}
       />
@@ -493,7 +500,7 @@ function AppContent() {
   return (
     <MembershipStatusProvider isGuest={isGuest}>
       <PlatformLayout
-        account={account ?? "访客用户"}
+        account={account ?? t("访客用户")}
         avatarUrl={userProfile?.avatar_url}
         isGuest={isGuest}
         isLoggingOut={isLoggingOut}
@@ -505,7 +512,7 @@ function AppContent() {
         <Suspense
           fallback={
             <div className="membership-route-loading" role="status">
-              正在打开页面…
+              {t("正在打开页面…")}
             </div>
           }
         >
@@ -518,10 +525,10 @@ function AppContent() {
 
 function getLeaveConfirmation() {
   return {
-    title: "离开当前页面？",
-    description: "当前修改尚未保存，离开后更改将丢失。",
-    cancelLabel: "继续编辑",
-    confirmLabel: "放弃修改并离开",
+    title: t("离开当前页面？"),
+    description: t("当前修改尚未保存，离开后更改将丢失。"),
+    cancelLabel: t("继续编辑"),
+    confirmLabel: t("放弃修改并离开"),
     tone: "warning" as const,
   };
 }

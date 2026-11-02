@@ -1,3 +1,5 @@
+import { t } from "../../i18n/localeStore";
+
 export const platformPaths = {
   market: "/market",
   mySkills: "/agents",
@@ -118,5 +120,5 @@ export type SkillCategory = (typeof skillCategories)[number];
 
 export function getDisplayName(account: string): string {
   const localPart = account.split("@")[0]?.trim();
-  return localPart || "个人用户";
+  return localPart || t("个人用户");
 }

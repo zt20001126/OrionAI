@@ -6,6 +6,7 @@ import {
   listConversations,
   type ConversationSummary,
 } from "./conversationApi";
+import { getLocaleTag, t } from "../../i18n/localeStore";
 
 const MAX_HISTORY_PAGE_SIZE = 100;
 const HISTORY_PAGE_SIZE_FALLBACK = 10;
@@ -25,11 +26,11 @@ function getConversationLabel(conversation: ConversationSummary): string {
   const createdAt = new Date(conversation.created_at);
   const dateLabel = Number.isNaN(createdAt.getTime())
     ? ""
-    : new Intl.DateTimeFormat("zh-CN", {
+    : new Intl.DateTimeFormat(getLocaleTag(), {
         dateStyle: "short",
         timeStyle: "short",
       }).format(createdAt);
-  return dateLabel ? `未命名会话 · ${dateLabel}` : "未命名会话";
+  return dateLabel ? t("未命名会话 · {date}", { date: dateLabel }) : t("未命名会话");
 }
 
 function getPageNumbers(currentPage: number, totalPages: number): number[] {
@@ -210,7 +211,7 @@ export function ConversationHistory({
 
   return (
     <section
-      aria-label={isPage ? "会话列表" : undefined}
+      aria-label={isPage ? t("会话列表") : undefined}
       aria-labelledby={isPage ? undefined : `conversation-history-title-${variant}`}
       className={`conversation-history conversation-history--${variant}${showPagination ? " is-paginated" : ""}`}
       ref={historyRef}
@@ -218,14 +219,14 @@ export function ConversationHistory({
       {!isPage && (
         <div className="conversation-history__heading">
           <h2 id={`conversation-history-title-${variant}`}>
-            {variant === "sidebar" ? "历史会话" : "所有会话"}
+            {variant === "sidebar" ? t("历史会话") : t("所有会话")}
           </h2>
         </div>
       )}
 
       {isLoading && (
         <p className="conversation-history__status" role="status">
-          正在加载会话…
+          {t("正在加载会话…")}
         </p>
       )}
 
@@ -241,13 +242,13 @@ export function ConversationHistory({
             }}
             type="button"
           >
-            重试
+            {t("重试")}
           </button>
         </div>
       )}
 
       {!isLoading && !error && conversations.length === 0 && (
-        <p className="conversation-history__status">还没有历史会话。</p>
+        <p className="conversation-history__status">{t("还没有历史会话。")}</p>
       )}
 
       {!isLoading && !error && conversations.length > 0 && (
@@ -265,7 +266,7 @@ export function ConversationHistory({
                   {getConversationLabel(conversation)}
                 </span>
                 <time dateTime={conversation.updated_at}>
-                  {new Intl.DateTimeFormat("zh-CN", {
+                  {new Intl.DateTimeFormat(getLocaleTag(), {
                     dateStyle: "medium",
                     timeStyle: "short",
                   }).format(new Date(conversation.updated_at))}
@@ -289,7 +290,7 @@ export function ConversationHistory({
           onClick={() => void loadMore()}
           type="button"
         >
-          {isLoadingMore ? "正在加载…" : "加载更多会话"}
+          {isLoadingMore ? t("正在加载…") : t("加载更多会话")}
         </button>
       )}
 
@@ -300,12 +301,12 @@ export function ConversationHistory({
           ref={paginationRef}
         >
           {totalCount > 0 && (
-            <span className="conversation-history__pagination-total">共 {totalCount} 条会话</span>
+            <span className="conversation-history__pagination-total">{t("共")} {totalCount} {t("条会话")}</span>
           )}
           {showPagination && (
-            <nav aria-label="会话记录分页" className="conversation-history__pagination-nav">
+            <nav aria-label={t("会话记录分页")} className="conversation-history__pagination-nav">
               <button
-                aria-label="上一页"
+                aria-label={t("上一页")}
                 className="conversation-history__page-button conversation-history__page-arrow"
                 disabled={currentPage === 1 || isLoading}
                 onClick={() => goToPage(currentPage - 1)}
@@ -328,7 +329,7 @@ export function ConversationHistory({
                 ))}
               </div>
               <button
-                aria-label="下一页"
+                aria-label={t("下一页")}
                 className="conversation-history__page-button conversation-history__page-arrow"
                 disabled={currentPage === totalPages || isLoading}
                 onClick={() => goToPage(currentPage + 1)}

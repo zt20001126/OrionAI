@@ -6,6 +6,7 @@ import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
 import { PlatformIcon } from "./PlatformIcon";
 import { MembershipEntry } from "../membership/MembershipEntry";
+import { t } from "../../i18n/localeStore";
 import {
   isMembershipCheckoutPath,
   isMembershipOrderDetailPath,
@@ -108,11 +109,11 @@ export function PlatformLayout({
       >
         <header className="platform-topbar">
           <div className="platform-topbar__context">
-            <strong>{pageTitle}</strong>
+            <strong>{t(pageTitle)}</strong>
           </div>
           <div className="platform-topbar__actions">
             <MembershipEntry onNavigate={onNavigate} />
-            <button aria-label="通知" className="notification-button" type="button">
+            <button aria-label={t("通知")} className="notification-button" type="button">
               <PlatformIcon name="bell" />
               <span aria-hidden="true" />
             </button>
@@ -124,7 +125,7 @@ export function PlatformLayout({
               nickname={nickname}
               onLogout={onLogout}
               onNavigate={onNavigate}
-              triggerLabel="更多用户选项"
+              triggerLabel={t("更多用户选项")}
             />
           </div>
         </header>
@@ -135,7 +136,7 @@ export function PlatformLayout({
           {children}
         </main>
         {!isConversationPage && !isResumePage && !isSessionsPage && (
-          <footer className="platform-footer">© OrionAI · 为企业智能体应用而构建</footer>
+          <footer className="platform-footer">{t("© OrionAI · 为企业智能体应用而构建")}</footer>
         )}
       </div>
     </div>

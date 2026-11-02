@@ -24,6 +24,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.snowflake import generate_snowflake_id
+from app.modules.membership.constants import MembershipOrderStatus, MembershipOrderType
 
 
 class MembershipPlan(Base):
@@ -65,13 +66,29 @@ class MembershipPlan(Base):
 
 
 class MembershipOrder(Base):
-    """会员购买订单持久化模型，保存成交金额和期限快照及 Stripe Session 关联。"""
+    """会员订单持久化模型，保存购买或赠送来源、金额和期限快照及支付会话关联。"""
 
     __tablename__ = "membership_orders"
     __table_args__ = (
         PrimaryKeyConstraint("id", name="pk_membership_orders"),
-        CheckConstraint("amount > 0", name="ck_membership_orders_amount_positive"),
+        CheckConstraint(
+            f"(order_type = '{MembershipOrderType.PURCHASE.value}' AND amount > 0 "
+            "AND grant_reason IS NULL) "
+            f"OR (order_type = '{MembershipOrderType.MANUAL_GRANT.value}' "
+            "AND amount = 0 AND grant_reason IS NOT NULL)",
+            name="ck_membership_orders_amount_source",
+        ),
         CheckConstraint("duration_days > 0", name="ck_membership_orders_duration_positive"),
+        CheckConstraint(
+            f"order_type IN ('{MembershipOrderType.PURCHASE.value}', "
+            f"'{MembershipOrderType.MANUAL_GRANT.value}')",
+            name="ck_membership_orders_type",
+        ),
+        CheckConstraint(
+            f"order_type != '{MembershipOrderType.MANUAL_GRANT.value}' OR "
+            f"(status = '{MembershipOrderStatus.PAID.value}' AND stripe_session_id IS NULL)",
+            name="ck_membership_orders_manual_grant_state",
+        ),
         CheckConstraint(
             "status IN ('pending', 'paid', 'failed', 'expired')",
             name="ck_membership_orders_status",
@@ -103,6 +120,16 @@ class MembershipOrder(Base):
     )
     amount: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False, comment="下单时人民币金额快照"
+    )
+    order_type: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=MembershipOrderType.PURCHASE,
+        server_default=text(f"'{MembershipOrderType.PURCHASE.value}'"),
+        comment="订单来源类型：付费购买或管理员赠送",
+    )
+    grant_reason: Mapped[str | None] = mapped_column(
+        String(500), nullable=True, comment="管理员赠送会员的原因；普通购买为空"
     )
     duration_days: Mapped[int] = mapped_column(
         Integer, nullable=False, comment="下单时会员有效天数快照"

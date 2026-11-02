@@ -22,6 +22,7 @@ import {
   type ResumeSection,
 } from "./model/types";
 import "./resume.css";
+import { t } from "../../i18n/localeStore";
 
 export function ResumePage({
   onNavigate,
@@ -68,7 +69,7 @@ export function ResumePage({
         setError(null);
       })
       .catch((requestError: unknown) => {
-        if (active) setError(messageOf(requestError, "简历暂时无法加载。"));
+        if (active) setError(messageOf(requestError, t("简历暂时无法加载。")));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -100,11 +101,11 @@ export function ResumePage({
         if (current) URL.revokeObjectURL(current);
         return null;
       });
-      if (notifySuccess) showToast("success", "简历已保存。");
+      if (notifySuccess) showToast("success", t("简历已保存。"));
       return true;
     } catch (requestError) {
-      const message = messageOf(requestError, "简历保存失败，请稍后重试。");
-      if (/其他位置更新|版本冲突/.test(message)) setError(message);
+      const message = messageOf(requestError, t("简历保存失败，请稍后重试。"));
+      if (message.includes("其他位置更新") || message.includes(t("其他位置更新")) || message.includes("版本冲突")) setError(message);
       else showToast("error", message);
       return false;
     } finally {
@@ -115,11 +116,11 @@ export function ResumePage({
   async function handlePhotoUpload(file: File) {
     setPhotoError(null);
     if (file.size > 5 * 1024 * 1024) {
-      setPhotoError("照片不能超过 5 MiB。");
+      setPhotoError(t("照片不能超过 5 MiB。"));
       return;
     }
     if (!new Set(["image/png", "image/jpeg"]).has(file.type)) {
-      setPhotoError("请选择 PNG 或 JPEG 图片。");
+      setPhotoError(t("请选择 PNG 或 JPEG 图片。"));
       return;
     }
     setUploading(true);
@@ -142,7 +143,7 @@ export function ResumePage({
         },
       }));
     } catch (requestError) {
-      showToast("error", messageOf(requestError, "照片上传失败，请稍后重试。"));
+      showToast("error", messageOf(requestError, t("照片上传失败，请稍后重试。")));
     } finally {
       setUploading(false);
     }
@@ -155,10 +156,10 @@ export function ResumePage({
   async function handleExport() {
     if (dirty) {
       const confirmed = await confirm({
-        title: "导出前保存简历？",
-        description: "当前简历有未保存的修改。保存成功后将继续导出 PDF。",
-        cancelLabel: "继续编辑",
-        confirmLabel: "保存并导出",
+        title: t("导出前保存简历？"),
+        description: t("当前简历有未保存的修改。保存成功后将继续导出 PDF。"),
+        cancelLabel: t("继续编辑"),
+        confirmLabel: t("保存并导出"),
         tone: "warning",
         onConfirm: () => saveCurrent(false),
       });
@@ -167,9 +168,9 @@ export function ResumePage({
     setExporting(true);
     try {
       await downloadResumePdf();
-      showToast("success", "PDF 已开始下载。");
+      showToast("success", t("PDF 已开始下载。"));
     } catch (requestError) {
-      showToast("error", messageOf(requestError, "PDF 导出失败，请稍后重试。"));
+      showToast("error", messageOf(requestError, t("PDF 导出失败，请稍后重试。")));
     } finally {
       setExporting(false);
     }
@@ -181,32 +182,34 @@ export function ResumePage({
       const response = await getResume();
       if (dirty) {
         const useAssistantVersion = await confirm({
-          title: "简历已被助手更新",
+          title: t("简历已被助手更新"),
           description:
-            "你的本地草稿有未保存修改。载入助手版本将丢弃本地草稿；保留本地草稿后，可在之后保存并覆盖助手版本。",
-          cancelLabel: "保留本地草稿",
-          confirmLabel: "载入助手版本",
+            t("你的本地草稿有未保存修改。载入助手版本将丢弃本地草稿；保留本地草稿后，可在之后保存并覆盖助手版本。"),
+          cancelLabel: t("保留本地草稿"),
+          confirmLabel: t("载入助手版本"),
           tone: "danger",
           onConfirm: () => {
             applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
-            showToast("success", "已载入助手保存的最新版本。");
+            showToast("success", t("已载入助手保存的最新版本。"));
           },
         });
         if (!useAssistantVersion) {
           setResumeVersion(response.updated_at);
           showToast(
             "info",
-            "已保留本地草稿。简历助手的修改已保存；保存草稿时会以本地内容覆盖该版本。",
+            t("已保留本地草稿。简历助手的修改已保存；保存草稿时会以本地内容覆盖该版本。"),
           );
         }
         return;
       }
       applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
-      showToast("success", "简历助手的修改已保存，预览已同步。");
+      showToast("success", t("简历助手的修改已保存，预览已同步。"));
     } catch (requestError) {
       showToast(
         "error",
-        `简历助手已完成保存，但最新版本暂时无法同步：${messageOf(requestError, "请稍后重试。")}`,
+        t("简历助手已完成保存，但最新版本暂时无法同步：{message}", {
+          message: messageOf(requestError, t("请稍后重试。")),
+        }),
       );
     }
   }
@@ -223,7 +226,7 @@ export function ResumePage({
       applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
       setError(null);
     } catch (requestError) {
-      showToast("error", messageOf(requestError, "重新加载简历失败，请稍后重试。"));
+      showToast("error", messageOf(requestError, t("重新加载简历失败，请稍后重试。")));
     } finally {
       setLoading(false);
     }
@@ -249,39 +252,39 @@ export function ResumePage({
     <main className="resume-page" aria-labelledby="resume-page-title">
       <header className="resume-page__header">
         <div>
-          <h1 id="resume-page-title">简历助手</h1>
-          <p>整理经历，实时预览并导出一份清晰的简历。</p>
+          <h1 id="resume-page-title">{t("简历助手")}</h1>
+          <p>{t("整理经历，实时预览并导出一份清晰的简历。")}</p>
         </div>
         <div className="resume-page__actions">
           <span aria-live="polite" className={`resume-save-state${dirty ? " is-dirty" : ""}`}>
             <span aria-hidden="true" />
             {loading
-              ? "正在加载"
+              ? t("正在加载")
               : saving
-                ? "正在保存"
+                ? t("正在保存")
                 : dirty
-                  ? "有未保存的修改"
+                  ? t("有未保存的修改")
                   : exists
-                    ? "已保存"
-                    : "尚未保存"}
+                    ? t("已保存")
+                    : t("尚未保存")}
           </span>
           <button
             aria-expanded={assistantOpen}
-            aria-label={assistantOpen ? "收起 AI 简历助手" : "展开 AI 简历助手"}
+            aria-label={assistantOpen ? t("收起 AI 简历助手") : t("展开 AI 简历助手")}
             className="button button--outline resume-assistant-toggle"
             onClick={() => setAssistantOpen((open) => !open)}
             ref={assistantToggleRef}
             type="button"
           >
             <PlatformIcon name="assistant" size={16} />
-            AI 助手
+            {t("AI 助手")}
           </button>
           <button
             className="button button--outline resume-mobile-preview-toggle"
             onClick={() => setShowPreview((value) => !value)}
             type="button"
           >
-            {showPreview ? "返回编辑" : "预览"}
+            {showPreview ? t("返回编辑") : t("预览")}
           </button>
           <button
             className="button button--outline"
@@ -289,7 +292,7 @@ export function ResumePage({
             onClick={() => void handleExport()}
             type="button"
           >
-            {exporting ? "正在导出…" : "导出 PDF"}
+            {exporting ? t("正在导出…") : t("导出 PDF")}
           </button>
           <button
             className="button button--primary"
@@ -297,7 +300,7 @@ export function ResumePage({
             onClick={() => void handleSave()}
             type="button"
           >
-            {saving ? "保存中…" : "保存简历"}
+            {saving ? t("保存中…") : t("保存简历")}
           </button>
         </div>
       </header>
@@ -305,17 +308,17 @@ export function ResumePage({
       {error && (
         <div className="resume-alert" role="alert">
           <span>{error}</span>
-          {error.includes("其他位置更新") && (
+          {(error.includes("其他位置更新") || error.includes(t("其他位置更新"))) && (
             <button
               className="resume-text-button"
               onClick={() => void reloadAfterConflict()}
               type="button"
             >
-              重新加载最新版本
+              {t("重新加载最新版本")}
             </button>
           )}
           <button
-            aria-label="关闭错误提示"
+            aria-label={t("关闭错误提示")}
             className="resume-alert__close"
             onClick={() => setError(null)}
             type="button"
@@ -338,7 +341,7 @@ export function ResumePage({
         <div className="resume-workbench__editor">
           {loading ? (
             <div className="resume-workbench__loading" role="status">
-              正在读取已保存简历…
+              {t("正在读取已保存简历…")}
             </div>
           ) : (
             <ResumeEditor
@@ -395,7 +398,7 @@ function getPhotoId(baseline: string): string | null {
 }
 
 function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
+  if (error instanceof TypeError) return t("网络连接异常，请检查网络后重试。");
   if (!(error instanceof Error)) return fallback;
   return getSafeErrorDetail(error.message, fallback);
 }

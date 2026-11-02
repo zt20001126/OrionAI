@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
-from app.modules.membership.constants import MembershipOrderStatus
+from app.modules.membership.constants import MembershipOrderStatus, MembershipOrderType
 
 SnowflakeIdString = Annotated[
     str,
@@ -46,6 +46,7 @@ class CreateMembershipOrderResponse(BaseModel):
     order_id: SnowflakeIdString = Field(description="新建或幂等复用的会员订单 ID")
     status: MembershipOrderStatus = Field(description="订单支付状态")
     amount: str = Field(description="订单人民币金额快照，保留两位小数")
+    order_type: MembershipOrderType = Field(description="订单来源类型")
     duration_days: int = Field(description="订单有效天数快照")
     created_at: datetime = Field(description="订单创建时间，使用 UTC")
 
@@ -57,6 +58,7 @@ class MembershipOrderResponse(BaseModel):
     plan_id: SnowflakeIdString = Field(description="关联的会员套餐 Snowflake ID")
     plan_name: str = Field(description="关联套餐展示名称")
     amount: str = Field(description="订单人民币金额快照，保留两位小数")
+    order_type: MembershipOrderType = Field(description="付费购买或管理员赠送")
     duration_days: int = Field(description="订单有效天数快照")
     status: MembershipOrderStatus = Field(description="订单支付状态")
     created_at: datetime = Field(description="订单创建时间，使用 UTC")

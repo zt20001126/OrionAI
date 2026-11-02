@@ -8,6 +8,7 @@ import type {
 import { documentFromText } from "../model/types";
 import { createUuid } from "../../../utils/createUuid";
 import { ResumeParagraphEditor } from "./ResumeParagraphEditor";
+import { t } from "../../../i18n/localeStore";
 
 type UpdateDraft = (update: (current: ResumeDraft) => ResumeDraft) => void;
 
@@ -45,25 +46,25 @@ export function ResumeEditor({
   if (section === "basic") {
     return (
       <section aria-labelledby="resume-editor-title" className="resume-editor">
-        <h2 id="resume-editor-title">基本信息</h2>
+        <h2 id="resume-editor-title">{t("基本信息")}</h2>
         <div className="resume-form-grid">
           <Field
             disabled={disabled}
-            label="姓名"
+            label={t("姓名")}
             required
             value={info.name}
             onChange={(value) => updateBasic("name", value)}
           />
           <Field
             disabled={disabled}
-            label="电话"
+            label={t("电话")}
             required
             value={info.phone}
             onChange={(value) => updateBasic("phone", value)}
           />
           <Field
             disabled={disabled}
-            label="邮箱"
+            label={t("邮箱")}
             required
             type="email"
             value={info.email}
@@ -71,12 +72,12 @@ export function ResumeEditor({
           />
           <Field
             disabled={disabled}
-            label="求职意向"
+            label={t("求职意向")}
             value={info.intended_position}
             onChange={(value) => updateBasic("intended_position", value)}
           />
           <label className="resume-field">
-            <span>工作年限</span>
+            <span>{t("工作年限")}</span>
             <input
               className="form-input"
               disabled={disabled}
@@ -93,15 +94,15 @@ export function ResumeEditor({
             />
           </label>
           <div className="resume-field resume-photo-field">
-            <span>证件照</span>
+            <span>{t("证件照")}</span>
             <div className="resume-photo-field__row">
               {photoPreviewUrl ? (
-                <img alt="简历证件照预览" src={photoPreviewUrl} />
+                <img alt={t("简历证件照预览")} src={photoPreviewUrl} />
               ) : (
-                <span className="resume-photo-placeholder">未添加</span>
+                <span className="resume-photo-placeholder">{t("未添加")}</span>
               )}
               <label className="button button--outline resume-photo-upload">
-                上传照片
+                {t("上传照片")}
                 <input
                   accept="image/png,image/jpeg"
                   disabled={disabled}
@@ -120,11 +121,11 @@ export function ResumeEditor({
                   onClick={onRemovePhoto}
                   type="button"
                 >
-                  移除
+                  {t("移除")}
                 </button>
               )}
             </div>
-            <small>支持 PNG 或 JPEG，最大 5 MiB。</small>
+            <small>{t("支持 PNG 或 JPEG，最大 5 MiB。")}</small>
             {photoError && (
               <small className="resume-error-text" role="alert">
                 {photoError}
@@ -141,8 +142,8 @@ export function ResumeEditor({
     return (
       <section aria-labelledby="resume-editor-title" className="resume-editor">
         <EditorHeading
-          title="教育经历"
-          action="添加教育经历"
+          title={t("教育经历")}
+          action={t("添加教育经历")}
           onAction={() =>
             onUpdate((current) => ({
               ...current,
@@ -164,7 +165,7 @@ export function ResumeEditor({
           }
         />
         {items.length === 0 ? (
-          <EmptySection text="还没有填写教育经历。" />
+          <EmptySection text={t("还没有填写教育经历。")} />
         ) : (
           items.map((item, index) => (
             <EducationForm
@@ -186,11 +187,11 @@ export function ResumeEditor({
   if (section === "skills") {
     return (
       <section aria-labelledby="resume-editor-title" className="resume-editor">
-        <h2 id="resume-editor-title">专业技能</h2>
-        <p className="resume-editor__intro">按主题或熟练度分行填写，预览会保持相同段落顺序。</p>
+        <h2 id="resume-editor-title">{t("专业技能")}</h2>
+        <p className="resume-editor__intro">{t("按主题或熟练度分行填写，预览会保持相同段落顺序。")}</p>
         <ResumeParagraphEditor
           disabled={disabled}
-          label="技能内容"
+          label={t("技能内容")}
           onChange={(skills) =>
             onUpdate((current) => ({ ...current, content: { ...current.content, skills } }))
           }
@@ -205,8 +206,8 @@ export function ResumeEditor({
     return (
       <section aria-labelledby="resume-editor-title" className="resume-editor">
         <EditorHeading
-          title="工作经历"
-          action="添加工作经历"
+          title={t("工作经历")}
+          action={t("添加工作经历")}
           onAction={() =>
             onUpdate((current) => ({
               ...current,
@@ -228,7 +229,7 @@ export function ResumeEditor({
           }
         />
         {items.length === 0 ? (
-          <EmptySection text="还没有填写工作经历。" />
+          <EmptySection text={t("还没有填写工作经历。")} />
         ) : (
           items.map((item, index) => (
             <ExperienceForm
@@ -253,8 +254,8 @@ export function ResumeEditor({
     return (
       <section aria-labelledby="resume-editor-title" className="resume-editor">
         <EditorHeading
-          title="项目经历"
-          action="添加项目经历"
+          title={t("项目经历")}
+          action={t("添加项目经历")}
           onAction={() =>
             onUpdate((current) => ({
               ...current,
@@ -277,7 +278,7 @@ export function ResumeEditor({
           }
         />
         {items.length === 0 ? (
-          <EmptySection text="还没有填写项目经历。" />
+          <EmptySection text={t("还没有填写项目经历。")} />
         ) : (
           items.map((item, index) => (
             <ExperienceForm
@@ -299,10 +300,10 @@ export function ResumeEditor({
 
   return (
     <section aria-labelledby="resume-editor-title" className="resume-editor">
-      <h2 id="resume-editor-title">排版设置</h2>
+      <h2 id="resume-editor-title">{t("排版设置")}</h2>
       <div className="resume-form-grid">
         <label className="resume-field">
-          <span>正文字号（磅）</span>
+          <span>{t("正文字号（磅）")}</span>
           <input
             className="form-input"
             disabled={disabled}
@@ -319,7 +320,7 @@ export function ResumeEditor({
           />
         </label>
         <label className="resume-field">
-          <span>行距</span>
+          <span>{t("行距")}</span>
           <input
             className="form-input"
             disabled={disabled}
@@ -337,7 +338,7 @@ export function ResumeEditor({
           />
         </label>
         <label className="resume-field">
-          <span>章节间距（磅）</span>
+          <span>{t("章节间距（磅）")}</span>
           <input
             className="form-input"
             disabled={disabled}
@@ -357,7 +358,7 @@ export function ResumeEditor({
           />
         </label>
         <label className="resume-field">
-          <span>页边距（毫米）</span>
+          <span>{t("页边距（毫米）")}</span>
           <input
             className="form-input"
             disabled={disabled}
@@ -378,7 +379,7 @@ export function ResumeEditor({
           />
         </label>
         <label className="resume-field">
-          <span>标题颜色</span>
+          <span>{t("标题颜色")}</span>
           <input
             className="resume-color-input"
             disabled={disabled}
@@ -393,7 +394,7 @@ export function ResumeEditor({
           />
         </label>
       </div>
-      <p className="resume-editor__intro">调整后可在右侧预览中即时查看排版效果。</p>
+      <p className="resume-editor__intro">{t("调整后可在右侧预览中即时查看排版效果。")}</p>
     </section>
   );
 }
@@ -417,7 +418,7 @@ function Field({
     <label className="resume-field">
       <span>
         {label}
-        {required && <em>必填</em>}
+        {required && <em>{t("必填")}</em>}
       </span>
       <input
         className="form-input"
@@ -483,32 +484,32 @@ function EducationForm({
       <div className="resume-form-grid">
         <Field
           disabled={disabled}
-          label="学校"
+          label={t("学校")}
           required
           value={item.school}
           onChange={(school) => onChange({ ...item, school })}
         />
         <Field
           disabled={disabled}
-          label="专业"
+          label={t("专业")}
           value={item.major}
           onChange={(major) => onChange({ ...item, major })}
         />
         <Field
           disabled={disabled}
-          label="学历 / 学位"
+          label={t("学历 / 学位")}
           value={item.degree}
           onChange={(degree) => onChange({ ...item, degree })}
         />
         <MonthField
           disabled={disabled}
-          label="开始月份"
+          label={t("开始月份")}
           value={item.start_month}
           onChange={(start_month) => onChange({ ...item, start_month })}
         />
         <MonthField
           disabled={disabled}
-          label="结束月份"
+          label={t("结束月份")}
           value={item.end_month}
           onChange={(end_month) => onChange({ ...item, end_month })}
         />
@@ -549,7 +550,7 @@ function ExperienceForm({
       <div className="resume-form-grid">
         <Field
           disabled={disabled}
-          label={isWork ? "公司" : "项目名称"}
+          label={isWork ? t("公司") : t("项目名称")}
           required
           value={isWork ? (item as WorkItem).company : (item as ProjectItem).name}
           onChange={(value) =>
@@ -562,7 +563,7 @@ function ExperienceForm({
         />
         <Field
           disabled={disabled}
-          label={isWork ? "职位" : "项目角色"}
+          label={isWork ? t("职位") : t("项目角色")}
           required={isWork}
           value={isWork ? (item as WorkItem).position : (item as ProjectItem).role}
           onChange={(value) =>
@@ -576,7 +577,7 @@ function ExperienceForm({
         {!isWork && (
           <Field
             disabled={disabled}
-            label="技术栈"
+            label={t("技术栈")}
             value={(item as ProjectItem).technology_stack}
             onChange={(technology_stack) =>
               onChange({ ...(item as ProjectItem), technology_stack })
@@ -585,19 +586,19 @@ function ExperienceForm({
         )}
         <MonthField
           disabled={disabled}
-          label="开始月份"
+          label={t("开始月份")}
           value={item.start_month}
           onChange={(start_month) => onChange({ ...item, start_month })}
         />
         <MonthField
           disabled={disabled}
-          label="结束月份"
+          label={t("结束月份")}
           value={item.end_month}
           onChange={(end_month) => onChange({ ...item, end_month })}
         />
         <ResumeParagraphEditor
           disabled={disabled}
-          label="工作内容"
+          label={t("工作内容")}
           value={item.content}
           onChange={(content) => onChange({ ...item, content })}
         />
@@ -646,24 +647,24 @@ function EntryActions({
 }) {
   return (
     <div className="resume-entry-actions">
-      <span>条目 {index + 1}</span>
+      <span>{t("条目")} {index + 1}</span>
       <button
-        aria-label="上移条目"
+        aria-label={t("上移条目")}
         className="resume-text-button"
         disabled={disabled || index === 0}
         onClick={() => onMove(-1)}
         type="button"
       >
-        上移
+        {t("上移")}
       </button>
       <button
-        aria-label="下移条目"
+        aria-label={t("下移条目")}
         className="resume-text-button"
         disabled={disabled || index === length - 1}
         onClick={() => onMove(1)}
         type="button"
       >
-        下移
+        {t("下移")}
       </button>
       <button
         className="resume-text-button resume-text-button--danger"
@@ -671,7 +672,7 @@ function EntryActions({
         onClick={onRemove}
         type="button"
       >
-        删除
+        {t("删除")}
       </button>
     </div>
   );

@@ -1,7 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useToast } from "../../components/ToastProvider";
 import { BrandMark, ProductIntro } from "./ProductIntro";
+import { LanguageSwitcher } from "../../i18n/LanguageSwitcher";
+import { t } from "../../i18n/localeStore";
+import { DemoAccountDialog } from "./DemoAccountDialog";
 import {
   ApiError,
   guestLogin,
@@ -34,6 +37,7 @@ export function AuthPage({
 }: AuthPageProps) {
   const { showToast } = useToast();
   const [view, setView] = useState<AuthView>("login");
+  const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(true);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -42,6 +46,10 @@ export function AuthPage({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGuestSubmitting, setIsGuestSubmitting] = useState(false);
   const [isRequestingCode, setIsRequestingCode] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  const closeDemoDialog = useCallback(() => setIsDemoDialogOpen(false), []);
+  const restoreAuthFocus = useCallback(() => emailInputRef.current?.focus(), []);
 
   useEffect(() => {
     if (initialMessage) showToast("error", initialMessage);
@@ -58,6 +66,7 @@ export function AuthPage({
   }, [cooldown]);
 
   function changeView(nextView: AuthView) {
+    setIsDemoDialogOpen(false);
     setView(nextView);
     setCode("");
     setPassword("");
@@ -123,15 +132,16 @@ export function AuthPage({
   return (
     <main className="auth-layout">
       <ProductIntro />
-      <section className="auth-panel" aria-label="账号认证">
+      <section className="auth-panel" aria-label={t("账号认证")}>
+        <LanguageSwitcher className="language-switcher--auth" />
         <section className="auth-card" aria-labelledby="auth-title">
           <div className="auth-card-brand">
             <BrandMark />
-            <span>OrionAI</span>
+              <span>OrionAI</span>
           </div>
 
           {view !== "password_reset" ? (
-            <div className="auth-tabs" role="tablist" aria-label="登录或注册">
+            <div className="auth-tabs" role="tablist" aria-label={t("登录或注册")}>
               <button
                 aria-controls="auth-form-panel"
                 aria-selected={view === "login"}
@@ -141,7 +151,7 @@ export function AuthPage({
                 role="tab"
                 type="button"
               >
-                登录
+                {t("登录")}
               </button>
               <button
                 aria-controls="auth-form-panel"
@@ -152,19 +162,19 @@ export function AuthPage({
                 role="tab"
                 type="button"
               >
-                注册
+                {t("注册")}
               </button>
             </div>
           ) : (
             <button className="back-link" onClick={() => changeView("login")} type="button">
               <ChevronLeftIcon />
-              返回登录
+              {t("返回登录")}
             </button>
           )}
 
           <div className="auth-heading">
-            <h2 id="auth-title">{content.title}</h2>
-            <p className="auth-subtitle">{content.subtitle}</p>
+            <h2 id="auth-title">{t(content.title)}</h2>
+            <p className="auth-subtitle">{t(content.subtitle)}</p>
           </div>
 
           <form
@@ -183,7 +193,7 @@ export function AuthPage({
           >
             <div className="form-field">
               <label className="form-label" htmlFor="email">
-                邮箱
+                {t("邮箱")}
               </label>
               <input
                 autoComplete="email"
@@ -193,6 +203,7 @@ export function AuthPage({
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="name@company.com"
                 required
+                ref={emailInputRef}
                 type="email"
                 value={email}
               />
@@ -201,7 +212,7 @@ export function AuthPage({
             {needsCode && (
               <div className="form-field">
                 <label className="form-label" htmlFor="verification-code">
-                  邮箱验证码
+                  {t("邮箱验证码")}
                 </label>
                 <div className="code-row">
                   <input
@@ -212,7 +223,7 @@ export function AuthPage({
                     maxLength={6}
                     onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                     pattern="[0-9]{6}"
-                    placeholder="输入 6 位验证码"
+                    placeholder={t("输入 6 位验证码")}
                     required
                     value={code}
                   />
@@ -223,10 +234,10 @@ export function AuthPage({
                     type="button"
                   >
                     {isRequestingCode
-                      ? "发送中…"
+                      ? t("发送中…")
                       : cooldown > 0
-                        ? `${cooldown} 秒后重发`
-                        : "获取验证码"}
+                        ? t("{seconds} 秒后重发", { seconds: cooldown })
+                        : t("获取验证码")}
                   </button>
                 </div>
               </div>
@@ -235,11 +246,11 @@ export function AuthPage({
             <PasswordField
               autoComplete={view === "login" ? "current-password" : "new-password"}
               id="password"
-              label={view === "password_reset" ? "新密码" : "密码"}
+              label={t(view === "password_reset" ? t("新密码") : t("密码"))}
               maxLength={128}
               minLength={view === "login" ? 1 : 8}
               onChange={setPassword}
-              placeholder={view === "login" ? "请输入密码" : "至少 8 个字符"}
+              placeholder={t(view === "login" ? t("请输入密码") : t("至少 8 个字符"))}
               value={password}
             />
 
@@ -247,24 +258,24 @@ export function AuthPage({
               <PasswordField
                 autoComplete="new-password"
                 id="password-confirmation"
-                label="确认密码"
+                label={t("确认密码")}
                 maxLength={128}
                 minLength={8}
                 onChange={setPasswordConfirmation}
-                placeholder="再次输入密码"
+                placeholder={t("再次输入密码")}
                 value={passwordConfirmation}
               />
             )}
 
             {view === "login" && (
               <div className="form-options">
-                <span>使用注册邮箱登录</span>
+                <span>{t("使用注册邮箱登录")}</span>
                 <button
                   className="text-link"
                   onClick={() => changeView("password_reset")}
                   type="button"
                 >
-                  忘记密码？
+                  {t("忘记密码？")}
                 </button>
               </div>
             )}
@@ -277,14 +288,14 @@ export function AuthPage({
               {isSubmitting ? (
                 <>
                   <span className="button-spinner" aria-hidden="true" />
-                  {view === "login" ? "正在登录…" : view === "register" ? "正在注册…" : "正在更新…"}
+                  {t(view === "login" ? t("正在登录…") : view === "register" ? t("正在注册…") : t("正在更新…"))}
                 </>
               ) : view === "login" ? (
-                "登录"
+                t("登录")
               ) : view === "register" ? (
-                "创建账号"
+                t("创建账号")
               ) : (
-                "更新密码"
+                t("更新密码")
               )}
             </button>
           </form>
@@ -292,7 +303,7 @@ export function AuthPage({
           {view === "login" && (
             <div className="auth-guest-option">
               <div className="auth-guest-divider" aria-hidden="true">
-                <span>或</span>
+                <span>{t("或")}</span>
               </div>
               <button
                 className="button button--outline auth-guest-button"
@@ -303,24 +314,27 @@ export function AuthPage({
                 {isGuestSubmitting ? (
                   <>
                     <span className="button-spinner auth-guest-spinner" aria-hidden="true" />
-                    正在进入访客空间…
+                    {t("正在进入访客空间…")}
                   </>
                 ) : (
-                  "以访客身份体验"
+                  t("以访客身份体验")
                 )}
               </button>
               <p className="auth-guest-note">
-                无需注册 · 会话默认有效 7 天，清除 Cookie 后无法恢复访客数据
+                {t("无需注册 · 会话默认有效 7 天，清除 Cookie 后无法恢复访客数据")}
               </p>
             </div>
           )}
 
           <p className="auth-security-note">
             <ShieldIcon />
-            <span>安全加密连接 · 会话仅保存在安全 Cookie 中</span>
+            <span>{t("安全加密连接 · 会话仅保存在安全 Cookie 中")}</span>
           </p>
         </section>
       </section>
+      {view === "login" && isDemoDialogOpen && (
+        <DemoAccountDialog onClose={closeDemoDialog} restoreFocus={restoreAuthFocus} />
+      )}
     </main>
   );
 }
@@ -367,7 +381,7 @@ function PasswordField({
           value={value}
         />
         <button
-          aria-label={isVisible ? "隐藏密码" : "显示密码"}
+          aria-label={t(isVisible ? t("隐藏密码") : t("显示密码"))}
           aria-pressed={isVisible}
           className="password-toggle"
           onClick={() => setIsVisible((visible) => !visible)}
@@ -409,6 +423,6 @@ function ShieldIcon() {
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
-  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
-  return "请求失败，请稍后重试。";
+  if (error instanceof TypeError) return t("网络连接异常，请检查网络后重试。");
+  return t("请求失败，请稍后重试。");
 }

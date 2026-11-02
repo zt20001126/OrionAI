@@ -1,6 +1,7 @@
 /** 提醒 API 类型与 Cookie 请求封装，集中管理管理页使用的 REST 路径。 */
 
 import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+import { t } from "../../i18n/localeStore";
 
 export type ReminderRepeatType = "once" | "daily" | "weekly" | "monthly";
 export type ReminderStatus = "active" | "paused" | "cancelled" | "completed";
@@ -69,7 +70,7 @@ async function requestReminderApi<T>(path: string, init?: RequestInit): Promise<
       ...init,
     });
   } catch {
-    throw new Error("网络连接异常，请检查网络后重试。");
+    throw new Error(t("网络连接异常，请检查网络后重试。"));
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -84,12 +85,12 @@ async function requestReminderApi<T>(path: string, init?: RequestInit): Promise<
 }
 
 function getErrorMessage(detail: unknown, status: number): string {
-  if (status === 401) return "登录状态已失效，请刷新页面后重新登录。";
-  if (status === 404) return "提醒不存在或当前不可用。";
-  if (status === 409) return getSafeErrorDetail(detail, "提醒已发生变化，请刷新后重试。");
-  if (status === 422) return getSafeErrorDetail(detail, "请检查提醒时间和填写内容。");
-  if (status >= 500) return "提醒服务暂时不可用，请稍后重试。";
-  return getSafeErrorDetail(detail, "提醒请求失败，请稍后重试。");
+  if (status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
+  if (status === 404) return t("提醒不存在或当前不可用。");
+  if (status === 409) return getSafeErrorDetail(detail, t("提醒已发生变化，请刷新后重试。"));
+  if (status === 422) return getSafeErrorDetail(detail, t("请检查提醒时间和填写内容。"));
+  if (status >= 500) return t("提醒服务暂时不可用，请稍后重试。");
+  return getSafeErrorDetail(detail, t("提醒请求失败，请稍后重试。"));
 }
 
 /** 查询当前用户的提醒列表。 */

@@ -12,8 +12,10 @@ import {
   formatDuration,
   getOrderStatusClass,
   getOrderStatusLabel,
+  getOrderTypeLabel,
 } from "./membershipUtils";
 import type { MembershipOrder } from "./types";
+import { t } from "../../i18n/localeStore";
 
 export function MembershipOrderDetailPage({
   onNavigate,
@@ -33,7 +35,7 @@ export function MembershipOrderDetailPage({
       .then(setOrder)
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "订单详情暂时无法加载。");
+          setError(cause instanceof Error ? cause.message : t("订单详情暂时无法加载。"));
         }
       })
       .finally(() => {
@@ -50,13 +52,13 @@ export function MembershipOrderDetailPage({
         type="button"
       >
         <PlatformIcon name="arrow" size={16} />
-        返回订单列表
+        {t("返回订单列表")}
       </button>
-      <h1 className="membership-page-title">订单详情</h1>
+      <h1 className="membership-page-title">{t("订单详情")}</h1>
       {isLoading ? (
         <div className="panel-card membership-loading" role="status">
           <span aria-hidden="true" className="membership-loading__spinner" />
-          正在加载订单…
+          {t("正在加载订单…")}
         </div>
       ) : error ? (
         <div className="membership-load-error" role="alert">
@@ -70,7 +72,7 @@ export function MembershipOrderDetailPage({
             }}
             type="button"
           >
-            重新加载
+            {t("重新加载")}
           </button>
         </div>
       ) : order ? (
@@ -82,34 +84,40 @@ export function MembershipOrderDetailPage({
                 getOrderStatusClass(order.status)
               }
             >
-              {getOrderStatusLabel(order.status)}
+              {getOrderStatusLabel(order.status, order.order_type)}
             </span>
           </div>
           <dl className="membership-order-detail__grid">
             <div>
-              <dt>订单编号</dt>
+              <dt>{t("订单类型")}</dt>
+              <dd>{getOrderTypeLabel(order.order_type)}</dd>
+            </div>
+            <div>
+              <dt>{t("订单编号")}</dt>
               <dd>{order.order_id}</dd>
             </div>
             <div>
-              <dt>套餐名称</dt>
+              <dt>{t("套餐名称")}</dt>
               <dd>{order.plan_name}</dd>
             </div>
             <div>
-              <dt>购买时长</dt>
+              <dt>{t("购买时长")}</dt>
               <dd>{formatDuration(order.duration_days)}</dd>
             </div>
             <div>
-              <dt>支付金额</dt>
-              <dd>¥{order.amount}</dd>
+              <dt>{t("支付金额")}</dt>
+              <dd>{order.order_type === "manual_grant" ? t("免费赠送") : "¥" + order.amount}</dd>
             </div>
             <div>
-              <dt>创建时间</dt>
+              <dt>{t("创建时间")}</dt>
               <dd>{formatDateTime(order.created_at)}</dd>
             </div>
-            <div>
-              <dt>支付时间</dt>
-              <dd>{formatDateTime(order.paid_at)}</dd>
-            </div>
+            {order.order_type === "purchase" && (
+              <div>
+                <dt>{t("支付时间")}</dt>
+                <dd>{formatDateTime(order.paid_at)}</dd>
+              </div>
+            )}
           </dl>
           <div className="membership-order-detail__actions">
             {order.status === "pending" && (
@@ -120,7 +128,7 @@ export function MembershipOrderDetailPage({
                 }
                 type="button"
               >
-                继续支付
+                {t("继续支付")}
               </button>
             )}
             {(order.status === "failed" || order.status === "expired") && (
@@ -131,7 +139,7 @@ export function MembershipOrderDetailPage({
                 }
                 type="button"
               >
-                重新购买
+                {t("重新购买")}
               </button>
             )}
             <button
@@ -139,12 +147,12 @@ export function MembershipOrderDetailPage({
               onClick={() => onNavigate(platformPaths.membership)}
               type="button"
             >
-              返回会员中心
+              {t("返回会员中心")}
             </button>
           </div>
         </section>
       ) : (
-        <div className="panel-card membership-empty-state">未找到该订单</div>
+        <div className="panel-card membership-empty-state">{t("未找到该订单")}</div>
       )}
     </div>
   );

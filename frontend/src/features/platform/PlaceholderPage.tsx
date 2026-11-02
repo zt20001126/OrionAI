@@ -1,5 +1,6 @@
 import { PlatformIcon, type PlatformIconName } from "./PlatformIcon";
 import { platformPaths, type PlatformPath, type PlatformRoute } from "./platformData";
+import { t } from "../../i18n/localeStore";
 
 type PlaceholderPath = Exclude<
   PlatformPath,
@@ -35,15 +36,15 @@ export function PlaceholderPage({ onNavigate, pathname }: PlaceholderPageProps) 
       <span aria-hidden="true" className="placeholder-page__icon">
         <PlatformIcon name={content.icon} size={28} />
       </span>
-      <h1 id="placeholder-title">{content.title}</h1>
-      <p>该页面正在建设中，敬请期待。</p>
+      <h1 id="placeholder-title">{t(content.title)}</h1>
+      <p>{t("该页面正在建设中，敬请期待。")}</p>
       <button
         className="button button--outline"
         onClick={() => onNavigate(platformPaths.market)}
         type="button"
       >
         <PlatformIcon name="arrow" size={16} />
-        返回技能市场
+        {t("返回技能市场")}
       </button>
     </section>
   );

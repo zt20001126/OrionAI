@@ -1,4 +1,5 @@
 import type { PublicQuestion } from "../api/memoryTrainingApi";
+import { t } from "../../../i18n/localeStore";
 
 interface QuestionStageProps {
   questions: PublicQuestion[];
@@ -31,8 +32,8 @@ export function QuestionStage({
     <section className="memory-training__question-stage" aria-labelledby="memory-question-title">
       <div className="memory-training__question-progress">
         <div>
-          <span>第 {currentIndex + 1} / {questions.length} 题</span>
-          <span>{answeredCount} 题已作答</span>
+          <span>{t("第")} {currentIndex + 1} / {questions.length} {t("题")}</span>
+          <span>{answeredCount} {t("题已作答")}</span>
         </div>
         <div className="memory-training__progress" aria-hidden="true">
           <span style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
@@ -69,7 +70,7 @@ export function QuestionStage({
           onClick={() => onMove(currentIndex - 1)}
           type="button"
         >
-          上一题
+          {t("上一题")}
         </button>
         {isLastQuestion ? (
           <button
@@ -78,7 +79,7 @@ export function QuestionStage({
             onClick={onSubmit}
             type="button"
           >
-            {busy ? "正在评分…" : "提交答案"}
+            {busy ? t("正在评分…") : t("提交答案")}
           </button>
         ) : (
           <button
@@ -87,12 +88,12 @@ export function QuestionStage({
             onClick={() => onMove(currentIndex + 1)}
             type="button"
           >
-            下一题
+            {t("下一题")}
           </button>
         )}
       </div>
       {isLastQuestion && answeredCount !== questions.length && (
-        <p className="memory-training__hint">请完成全部题目后再提交。</p>
+        <p className="memory-training__hint">{t("请完成全部题目后再提交。")}</p>
       )}
     </section>
   );

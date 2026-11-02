@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import { PlatformIcon } from "./PlatformIcon";
 import type { MarketSkill } from "./skillApi";
+import { t } from "../../i18n/localeStore";
 
 interface SkillDetailsDialogProps {
   onClose: () => void;
@@ -35,27 +36,27 @@ export function SkillDetailsDialog({ onClose, skill }: SkillDetailsDialogProps) 
         className="skill-detail-dialog"
         role="dialog"
       >
-        <button aria-label="关闭技能详情" className="dialog-close" onClick={onClose} type="button">
+        <button aria-label={t("关闭技能详情")} className="dialog-close" onClick={onClose} type="button">
           <PlatformIcon name="close" size={19} />
         </button>
         <div className="skill-card__icon">
           <PlatformIcon name={skill.type === "agent" ? "knowledge" : "tools"} size={26} />
         </div>
         <p className="skill-detail-dialog__category">
-          {category} · {status}
+          {t(category)} · {t(status)}
         </p>
         <h2 id="skill-detail-title">{skill.name}</h2>
-        <p className="skill-detail-dialog__description">{skill.description || "暂无技能说明。"}</p>
+        <p className="skill-detail-dialog__description">{skill.description || t("暂无技能说明。")}</p>
         <div className="skill-detail-dialog__note">
-          <span>技能代码</span>
+          <span>{t("技能代码")}</span>
           <p>{skill.code}</p>
         </div>
         <div className="skill-detail-dialog__footer">
           <span>
-            {skill.status === "disabled" ? "该技能已停用，暂不可添加。" : "技能详情来自技能目录。"}
+            {skill.status === "disabled" ? t("该技能已停用，暂不可添加。") : t("技能详情来自技能目录。")}
           </span>
           <button className="button button--primary" onClick={onClose} type="button">
-            知道了
+            {t("知道了")}
           </button>
         </div>
       </section>

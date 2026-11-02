@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { documentToText, type ResumeDraft } from "../model/types";
+import { t } from "../../../i18n/localeStore";
 
 const A4_WIDTH_PX = 794;
 const A4_HEIGHT_PX = 1123;
@@ -37,9 +38,9 @@ export function ResumePreview({
   const paperHeight = contentHeight * scale;
 
   return (
-    <aside aria-label="简历预览" className="resume-preview-panel">
+    <aside aria-label={t("简历预览")} className="resume-preview-panel">
       <div className="resume-preview-panel__heading">
-        <h2>简历预览</h2>
+        <h2>{t("简历预览")}</h2>
         <span>A4</span>
       </div>
       <div className="resume-preview-panel__scroll">
@@ -63,22 +64,22 @@ export function ResumePreview({
           >
             <header className="resume-paper__header">
               <div>
-                <h1>{info.name || "你的姓名"}</h1>
+                <h1>{info.name || t("你的姓名")}</h1>
                 {info.intended_position && (
                   <p className="resume-paper__position">{info.intended_position}</p>
                 )}
-                <p>{[info.phone, info.email].filter(Boolean).join("　") || "电话 · 邮箱"}</p>
+                <p>{[info.phone, info.email].filter(Boolean).join("　") || t("电话 · 邮箱")}</p>
                 {info.work_experience_years !== null && (
-                  <p>{info.work_experience_years} 年工作经验</p>
+                  <p>{info.work_experience_years} {t("年工作经验")}</p>
                 )}
               </div>
-              {photoUrl && <img alt="证件照" src={photoUrl} />}
+              {photoUrl && <img alt={t("证件照")} src={photoUrl} />}
             </header>
             {draft.content.educations.length > 0 && (
-              <PreviewSection title="教育经历">
+              <PreviewSection title={t("教育经历")}>
                 {draft.content.educations.map((item) => (
                   <div className="resume-paper__row" key={item.id}>
-                    <strong>{item.school || "学校名称"}</strong>
+                    <strong>{item.school || t("学校名称")}</strong>
                     <span>{[item.major, item.degree].filter(Boolean).join(" · ")}</span>
                     <time>
                       {item.start_month} — {item.end_month}
@@ -88,17 +89,17 @@ export function ResumePreview({
               </PreviewSection>
             )}
             {documentToText(draft.content.skills).trim() && (
-              <PreviewSection title="专业技能">
+              <PreviewSection title={t("专业技能")}>
                 {renderText(documentToText(draft.content.skills))}
               </PreviewSection>
             )}
             {draft.content.works.length > 0 && (
-              <PreviewSection title="工作经历">
+              <PreviewSection title={t("工作经历")}>
                 {draft.content.works.map((item) => (
                   <div className="resume-paper__entry" key={item.id}>
                     <div className="resume-paper__row">
                       <strong>
-                        {[item.company, item.position].filter(Boolean).join(" · ") || "公司 · 职位"}
+                        {[item.company, item.position].filter(Boolean).join(" · ") || t("公司 · 职位")}
                       </strong>
                       <time>
                         {item.start_month} — {item.end_month}
@@ -110,11 +111,11 @@ export function ResumePreview({
               </PreviewSection>
             )}
             {draft.content.projects.length > 0 && (
-              <PreviewSection title="项目经历">
+              <PreviewSection title={t("项目经历")}>
                 {draft.content.projects.map((item) => (
                   <div className="resume-paper__entry" key={item.id}>
                     <div className="resume-paper__row">
-                      <strong>{item.name || "项目名称"}</strong>
+                      <strong>{item.name || t("项目名称")}</strong>
                       <time>
                         {item.start_month} — {item.end_month}
                       </time>

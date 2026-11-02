@@ -1,4 +1,5 @@
 import { documentFromText, documentToText, type TiptapDocument } from "../model/types";
+import { t } from "../../../i18n/localeStore";
 
 export function ResumeParagraphEditor({
   label,
@@ -22,7 +23,7 @@ export function ResumeParagraphEditor({
         rows={7}
         value={documentToText(value)}
       />
-      <small>使用纯文本分段填写，每段单独成行，最多 4,000 个字符。</small>
+      <small>{t("使用纯文本分段填写，每段单独成行，最多 4,000 个字符。")}</small>
     </label>
   );
 }

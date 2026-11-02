@@ -579,6 +579,18 @@ button {
   place-items: center;
 }
 
+.language-switcher {
+  min-height: 36px;
+  padding-inline: var(--space-3);
+}
+
+.language-switcher--auth {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 2;
+}
+
 .auth-card {
   width: min(100%, 420px);
   padding: clamp(24px, 3vw, 36px);

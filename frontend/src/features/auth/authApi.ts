@@ -1,4 +1,5 @@
 import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+import { t } from "../../i18n/localeStore";
 
 export type AuthPurpose = "register" | "password_reset";
 
@@ -46,16 +47,16 @@ async function request<T>(path: string, body?: object, method?: "GET" | "POST"):
 }
 
 function getUserFacingErrorMessage(payload: unknown, status: number): string {
-  if (status === 422) return "请检查填写内容是否正确。";
+  if (status === 422) return t("请检查填写内容是否正确。");
   if (status >= 500 && status !== SERVICE_UNAVAILABLE_STATUS) {
-    return "认证服务暂不可用，请稍后重试。";
+    return t("认证服务暂不可用，请稍后重试。");
   }
 
   const detail =
     payload && typeof payload === "object" && "detail" in payload
       ? (payload.detail as unknown)
       : null;
-  return getSafeErrorDetail(detail, "请求失败，请稍后重试。");
+  return getSafeErrorDetail(detail, t("请求失败，请稍后重试。"));
 }
 
 export function getSession(): Promise<AuthSession> {

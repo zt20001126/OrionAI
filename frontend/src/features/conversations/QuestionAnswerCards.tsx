@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 
 import { PlatformIcon } from "../platform/PlatformIcon";
 import type { SingleChoiceQuestion, SubmittedQuestionAnswer } from "./conversationApi";
+import { t } from "../../i18n/localeStore";
 
 interface CompletedQuestionCardProps {
   questions: SingleChoiceQuestion[];
@@ -17,7 +18,7 @@ export function CompletedQuestionCard({ questions }: CompletedQuestionCardProps)
 
   return (
     <section
-      aria-label={`本轮答题已完成，共 ${questions.length} 题`}
+      aria-label={t("本轮答题已完成，共 {count} 题", { count: questions.length })}
       className="completed-question-card"
     >
       <button
@@ -33,8 +34,8 @@ export function CompletedQuestionCard({ questions }: CompletedQuestionCardProps)
           </svg>
         </span>
         <span className="completed-question-card__heading">
-          <strong>本轮答题已完成</strong>
-          <span>共 {questions.length} 题</span>
+          <strong>{t("本轮答题已完成")}</strong>
+          <span>{t("共")} {questions.length} {t("题")}</span>
         </span>
         <PlatformIcon name="chevron" size={18} />
       </button>
@@ -71,7 +72,10 @@ export function QuestionAnswerCard({ items }: QuestionAnswerCardProps) {
   const detailsId = useId();
 
   return (
-    <section aria-label={`我的回答，共 ${items.length} 题`} className="question-answer-card">
+    <section
+      aria-label={t("我的回答，共 {count} 题", { count: items.length })}
+      className="question-answer-card"
+    >
       <button
         aria-controls={detailsId}
         aria-expanded={isExpanded}
@@ -85,8 +89,8 @@ export function QuestionAnswerCard({ items }: QuestionAnswerCardProps) {
           </svg>
         </span>
         <span className="completed-question-card__heading">
-          <strong>我的回答已提交</strong>
-          <span>共 {items.length} 题</span>
+          <strong>{t("我的回答已提交")}</strong>
+          <span>{t("共")} {items.length} {t("题")}</span>
         </span>
         <PlatformIcon name="chevron" size={18} />
       </button>
@@ -107,7 +111,7 @@ export function QuestionAnswerCard({ items }: QuestionAnswerCardProps) {
                   <p>{item.question}</p>
                 </div>
                 <p className="question-answer-card__answer">
-                  <strong>我的选择：</strong>
+                  <strong>{t("我的选择：")}</strong>
                   <span>{item.answer}</span>
                 </p>
               </li>

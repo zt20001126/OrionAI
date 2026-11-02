@@ -1,4 +1,5 @@
 import type { ResumeSection } from "../model/types";
+import { t } from "../../../i18n/localeStore";
 
 const SECTIONS: { id: ResumeSection; label: string }[] = [
   { id: "basic", label: "基本信息" },
@@ -17,7 +18,7 @@ export function ResumeSectionTabs({
   onChange: (section: ResumeSection) => void;
 }) {
   return (
-    <nav aria-label="简历章节" className="resume-tabs">
+    <nav aria-label={t("简历章节")} className="resume-tabs">
       {SECTIONS.map((section) => (
         <button
           aria-current={active === section.id ? "step" : undefined}

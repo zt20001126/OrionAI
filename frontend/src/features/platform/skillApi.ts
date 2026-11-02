@@ -1,6 +1,7 @@
 /** 技能市场 API 类型与请求封装，统一管理接口地址和认证 Cookie。 */
 
 import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+import { t } from "../../i18n/localeStore";
 
 export type SkillType = "agent" | "tool";
 export type SkillStatus = "published" | "disabled";
@@ -67,7 +68,7 @@ async function requestSkillApi<T>(path: string, init?: RequestInit): Promise<T> 
       ...init,
     });
   } catch {
-    throw new Error("网络连接异常，请检查网络后重试。");
+    throw new Error(t("网络连接异常，请检查网络后重试。"));
   }
   const payload: unknown = await response.json().catch(() => null);
 
@@ -83,10 +84,10 @@ async function requestSkillApi<T>(path: string, init?: RequestInit): Promise<T> 
 }
 
 function getUserFacingErrorMessage(detail: unknown, status: number): string {
-  if (status === 401) return "登录状态已失效，请刷新页面后重新登录。";
-  if (status === 422) return "请检查填写内容是否正确。";
-  if (status >= 500) return "技能服务暂时不可用，请稍后重试。";
-  return getSafeErrorDetail(detail, "技能请求失败，请稍后重试。");
+  if (status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
+  if (status === 422) return t("请检查填写内容是否正确。");
+  if (status >= 500) return t("技能服务暂时不可用，请稍后重试。");
+  return getSafeErrorDetail(detail, t("技能请求失败，请稍后重试。"));
 }
 
 /** 查询全部技能目录，逐页读取并包含停用技能。 */
@@ -103,7 +104,7 @@ export async function listMarketSkills(signal?: AbortSignal): Promise<MarketSkil
     });
     const response = await requestSkillApi<unknown>(`/api/v1/skills?${query}`, { signal });
     if (!isSkillPageResponse(response)) {
-      throw new Error("技能列表响应格式无效，请稍后重试。");
+      throw new Error(t("技能列表响应格式无效，请稍后重试。"));
     }
 
     skills.push(...response.items);

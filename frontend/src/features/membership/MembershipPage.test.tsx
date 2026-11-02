@@ -28,6 +28,7 @@ const orders: MembershipOrder[] = [
     plan_id: "102",
     plan_name: "标准季卡",
     amount: "45.60",
+    order_type: "purchase",
     duration_days: 90,
     status: "paid",
     created_at: "2026-10-01T10:00:00Z",

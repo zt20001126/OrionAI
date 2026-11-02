@@ -4,6 +4,7 @@ import { useToast } from "../../components/ToastProvider";
 import { ApiError } from "../auth/authApi";
 import { PlatformIcon } from "./PlatformIcon";
 import { getUserProfile, updateUserProfile, type UserProfile } from "./profileApi";
+import { t } from "../../i18n/localeStore";
 
 const MAX_NICKNAME_LENGTH = 20;
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -44,7 +45,7 @@ export function ProfileSettingsPage({
         setSelectedAvatar(null);
       })
       .catch(() => {
-        if (isActive) setLoadError("暂时无法读取个人资料，请检查连接后重试。");
+        if (isActive) setLoadError(t("暂时无法读取个人资料，请检查连接后重试。"));
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
@@ -79,11 +80,11 @@ export function ProfileSettingsPage({
 
     setAvatarValidationError(null);
     if (!ACCEPTED_AVATAR_TYPES.has(file.type)) {
-      setAvatarValidationError("头像仅支持 PNG、JPEG 或 WebP 图片。");
+      setAvatarValidationError(t("头像仅支持 PNG、JPEG 或 WebP 图片。"));
       return;
     }
     if (file.size === 0 || file.size > MAX_AVATAR_BYTES) {
-      setAvatarValidationError("头像文件不能为空，且大小不能超过 2 MiB。");
+      setAvatarValidationError(t("头像文件不能为空，且大小不能超过 2 MiB。"));
       return;
     }
     setSelectedAvatar(file);
@@ -110,7 +111,7 @@ export function ProfileSettingsPage({
       setNickname(updatedProfile.nickname);
       setSelectedAvatar(null);
       setPreviewUrl(null);
-      showToast("success", "个人资料已保存。");
+      showToast("success", t("个人资料已保存。"));
     } catch (error) {
       showToast("error", getProfileErrorMessage(error));
     } finally {
@@ -122,7 +123,7 @@ export function ProfileSettingsPage({
     return (
       <section aria-live="polite" className="profile-settings-state" hidden={hidden} role="status">
         <span className="status-spinner" aria-hidden="true" />
-        <p>正在加载个人资料…</p>
+        <p>{t("正在加载个人资料…")}</p>
       </section>
     );
   }
@@ -134,7 +135,7 @@ export function ProfileSettingsPage({
         className="profile-settings-state"
         hidden={hidden}
       >
-        <h1 id="profile-settings-title">个人设置</h1>
+        <h1 id="profile-settings-title">{t("个人设置")}</h1>
         <p className="profile-settings__message profile-settings__message--error" role="alert">
           {loadError}
         </p>
@@ -147,7 +148,7 @@ export function ProfileSettingsPage({
           }}
           type="button"
         >
-          重试
+          {t("重试")}
         </button>
       </section>
     );
@@ -163,18 +164,18 @@ export function ProfileSettingsPage({
     >
       <div className="profile-settings">
         <header className="profile-settings__header">
-          <h1 id="profile-settings-title">个人设置</h1>
+          <h1 id="profile-settings-title">{t("个人设置")}</h1>
         </header>
 
         <div className="profile-settings__avatar-section">
           <div className="profile-settings__avatar-wrap">
             <img
-              alt={`${nickname || profile.account || "访客用户"} 的头像`}
+                  alt={t("{name} 的头像", { name: nickname || profile.account || t("访客用户") })}
               className="profile-settings__avatar"
               src={avatarSource}
             />
             <button
-              aria-label="更换头像"
+              aria-label={t("更换头像")}
               className="profile-settings__avatar-button"
               disabled={isSaving}
               onClick={() => fileInputRef.current?.click()}
@@ -185,7 +186,7 @@ export function ProfileSettingsPage({
             </button>
             <input
               accept="image/jpeg,image/png,image/webp"
-              aria-label="选择头像文件"
+              aria-label={t("选择头像文件")}
               className="profile-settings__file-input"
               onChange={handleAvatarSelection}
               ref={fileInputRef}
@@ -201,7 +202,7 @@ export function ProfileSettingsPage({
         </div>
 
         <div className="profile-settings__field">
-          <label htmlFor="profile-nickname">用户昵称</label>
+          <label htmlFor="profile-nickname">{t("用户昵称")}</label>
           <div className="profile-settings__input-wrap">
             <input
               autoComplete="nickname"
@@ -225,14 +226,14 @@ export function ProfileSettingsPage({
           <div className="profile-settings__detail-row">
             <dt>
               <PlatformIcon name="user" size={20} />
-              <span>{profile.account ? "账号" : "身份"}</span>
+              <span>{profile.account ? t("账号") : t("身份")}</span>
             </dt>
-            <dd>{profile.account || "访客体验"}</dd>
+            <dd>{profile.account || t("访客体验")}</dd>
           </div>
           <div className="profile-settings__detail-row">
             <dt>
               <PlatformIcon name="calendar" size={20} />
-              <span>创建时间</span>
+              <span>{t("创建时间")}</span>
             </dt>
             <dd>{formatDateTime(profile.created_at)}</dd>
           </div>
@@ -240,7 +241,7 @@ export function ProfileSettingsPage({
             <div className="profile-settings__detail-row">
               <dt>
                 <PlatformIcon name="clock" size={20} />
-                <span>最后登录时间</span>
+                <span>{t("最后登录时间")}</span>
               </dt>
               <dd>{formatDateTime(profile.last_login_at)}</dd>
             </div>
@@ -254,7 +255,7 @@ export function ProfileSettingsPage({
             onClick={cancelChanges}
             type="button"
           >
-            取消
+            {t("取消")}
           </button>
           <button
             className="button button--primary"
@@ -262,7 +263,7 @@ export function ProfileSettingsPage({
             onClick={() => void saveChanges()}
             type="button"
           >
-            {isSaving ? "正在保存…" : "保存"}
+            {isSaving ? t("正在保存…") : t("保存")}
           </button>
         </footer>
       </div>
@@ -272,12 +273,12 @@ export function ProfileSettingsPage({
 
 function getProfileErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
-  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
-  return "个人资料保存失败，请稍后重试。";
+  if (error instanceof TypeError) return t("网络连接异常，请检查网络后重试。");
+  return t("个人资料保存失败，请稍后重试。");
 }
 
 function formatDateTime(value: string | null): string {
-  if (!value) return "暂无记录";
+  if (!value) return t("暂无记录");
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
 

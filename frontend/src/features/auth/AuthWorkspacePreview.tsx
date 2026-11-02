@@ -1,4 +1,5 @@
 import { PlatformIcon, type PlatformIconName } from "../platform/PlatformIcon";
+import { t } from "../../i18n/localeStore";
 
 const navigation: { label: string; icon: PlatformIconName; active?: boolean }[] = [
   { label: "技能市场", icon: "market", active: true },
@@ -46,25 +47,25 @@ const skills: {
 
 export function AuthWorkspacePreview() {
   return (
-    <section aria-label="OrionAI 工作空间界面预览" className="auth-workspace-preview">
+    <section aria-label={t("OrionAI 工作空间界面预览")} className="auth-workspace-preview">
       <div className="preview-topbar">
         <span className="preview-window-dots" aria-hidden="true">
           <i />
           <i />
           <i />
         </span>
-        <span className="preview-topbar-label">OrionAI 工作空间</span>
+        <span className="preview-topbar-label">{t("OrionAI 工作空间")}</span>
         <span className="preview-avatar" aria-hidden="true">
           O
         </span>
       </div>
 
       <div className="preview-body">
-        <nav aria-label="预览菜单" className="preview-sidebar">
+        <nav aria-label={t("预览菜单")} className="preview-sidebar">
           {navigation.map((item) => (
             <span className={`preview-nav-item${item.active ? " is-active" : ""}`} key={item.label}>
               <PlatformIcon name={item.icon} size={14} />
-              {item.label}
+              {t(item.label)}
             </span>
           ))}
         </nav>
@@ -72,11 +73,11 @@ export function AuthWorkspacePreview() {
         <div className="preview-main">
           <div className="preview-heading">
             <div>
-              <span className="preview-overline">探索 AI 能力</span>
-              <h2>技能市场</h2>
+              <span className="preview-overline">{t("探索 AI 能力")}</span>
+              <h2>{t("技能市场")}</h2>
             </div>
             <span className="preview-search">
-              <PlatformIcon name="search" size={13} /> 搜索技能
+              <PlatformIcon name="search" size={13} /> {t("搜索技能")}
             </span>
           </div>
           <div className="preview-skill-grid">
@@ -86,9 +87,9 @@ export function AuthWorkspacePreview() {
                   <PlatformIcon name={skill.icon} size={16} />
                 </div>
                 <div className="preview-skill-copy">
-                  <span>{skill.category}</span>
-                  <h3>{skill.title}</h3>
-                  <p>{skill.description}</p>
+                  <span>{t(skill.category)}</span>
+                  <h3>{t(skill.title)}</h3>
+                  <p>{t(skill.description)}</p>
                 </div>
                 <span className="preview-skill-arrow" aria-hidden="true">
                   ↗

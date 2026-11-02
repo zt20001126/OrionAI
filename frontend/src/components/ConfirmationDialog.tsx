@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import "./confirmation-dialog.css";
+import { t } from "../i18n/localeStore";
 
 export interface ConfirmOptions {
   title: string;
@@ -127,7 +128,7 @@ export function ConfirmationDialog({
             ref={cancelButtonRef}
             type="button"
           >
-            {confirmation.cancelLabel ?? "取消"}
+            {confirmation.cancelLabel ?? t("取消")}
           </button>
           <button
             className={`button ${tone === "danger" ? "button--danger" : "button--primary"}`}
@@ -135,7 +136,7 @@ export function ConfirmationDialog({
             onClick={onConfirm}
             type="button"
           >
-            {isBusy ? "处理中…" : (confirmation.confirmLabel ?? "确认")}
+            {isBusy ? t("处理中…") : (confirmation.confirmLabel ?? t("确认"))}
           </button>
         </div>
       </section>

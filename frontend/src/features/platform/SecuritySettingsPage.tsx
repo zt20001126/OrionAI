@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useToast } from "../../components/ToastProvider";
 import { ApiError } from "../auth/authApi";
 import { changePassword, sendPasswordChangeCode } from "./profileApi";
+import { t } from "../../i18n/localeStore";
 
 interface SecuritySettingsPageProps {
   account: string;
@@ -63,7 +64,7 @@ export function SecuritySettingsPage({
     try {
       const result = await sendPasswordChangeCode();
       setCountdown(60);
-      showToast("success", result.message || `验证码已发送至 ${account}。`);
+      showToast("success", result.message || t("验证码已发送至 {account}。", { account }));
     } catch (error) {
       showToast("error", getPasswordSettingsErrorMessage(error, "验证码发送失败，请稍后重试。"));
     } finally {
@@ -76,15 +77,15 @@ export function SecuritySettingsPage({
     clearFeedback();
 
     if (!passwordIsValid) {
-      setErrorMessage("密码长度须为 8 到 64 个字符，且不能仅由空格组成。");
+      setErrorMessage(t("密码长度须为 8 到 64 个字符，且不能仅由空格组成。"));
       return;
     }
     if (newPassword !== passwordConfirmation) {
-      setErrorMessage("两次输入的密码不一致。");
+      setErrorMessage(t("两次输入的密码不一致。"));
       return;
     }
     if (!/^\d{6}$/.test(code)) {
-      setErrorMessage("请输入 6 位邮箱验证码。");
+      setErrorMessage(t("请输入 6 位邮箱验证码。"));
       return;
     }
 
@@ -117,25 +118,25 @@ export function SecuritySettingsPage({
         onSubmit={(event) => void submitPasswordChange(event)}
       >
         <header className="profile-settings__header">
-          <h1 id="security-settings-title">安全设置</h1>
+          <h1 id="security-settings-title">{t("安全设置")}</h1>
         </header>
 
         <div className="security-settings__intro">
-          <h2>修改登录密码</h2>
-          <p>为了保障账号安全，修改密码前需要验证账号绑定的邮箱。</p>
+          <h2>{t("修改登录密码")}</h2>
+          <p>{t("为了保障账号安全，修改密码前需要验证账号绑定的邮箱。")}</p>
         </div>
 
         <div className="security-settings__fields">
           <label className="profile-settings__field">
-            <span>绑定邮箱</span>
+            <span>{t("绑定邮箱")}</span>
             <input className="form-input" readOnly value={account} />
           </label>
 
           <label className="profile-settings__field">
-            <span>新密码</span>
+            <span>{t("新密码")}</span>
             <span className="password-field">
               <input
-                aria-label="新密码"
+                aria-label={t("新密码")}
                 autoComplete="new-password"
                 className="form-input"
                 disabled={isSubmitting}
@@ -150,22 +151,22 @@ export function SecuritySettingsPage({
                 value={newPassword}
               />
               <button
-                aria-label={showNewPassword ? "隐藏新密码" : "显示新密码"}
+                aria-label={showNewPassword ? t("隐藏新密码") : t("显示新密码")}
                 className="password-toggle security-settings__password-toggle"
                 onClick={() => setShowNewPassword((visible) => !visible)}
                 type="button"
               >
-                {showNewPassword ? "隐藏" : "显示"}
+                {showNewPassword ? t("隐藏") : t("显示")}
               </button>
             </span>
-            <small>8–64 个字符，不能仅使用空格。</small>
+            <small>{t("8–64 个字符，不能仅使用空格。")}</small>
           </label>
 
           <label className="profile-settings__field">
-            <span>确认新密码</span>
+            <span>{t("确认新密码")}</span>
             <span className="password-field">
               <input
-                aria-label="确认新密码"
+                aria-label={t("确认新密码")}
                 autoComplete="new-password"
                 className="form-input"
                 disabled={isSubmitting}
@@ -180,21 +181,21 @@ export function SecuritySettingsPage({
                 value={passwordConfirmation}
               />
               <button
-                aria-label={showPasswordConfirmation ? "隐藏确认密码" : "显示确认密码"}
+                aria-label={showPasswordConfirmation ? t("隐藏确认密码") : t("显示确认密码")}
                 className="password-toggle security-settings__password-toggle"
                 onClick={() => setShowPasswordConfirmation((visible) => !visible)}
                 type="button"
               >
-                {showPasswordConfirmation ? "隐藏" : "显示"}
+                {showPasswordConfirmation ? t("隐藏") : t("显示")}
               </button>
             </span>
           </label>
 
           <label className="profile-settings__field">
-            <span>邮箱验证码</span>
+            <span>{t("邮箱验证码")}</span>
             <span className="code-row security-settings__code-row">
               <input
-                aria-label="邮箱验证码"
+                aria-label={t("邮箱验证码")}
                 autoComplete="one-time-code"
                 className="form-input"
                 disabled={isSubmitting}
@@ -214,7 +215,11 @@ export function SecuritySettingsPage({
                 onClick={() => void sendCode()}
                 type="button"
               >
-                {isSendingCode ? "发送中…" : countdown > 0 ? `${countdown} 秒后重发` : "发送验证码"}
+                {isSendingCode
+                  ? t("发送中…")
+                  : countdown > 0
+                    ? t("{seconds} 秒后重发", { seconds: countdown })
+                    : t("发送验证码")}
               </button>
             </span>
           </label>
@@ -235,10 +240,10 @@ export function SecuritySettingsPage({
             onClick={cancelChanges}
             type="button"
           >
-            取消
+            {t("取消")}
           </button>
           <button className="button button--primary" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "正在修改…" : "确认修改"}
+            {isSubmitting ? t("正在修改…") : t("确认修改")}
           </button>
         </footer>
       </form>
@@ -248,6 +253,6 @@ export function SecuritySettingsPage({
 
 function getPasswordSettingsErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) return error.message;
-  if (error instanceof TypeError) return "网络连接异常，请检查网络后重试。";
+  if (error instanceof TypeError) return t("网络连接异常，请检查网络后重试。");
   return fallback;
 }

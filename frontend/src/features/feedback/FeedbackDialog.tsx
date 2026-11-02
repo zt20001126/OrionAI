@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PlatformIcon } from "../platform/PlatformIcon";
 import { FeedbackForm } from "./FeedbackForm";
 import "./feedback.css";
+import { t } from "../../i18n/localeStore";
 
 interface FeedbackDialogProps {
   onClose: () => void;
@@ -78,7 +79,7 @@ export function FeedbackDialog({ onClose, restoreFocus }: FeedbackDialogProps) {
         role="dialog"
       >
         <button
-          aria-label="关闭问题反馈"
+          aria-label={t("关闭问题反馈")}
           className="dialog-close"
           disabled={isSubmitting}
           onClick={dismissDialog}

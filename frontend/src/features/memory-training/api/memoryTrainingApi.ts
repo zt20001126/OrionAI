@@ -1,6 +1,7 @@
 /** 记忆训练 REST API 与前端 DTO，集中维护接口路径和错误处理。 */
 
 import { getSafeErrorDetail } from "../../../utils/safeErrorMessage";
+import { t } from "../../../i18n/localeStore";
 
 export type TrainingState =
   | "image_loading"
@@ -79,7 +80,7 @@ async function requestMemoryTrainingApi<T>(path: string, init?: RequestInit): Pr
   try {
     response = await fetch(path, { credentials: "include", ...init });
   } catch {
-    throw new Error("网络连接异常，请检查网络后重试。");
+    throw new Error(t("网络连接异常，请检查网络后重试。"));
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -92,10 +93,10 @@ async function requestMemoryTrainingApi<T>(path: string, init?: RequestInit): Pr
         : null;
     const fallback =
       response.status === 401
-        ? "登录状态已失效，请刷新页面后重新登录。"
+        ? t("登录状态已失效，请刷新页面后重新登录。")
         : response.status >= 500
-          ? "记忆训练服务暂时不可用，请稍后重试。"
-          : "训练状态已发生变化，请刷新后重试。";
+          ? t("记忆训练服务暂时不可用，请稍后重试。")
+          : t("训练状态已发生变化，请刷新后重试。");
     throw new MemoryTrainingApiError(
       getSafeErrorDetail(detail, fallback),
       response.status,

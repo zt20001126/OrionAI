@@ -8,6 +8,7 @@ import {
   ReminderTimezoneSelect,
 } from "./ReminderFormControls";
 import type { Reminder, ReminderRepeatType, ReminderScheduleInput } from "./reminderApi";
+import { t } from "../../i18n/localeStore";
 
 export interface ReminderFormValues {
   title: string;
@@ -52,12 +53,18 @@ export function ReminderForm({
   const today = getDateInTimezone(new Date(), values.timezone);
   const activeDate = values.repeatType === "once" ? values.date : values.startDate;
   const minimumPlanDate = allowPastDate === activeDate && activeDate < today ? activeDate : today;
-  const titleInvalid = Boolean(error?.includes("标题"));
-  const contentInvalid = Boolean(error?.includes("内容"));
-  const dateInvalid = Boolean(error?.includes("日期"));
-  const endDateInvalid = Boolean(error?.includes("结束日期"));
-  const timeInvalid = Boolean(error?.includes("时间"));
-  const timezoneInvalid = Boolean(error?.includes("时区"));
+  const titleInvalid = error === t("请填写提醒标题。");
+  const contentInvalid = error === t("请填写提醒内容。");
+  const dateInvalid = ["请选择有效的提醒日期。", "提醒日期不能早于今天。"].some(
+    (message) => error === t(message),
+  );
+  const endDateInvalid = ["请选择有效的结束日期。", "结束日期不能早于开始日期。"].some(
+    (message) => error === t(message),
+  );
+  const timeInvalid = ["请选择有效的提醒时间。", "单次提醒时间必须晚于当前时间。"].some(
+    (message) => error === t(message),
+  );
+  const timezoneInvalid = error === t("请选择有效的时区。");
 
   function changeField<K extends keyof ReminderFormValues>(key: K, value: ReminderFormValues[K]) {
     onChange({ ...values, [key]: value });
@@ -82,7 +89,7 @@ export function ReminderForm({
         key={isSaving ? "saving" : "ready"}
       >
         <label className="reminder-field reminder-field--wide">
-          <span>标题</span>
+          <span>{t("标题")}</span>
           <input
             aria-invalid={titleInvalid || undefined}
             autoComplete="off"
@@ -94,7 +101,7 @@ export function ReminderForm({
         </label>
 
         <label className="reminder-field reminder-field--wide">
-          <span>内容</span>
+          <span>{t("内容")}</span>
           <textarea
             aria-invalid={contentInvalid || undefined}
             maxLength={5000}
@@ -106,22 +113,22 @@ export function ReminderForm({
         </label>
 
         <div className="reminder-field">
-          <span>重复方式</span>
+          <span>{t("重复方式")}</span>
           <ReminderSelect
             disabled={isSaving}
-            label="重复方式"
+            label={t("重复方式")}
             onChange={changeRepeatType}
-            options={[...REPEAT_OPTIONS]}
+            options={REPEAT_OPTIONS.map((option) => ({ ...option, label: t(option.label) }))}
             value={values.repeatType}
           />
         </div>
 
         <div className="reminder-field">
-          <span>{values.repeatType === "once" ? "提醒日期" : "开始日期"}</span>
+          <span>{values.repeatType === "once" ? t("提醒日期") : t("开始日期")}</span>
           <ReminderDatePicker
             disabled={isSaving}
             invalid={dateInvalid}
-            label={values.repeatType === "once" ? "提醒日期" : "开始日期"}
+            label={values.repeatType === "once" ? t("提醒日期") : t("开始日期")}
             minDate={minimumPlanDate}
             onChange={(value) => onChange({ ...values, date: value, startDate: value })}
             timezone={values.timezone}
@@ -131,11 +138,11 @@ export function ReminderForm({
 
         {values.repeatType !== "once" && (
           <div className="reminder-field">
-            <span>结束日期（可选）</span>
+            <span>{t("结束日期（可选）")}</span>
             <ReminderDatePicker
               disabled={isSaving}
               invalid={endDateInvalid}
-              label="结束日期（可选）"
+              label={t("结束日期（可选）")}
               minDate={values.startDate || today}
               onChange={(value) => changeField("endDate", value)}
               timezone={values.timezone}
@@ -147,18 +154,18 @@ export function ReminderForm({
         <div
           className={`reminder-field${values.repeatType === "once" ? " reminder-field--wide" : ""}`}
         >
-          <span>提醒时间</span>
+          <span>{t("提醒时间")}</span>
           <ReminderTimePicker
             disabled={isSaving}
             invalid={timeInvalid}
-            label="提醒时间"
+            label={t("提醒时间")}
             onChange={(value) => changeField("localTime", value)}
             value={values.localTime}
           />
         </div>
 
         <div className="reminder-field reminder-field--wide">
-          <span>时区</span>
+          <span>{t("时区")}</span>
           <ReminderTimezoneSelect
             disabled={isSaving}
             invalid={timezoneInvalid}
@@ -169,10 +176,10 @@ export function ReminderForm({
       </fieldset>
 
       {values.repeatType === "weekly" && (
-        <p className="reminder-form-note">每周按开始日期对应的星期重复。</p>
+        <p className="reminder-form-note">{t("每周按开始日期对应的星期重复。")}</p>
       )}
       {values.repeatType === "monthly" && (
-        <p className="reminder-form-note">每月按开始日期的日号重复；当月份没有该日时会跳过。</p>
+        <p className="reminder-form-note">{t("每月按开始日期的日号重复；当月份没有该日时会跳过。")}</p>
       )}
       {error && (
         <p className="reminder-form-error" role="alert">
@@ -187,11 +194,11 @@ export function ReminderForm({
           onClick={onCancel}
           type="button"
         >
-          {mode === "create" ? "取消" : "返回"}
+          {mode === "create" ? t("取消") : t("返回")}
         </button>
         <button className="button button--primary" disabled={isSaving} type="submit">
           {isSaving && <span aria-hidden="true" className="button-spinner" />}
-          {isSaving ? "保存中…" : "保存提醒"}
+          {isSaving ? t("保存中…") : t("保存提醒")}
           {!isSaving && <PlatformIcon name="arrow" size={16} />}
         </button>
       </div>
@@ -260,30 +267,30 @@ export function validateReminderForm(
   now = new Date(),
   allowedPastDate?: string,
 ): string | null {
-  if (!values.title.trim()) return "请填写提醒标题。";
-  if (!values.content.trim()) return "请填写提醒内容。";
-  if (!isValidTime(values.localTime)) return "请选择有效的提醒时间。";
+  if (!values.title.trim()) return t("请填写提醒标题。");
+  if (!values.content.trim()) return t("请填写提醒内容。");
+  if (!isValidTime(values.localTime)) return t("请选择有效的提醒时间。");
 
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: values.timezone });
   } catch {
-    return "请选择有效的时区。";
+    return t("请选择有效的时区。");
   }
 
   const plannedDate = values.repeatType === "once" ? values.date : values.startDate;
-  if (!isValidDate(plannedDate)) return "请选择有效的提醒日期。";
+  if (!isValidDate(plannedDate)) return t("请选择有效的提醒日期。");
   const today = getDateInTimezone(now, values.timezone);
   if (plannedDate < today && plannedDate !== allowedPastDate) {
-    return "提醒日期不能早于今天。";
+    return t("提醒日期不能早于今天。");
   }
   if (values.repeatType === "once" && plannedDate === today) {
     const currentTime = formatTimeInTimezone(now, values.timezone);
-    if (values.localTime <= currentTime) return "单次提醒时间必须晚于当前时间。";
+    if (values.localTime <= currentTime) return t("单次提醒时间必须晚于当前时间。");
   }
 
   if (values.repeatType !== "once" && values.endDate) {
-    if (!isValidDate(values.endDate)) return "请选择有效的结束日期。";
-    if (values.endDate < values.startDate) return "结束日期不能早于开始日期。";
+    if (!isValidDate(values.endDate)) return t("请选择有效的结束日期。");
+    if (values.endDate < values.startDate) return t("结束日期不能早于开始日期。");
   }
   return null;
 }

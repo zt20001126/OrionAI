@@ -9,6 +9,7 @@ import {
 import { MembershipOrderList } from "./components/MembershipOrderList";
 import { listMembershipOrders } from "./membershipApi";
 import type { MembershipOrder } from "./types";
+import { t } from "../../i18n/localeStore";
 
 const ORDERS_PAGE_SIZE = 10;
 
@@ -34,7 +35,7 @@ export function MembershipOrdersPage({
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "订单记录暂时无法加载。");
+          setError(cause instanceof Error ? cause.message : t("订单记录暂时无法加载。"));
         }
       })
       .finally(() => {
@@ -51,20 +52,20 @@ export function MembershipOrdersPage({
         type="button"
       >
         <PlatformIcon name="arrow" size={16} />
-        返回会员中心
+        {t("返回会员中心")}
       </button>
       <div className="membership-section-heading">
         <div>
-          <h1 className="membership-page-title">我的订单</h1>
-          <p>会员订单与支付状态均以服务端记录为准</p>
+          <h1 className="membership-page-title">{t("我的订单")}</h1>
+          <p>{t("会员订单与发放状态均以服务端记录为准")}</p>
         </div>
-        <span className="membership-orders-total">共 {total} 笔</span>
+        <span className="membership-orders-total">{t("共")} {total} {t("笔")}</span>
       </div>
 
       {isLoading ? (
         <div className="panel-card membership-loading" role="status">
           <span aria-hidden="true" className="membership-loading__spinner" />
-          正在加载订单…
+          {t("正在加载订单…")}
         </div>
       ) : error ? (
         <div className="membership-load-error" role="alert">
@@ -78,7 +79,7 @@ export function MembershipOrdersPage({
             }}
             type="button"
           >
-            重新加载
+            {t("重新加载")}
           </button>
         </div>
       ) : (
@@ -89,9 +90,9 @@ export function MembershipOrdersPage({
             showViewAll={false}
           />
           {total > 0 && (
-            <nav aria-label="订单分页" className="membership-order-pagination">
+            <nav aria-label={t("订单分页")} className="membership-order-pagination">
               <button
-                aria-label="上一页"
+                aria-label={t("上一页")}
                 className="button button--outline"
                 disabled={page <= 1}
                 onClick={() => {
@@ -101,13 +102,13 @@ export function MembershipOrdersPage({
                 }}
                 type="button"
               >
-                上一页
+                {t("上一页")}
               </button>
               <span>
                 {page} / {pageCount}
               </span>
               <button
-                aria-label="下一页"
+                aria-label={t("下一页")}
                 className="button button--outline"
                 disabled={page >= pageCount}
                 onClick={() => {
@@ -117,7 +118,7 @@ export function MembershipOrdersPage({
                 }}
                 type="button"
               >
-                下一页
+                {t("下一页")}
               </button>
             </nav>
           )}

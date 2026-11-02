@@ -15,6 +15,7 @@ import {
 } from "./membershipApi";
 import { formatDuration } from "./membershipUtils";
 import type { MembershipOrder, MembershipPlan, PaymentMethod } from "./types";
+import { t } from "../../i18n/localeStore";
 
 interface MembershipCheckoutPageProps {
   isGuest: boolean;
@@ -40,7 +41,7 @@ export function MembershipCheckoutPage({
   const [error, setError] = useState<string | null>(null);
   const [paymentMessage, setPaymentMessage] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("payment") === "cancelled"
-      ? "你已返回支付确认页，尚未确认付款。可以重新发起支付。"
+      ? t("你已返回支付确认页，尚未确认付款。可以重新发起支付。")
       : null,
   );
   const [reloadVersion, setReloadVersion] = useState(0);
@@ -74,7 +75,7 @@ export function MembershipCheckoutPage({
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "支付信息暂时无法加载。");
+          setError(cause instanceof Error ? cause.message : t("支付信息暂时无法加载。"));
         }
       })
       .finally(() => {
@@ -87,7 +88,7 @@ export function MembershipCheckoutPage({
   useEffect(() => {
     const paymentState = new URLSearchParams(window.location.search).get("payment");
     if (paymentState === "cancelled") {
-      showToast("info", "支付未完成，订单状态仍以服务端查询结果为准。");
+      showToast("info", t("支付未完成，订单状态仍以服务端查询结果为准。"));
     }
   }, [showToast]);
 
@@ -108,7 +109,7 @@ export function MembershipCheckoutPage({
       if (!order) {
         if (currentOrder?.status === "paid") {
           await refresh().catch(() => null);
-          showToast("success", "该订单已支付，会员信息已刷新。");
+          showToast("success", t("该订单已支付，会员信息已刷新。"));
           onNavigate(platformPaths.membership);
           return;
         }
@@ -121,6 +122,7 @@ export function MembershipCheckoutPage({
           plan_id: plan.id,
           plan_name: plan.name,
           amount: created.amount,
+          order_type: created.order_type,
           duration_days: created.duration_days,
           status: created.status,
           created_at: created.created_at,
@@ -129,12 +131,12 @@ export function MembershipCheckoutPage({
         setCurrentOrder(order);
         if (order.status === "paid") {
           await refresh().catch(() => null);
-          showToast("success", "该订单已支付，会员信息已刷新。");
+          showToast("success", t("该订单已支付，会员信息已刷新。"));
           onNavigate(platformPaths.membership);
           return;
         }
         if (order.status !== "pending") {
-          setPaymentMessage("该订单当前无法继续支付，请重新选择套餐。");
+          setPaymentMessage(t("该订单当前无法继续支付，请重新选择套餐。"));
           return;
         }
       }
@@ -142,11 +144,11 @@ export function MembershipCheckoutPage({
       const session = await createCheckoutSession(order.order_id, selectedMethod);
       const checkoutUrl = new URL(session.checkout_url);
       if (checkoutUrl.protocol !== "https:") {
-        throw new Error("支付服务返回了无效的安全地址，请稍后重试。");
+        throw new Error(t("支付服务返回了无效的安全地址，请稍后重试。"));
       }
       window.location.assign(checkoutUrl.toString());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "支付请求失败，请稍后重试。");
+      setError(cause instanceof Error ? cause.message : t("支付请求失败，请稍后重试。"));
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -171,14 +173,14 @@ export function MembershipCheckoutPage({
         type="button"
       >
         <PlatformIcon name="arrow" size={16} />
-        返回会员中心
+        {t("返回会员中心")}
       </button>
-      <h1 className="membership-page-title">确认支付</h1>
+      <h1 className="membership-page-title">{t("确认支付")}</h1>
 
       {isLoading ? (
         <div className="panel-card membership-loading" role="status">
           <span aria-hidden="true" className="membership-loading__spinner" />
-          正在加载套餐与支付方式…
+          {t("正在加载套餐与支付方式…")}
         </div>
       ) : error && !plan ? (
         <div className="membership-load-error" role="alert">
@@ -192,38 +194,38 @@ export function MembershipCheckoutPage({
             }}
             type="button"
           >
-            重新加载
+            {t("重新加载")}
           </button>
         </div>
       ) : !plan ? (
         <div className="panel-card membership-empty-state" role="status">
-          该套餐当前不可用，请返回会员中心重新选择。
+          {t("该套餐当前不可用，请返回会员中心重新选择。")}
         </div>
       ) : (
         <section className="membership-checkout-card panel-card">
           <div className="membership-checkout-summary">
-            <h2>套餐信息</h2>
+            <h2>{t("套餐信息")}</h2>
             {orderMismatch && (
               <p className="membership-inline-message" role="alert">
-                订单与当前选择的套餐不匹配，请返回套餐列表重新选择。
+                {t("订单与当前选择的套餐不匹配，请返回套餐列表重新选择。")}
               </p>
             )}
             <dl>
               <div>
-                <dt>购买项目</dt>
-                <dd>OrionAI 会员 · {plan.name}</dd>
+                <dt>{t("购买项目")}</dt>
+                <dd>{t("OrionAI 会员 ·")} {plan.name}</dd>
               </div>
               <div>
-                <dt>购买时长</dt>
+                <dt>{t("购买时长")}</dt>
                 <dd>{formatDuration(currentOrder?.duration_days ?? plan.duration_days)}</dd>
               </div>
               <div>
-                <dt>订单金额</dt>
+                <dt>{t("订单金额")}</dt>
                 <dd className="membership-checkout-amount">{amount ? "¥" + amount : "—"}</dd>
               </div>
             </dl>
             <p className="membership-checkout-hint">
-              若当前会员尚未到期，本次购买期限将在现有会员期限后顺延。预计生效日期以服务端订单和会员记录为准。
+              {t("若当前会员尚未到期，本次购买期限将在现有会员期限后顺延。预计生效日期以服务端订单和会员记录为准。")}
             </p>
           </div>
 
@@ -235,17 +237,17 @@ export function MembershipCheckoutPage({
             />
             {isGuest && (
               <p className="membership-inline-message" role="status">
-                访客账号不能购买会员，请注册或登录后继续。
+                {t("访客账号不能购买会员，请注册或登录后继续。")}
               </p>
             )}
             {currentOrder && currentOrder.status !== "pending" && (
               <p className="membership-inline-message" role="status">
-                当前订单状态：
+                {t("当前订单状态：")}
                 {currentOrder.status === "paid"
-                  ? "已支付"
+                  ? t("已支付")
                   : currentOrder.status === "failed"
-                    ? "支付失败"
-                    : "已过期"}
+                    ? t("支付失败")
+                    : t("已过期")}
               </p>
             )}
             {paymentMessage && (
@@ -267,7 +269,7 @@ export function MembershipCheckoutPage({
                 onClick={() => onNavigate(platformPaths.membership)}
                 type="button"
               >
-                返回
+                {t("返回")}
               </button>
               <button
                 className="button button--primary"
@@ -283,10 +285,10 @@ export function MembershipCheckoutPage({
                 type="button"
               >
                 {isSubmitting
-                  ? "正在创建支付…"
+                  ? t("正在创建支付…")
                   : isTerminalOrder
-                    ? "重新发起支付"
-                    : "立即支付 " + (amount ? "¥" + amount : "")}
+                    ? t("重新发起支付")
+                    : t("立即支付 {amount}", { amount: amount ? "¥" + amount : "" })}
               </button>
             </div>
           </div>

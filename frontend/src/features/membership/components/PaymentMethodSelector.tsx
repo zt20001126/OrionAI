@@ -1,5 +1,6 @@
 import { PlatformIcon } from "../../platform/PlatformIcon";
 import type { PaymentMethod } from "../types";
+import { t } from "../../../i18n/localeStore";
 
 interface PaymentMethodSelectorProps {
   methods: PaymentMethod[];
@@ -14,7 +15,7 @@ export function PaymentMethodSelector({
 }: PaymentMethodSelectorProps) {
   return (
     <fieldset className="payment-methods">
-      <legend>支付方式</legend>
+      <legend>{t("支付方式")}</legend>
       {methods.map((method) => {
         const selected = method.code === selectedCode;
         return (
@@ -38,7 +39,7 @@ export function PaymentMethodSelector({
       })}
       {methods.length === 0 && (
         <p className="membership-inline-message" role="status">
-          当前没有可用的支付方式，请稍后再试。
+          {t("当前没有可用的支付方式，请稍后再试。")}
         </p>
       )}
     </fieldset>

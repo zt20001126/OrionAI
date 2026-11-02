@@ -10,6 +10,7 @@ import {
 
 import { getMembershipOverview } from "./membershipApi";
 import type { MembershipOverview } from "./types";
+import { t } from "../../i18n/localeStore";
 
 interface MembershipStatusValue {
   overview: MembershipOverview | null;
@@ -46,7 +47,7 @@ export function MembershipStatusProvider({
       setOverview(nextOverview);
       return nextOverview;
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "会员信息暂时无法加载。";
+      const message = cause instanceof Error ? cause.message : t("会员信息暂时无法加载。");
       setError(message);
       throw cause;
     } finally {
@@ -66,7 +67,7 @@ export function MembershipStatusProvider({
       })
       .catch((cause: unknown) => {
         if (active) {
-          setError(cause instanceof Error ? cause.message : "会员信息暂时无法加载。");
+          setError(cause instanceof Error ? cause.message : t("会员信息暂时无法加载。"));
         }
       })
       .finally(() => {

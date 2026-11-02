@@ -10,6 +10,8 @@ import {
 } from "react";
 
 import { ConfirmationDialog, type ConfirmOptions } from "./ConfirmationDialog";
+import { useLocale } from "../i18n/LocaleProvider";
+import { t } from "../i18n/localeStore";
 import "./toast.css";
 
 export type ToastType = "success" | "error" | "warning" | "info";
@@ -40,7 +42,7 @@ interface ConfirmRequest {
   options: ConfirmOptions;
 }
 
-const toastTitles: Record<ToastType, string> = {
+const toastTitleKeys: Record<ToastType, string> = {
   success: "操作成功",
   error: "操作失败",
   warning: "请注意",
@@ -53,6 +55,7 @@ const TOAST_EXIT_DURATION_MS = 300;
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: ToastProviderProps) {
+  useLocale();
   const [toast, setToast] = useState<ToastItem | null>(null);
   const nextId = useRef(0);
   const nextConfirmId = useRef(0);
@@ -123,7 +126,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
         setBusyConfirmationId(null);
         setConfirmationError({
           id: request.id,
-          message: "操作未能完成，请稍后重试。",
+          message: t("操作未能完成，请稍后重试。"),
         });
       }
     },
@@ -149,7 +152,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
       setToast({
         id,
         type,
-        title: options?.title ?? toastTitles[type],
+        title: options?.title ?? "",
         description,
         isExiting: false,
       });
@@ -187,11 +190,13 @@ export function ToastProvider({ children }: ToastProviderProps) {
               <ToastIcon type={toast.type} />
             </span>
             <span className="toast-copy">
-              <strong className="toast-title">{toast.title}</strong>
+              <strong className="toast-title">
+                {toast.title || t(toastTitleKeys[toast.type])}
+              </strong>
               <span className="toast-description">{toast.description}</span>
             </span>
             <button
-              aria-label="关闭提示"
+              aria-label={t("关闭提示")}
               className="toast-close"
               onClick={() => dismissToast(toast.id)}
               type="button"

@@ -12,6 +12,7 @@ import {
 import { createPortal } from "react-dom";
 
 import { PlatformIcon } from "../platform/PlatformIcon";
+import { getLocaleTag, t } from "../../i18n/localeStore";
 
 interface ReminderOption {
   label: string;
@@ -320,14 +321,14 @@ export function ReminderDatePicker({
         ref={triggerRef}
         type="button"
       >
-        <span>{value || "选择日期"}</span>
+        <span>{value || t("选择日期")}</span>
         <PlatformIcon name="calendar" size={17} />
       </button>
       {isOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <div
-            aria-label="选择日期"
+            aria-label={t("选择日期")}
             className="reminder-calendar-popover"
             id={id}
             onKeyDown={(event) => {
@@ -347,7 +348,7 @@ export function ReminderDatePicker({
           >
             <div className="reminder-calendar-header">
               <button
-                aria-label="上个月"
+                aria-label={t("上个月")}
                 className="reminder-calendar-nav"
                 disabled={isPreviousMonthDisabled(visibleMonth, minDate)}
                 onClick={() => shiftVisibleMonth(-1)}
@@ -357,7 +358,7 @@ export function ReminderDatePicker({
               </button>
               <strong>{formatMonth(visibleMonth)}</strong>
               <button
-                aria-label="下个月"
+                aria-label={t("下个月")}
                 className="reminder-calendar-nav"
                 onClick={() => shiftVisibleMonth(1)}
                 type="button"
@@ -366,8 +367,8 @@ export function ReminderDatePicker({
               </button>
             </div>
             <div aria-hidden="true" className="reminder-calendar-weekdays">
-              {WEEKDAYS.map((weekday) => (
-                <span key={weekday}>{weekday}</span>
+              {getWeekdays().map((weekday, index) => (
+                <span key={index}>{weekday}</span>
               ))}
             </div>
             <div
@@ -485,14 +486,14 @@ export function ReminderTimePicker({
         ref={triggerRef}
         type="button"
       >
-        <span>{isValidTime(value) ? value : "选择时间"}</span>
+        <span>{isValidTime(value) ? value : t("选择时间")}</span>
         <PlatformIcon name="clock" size={17} />
       </button>
       {isOpen &&
         typeof document !== "undefined" &&
         createPortal(
           <div
-            aria-label="选择提醒时间"
+            aria-label={t("选择提醒时间")}
             className="reminder-time-popover"
             id={id}
             onKeyDown={(event) => {
@@ -513,14 +514,14 @@ export function ReminderTimePicker({
             <div className="reminder-time-columns">
               <TimeColumn
                 autoFocus
-                label="小时"
+                label={t("小时")}
                 onChange={selectHour}
                 onKeyDown={handleColumnTab}
                 selected={hour}
                 values={HOURS}
               />
               <TimeColumn
-                label="分钟"
+                label={t("分钟")}
                 onChange={selectMinute}
                 onKeyDown={handleColumnTab}
                 selected={minute}
@@ -528,7 +529,7 @@ export function ReminderTimePicker({
               />
             </div>
             <button className="reminder-time-done" onClick={() => close(true)} type="button">
-              完成
+              {t("完成")}
             </button>
           </div>,
           document.body,
@@ -556,7 +557,7 @@ export function ReminderTimezoneSelect({
 
   return (
     <select
-      aria-label="时区"
+      aria-label={t("时区")}
       aria-invalid={invalid || undefined}
       className="reminder-native-select"
       disabled={disabled}
@@ -663,7 +664,14 @@ function TimeColumn({
   );
 }
 
-const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
+function getWeekdays(): string[] {
+  const sunday = new Date(2023, 0, 1);
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(sunday);
+    date.setDate(sunday.getDate() + index);
+    return new Intl.DateTimeFormat(getLocaleTag(), { weekday: "narrow" }).format(date);
+  });
+}
 const HOURS = Array.from({ length: 24 }, (_, index) => index);
 const MINUTES = Array.from({ length: 60 }, (_, index) => index);
 
@@ -799,7 +807,7 @@ function formatDateInTimezone(date: Date, timezone: string): string {
 }
 
 function formatMonth(date: Date): string {
-  return `${date.getFullYear()}年${pad2(date.getMonth() + 1)}月`;
+  return new Intl.DateTimeFormat(getLocaleTag(), { month: "long", year: "numeric" }).format(date);
 }
 
 function firstOfMonth(date: Date): Date {

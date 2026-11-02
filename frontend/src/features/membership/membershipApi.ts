@@ -1,4 +1,5 @@
 import { getSafeErrorDetail } from "../../utils/safeErrorMessage";
+import { t } from "../../i18n/localeStore";
 import type {
   CheckoutSessionResponse,
   CreateMembershipOrderResponse,
@@ -27,7 +28,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init,
     });
   } catch {
-    throw new MembershipApiError("网络连接异常，请检查网络后重试。", 0);
+    throw new MembershipApiError(t("网络连接异常，请检查网络后重试。"), 0);
   }
 
   const payload: unknown = await response.json().catch(() => null);
@@ -38,10 +39,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
         : null;
     const fallback =
       response.status === 401
-        ? "登录状态已失效，请刷新页面后重新登录。"
+        ? t("登录状态已失效，请刷新页面后重新登录。")
         : response.status >= 500
-          ? "会员服务暂时不可用，请稍后重试。"
-          : "请求失败，请稍后重试。";
+          ? t("会员服务暂时不可用，请稍后重试。")
+          : t("请求失败，请稍后重试。");
     throw new MembershipApiError(getSafeErrorDetail(detail, fallback), response.status);
   }
 
@@ -65,7 +66,7 @@ export async function checkMembershipAccess(signal?: AbortSignal): Promise<boole
     !("is_member" in response) ||
     typeof response.is_member !== "boolean"
   ) {
-    throw new MembershipApiError("会员状态响应无效，请稍后重试。", 0);
+    throw new MembershipApiError(t("会员状态响应无效，请稍后重试。"), 0);
   }
   return response.is_member;
 }

@@ -30,6 +30,7 @@ import {
   type SubmittedQuestionAnswer,
 } from "./conversationApi";
 import "./conversations.css";
+import { t } from "../../i18n/localeStore";
 
 interface ConversationPageProps {
   conversationId: string | null;
@@ -72,19 +73,19 @@ function ImageResult({ part }: { part: ImageResultContentPart }) {
   if (hasError) {
     return (
       <p className="conversation-image-result__status" role="status">
-        生成图片暂时无法显示。
+        {t("生成图片暂时无法显示。")}
       </p>
     );
   }
   return (
     <figure className="conversation-image-result">
       <a
-        aria-label="查看生成图片原图"
+        aria-label={t("查看生成图片原图")}
         href={part.image_url}
         rel="noopener noreferrer"
         target="_blank"
       >
-        <img alt="图片助手生成的商品图片" onError={() => setHasError(true)} src={part.image_url} />
+        <img alt={t("图片助手生成的商品图片")} onError={() => setHasError(true)} src={part.image_url} />
       </a>
     </figure>
   );
@@ -172,19 +173,19 @@ function QuestionWizard({
   const isLastQuestion = currentIndex === questions.length - 1;
 
   return (
-    <section aria-label="问题答题卡" className="question-card">
+    <section aria-label={t("问题答题卡")} className="question-card">
       <header className="question-card__header">
-        <strong>需要你的选择</strong>
+        <strong>{t("需要你的选择")}</strong>
         {hasSteps && (
           <span>
-            第 {currentIndex + 1} / {questions.length} 题
+            {t("第")} {currentIndex + 1} / {questions.length} {t("题")}
           </span>
         )}
       </header>
 
       {hasSteps && (
         <div
-          aria-label="答题进度"
+          aria-label={t("答题进度")}
           aria-valuemax={questions.length}
           aria-valuemin={1}
           aria-valuenow={currentIndex + 1}
@@ -200,7 +201,7 @@ function QuestionWizard({
         {question.context && (
           <div className="question-card__context-block">
             {question.id === "resume_optimization" && (
-              <strong className="question-card__context-title">修改候选预览</strong>
+              <strong className="question-card__context-title">{t("修改候选预览")}</strong>
             )}
             <pre className="question-card__context">{question.context}</pre>
           </div>
@@ -230,7 +231,7 @@ function QuestionWizard({
             onClick={onPrevious}
             type="button"
           >
-            ← 上一题
+            {t("← 上一题")}
           </button>
         ) : (
           <span />
@@ -243,7 +244,7 @@ function QuestionWizard({
             onClick={onSubmit}
             type="button"
           >
-            {isSubmitting ? "正在提交…" : "提交答案"}
+            {isSubmitting ? t("正在提交…") : t("提交答案")}
           </button>
         ) : (
           <button
@@ -252,7 +253,7 @@ function QuestionWizard({
             onClick={onNext}
             type="button"
           >
-            下一题 →
+            {t("下一题 →")}
           </button>
         )}
       </footer>
@@ -448,7 +449,7 @@ export function ConversationPage({
     setErrorState(null);
     try {
       const conversation = await createConversation("resume_assistant");
-      setConversationTitle(conversation.title?.trim() || "新对话");
+      setConversationTitle(conversation.title?.trim() || t("新对话"));
       setShowEmbeddedHistory(false);
       setQuestionStep({ messageId: null, index: 0 });
       setHistoryRefreshKey((current) => current + 1);
@@ -547,7 +548,7 @@ export function ConversationPage({
         const conversation = await createConversation(embedded ? "resume_assistant" : undefined);
         activeConversationId = conversation.id;
         createdThisTurn = true;
-        setConversationTitle(conversation.title?.trim() || "新对话");
+        setConversationTitle(conversation.title?.trim() || t("新对话"));
         setStreamedOutput({
           conversationId: activeConversationId,
           text: "",
@@ -729,7 +730,7 @@ export function ConversationPage({
     try {
       const latest = await listConversations(0);
       const summary = latest.items.find((item) => item.id === activeConversationId);
-      if (summary) setConversationTitle(summary.title?.trim() || "未命名会话");
+      if (summary) setConversationTitle(summary.title?.trim() || t("未命名会话"));
     } catch {
       // 标题加载失败时保留当前会话名称，不影响消息功能。
     }
@@ -737,15 +738,15 @@ export function ConversationPage({
 
   const agentName =
     skillCode === "image_agent"
-      ? "图片助手"
+      ? t("图片助手")
       : skillCode === "resume_assistant"
-        ? "简历助手"
-        : "对话助手";
+        ? t("简历助手")
+        : t("对话助手");
 
   return (
     <div className={`conversation-page${embedded ? " conversation-page--embedded" : ""}`}>
       {!embedded && (
-        <aside aria-label="历史会话导航" className="conversation-page__history">
+        <aside aria-label={t("历史会话导航")} className="conversation-page__history">
           <button
             className="button button--outline conversation-page__new"
             disabled={isSubmitting}
@@ -753,7 +754,7 @@ export function ConversationPage({
             type="button"
           >
             <span aria-hidden="true">+</span>
-            新建对话
+            {t("新建对话")}
           </button>
           <ConversationHistory
             disabled={isSubmitting}
@@ -768,10 +769,10 @@ export function ConversationPage({
       <section aria-label={agentName} className="conversation-panel">
         <header className="conversation-panel__header">
           <div className="conversation-panel__identity">
-            <h1>{embedded ? "简历助手" : agentName}</h1>
+            <h1>{embedded ? t("简历助手") : agentName}</h1>
             {embedded && conversationId && (
               <span title={conversationTitle ?? undefined}>
-                {conversationTitle || "未命名会话"}
+                {conversationTitle || t("未命名会话")}
               </span>
             )}
           </div>
@@ -785,7 +786,7 @@ export function ConversationPage({
                 type="button"
               >
                 <PlatformIcon name="history" size={17} />
-                <span>历史</span>
+                <span>{t("历史")}</span>
               </button>
               <button
                 className="resume-chat-icon-button"
@@ -794,10 +795,10 @@ export function ConversationPage({
                 type="button"
               >
                 <PlatformIcon name="plus" size={17} />
-                <span>新对话</span>
+                <span>{t("新对话")}</span>
               </button>
               <button
-                aria-label="收起简历助手"
+                aria-label={t("收起简历助手")}
                 className="resume-chat-icon-button resume-chat-icon-button--collapse"
                 onClick={onCollapsePanel}
                 type="button"
@@ -822,7 +823,7 @@ export function ConversationPage({
         ) : (
           <>
             <div
-              aria-label="对话消息"
+              aria-label={t("对话消息")}
               aria-live="polite"
               className="conversation-messages"
               onScroll={handleMessagesScroll}
@@ -837,24 +838,24 @@ export function ConversationPage({
                   <h1>{agentName}</h1>
                   <p>
                     {skillCode === "image_agent"
-                      ? "描述商品和画面效果，开始生成图片。"
+                      ? t("描述商品和画面效果，开始生成图片。")
                       : skillCode === "resume_assistant"
-                        ? "可以请我分析简历、讨论求职方向或优化内容。"
-                        : "有什么问题，尽管问我。"}
+                        ? t("可以请我分析简历、讨论求职方向或优化内容。")
+                        : t("有什么问题，尽管问我。")}
                   </p>
                   {embedded && (
-                    <div aria-label="快捷提问" className="conversation-empty__suggestions">
+                    <div aria-label={t("快捷提问")} className="conversation-empty__suggestions">
                       {RESUME_ASSISTANT_PROMPTS.map(({ label, prompt }) => (
                         <button
                           className="conversation-empty__suggestion"
                           key={label}
                           onClick={() => {
-                            setDraft(prompt);
+                            setDraft(t(prompt));
                             window.requestAnimationFrame(() => composerInputRef.current?.focus());
                           }}
                           type="button"
                         >
-                          {label}
+                          {t(label)}
                         </button>
                       ))}
                     </div>
@@ -864,12 +865,12 @@ export function ConversationPage({
 
               {isLoading && (
                 <p className="conversation-status" role="status">
-                  正在加载对话…
+                  {t("正在加载对话…")}
                 </p>
               )}
 
               {!isLoading && !error && conversationId && visibleMessages.length === 0 && (
-                <p className="conversation-status">发送第一条消息，开始这段对话。</p>
+                <p className="conversation-status">{t("发送第一条消息，开始这段对话。")}</p>
               )}
 
               {error && (
@@ -881,14 +882,14 @@ export function ConversationPage({
                       onClick={() => void handleReloadMessages()}
                       type="button"
                     >
-                      重新加载消息
+                      {t("重新加载消息")}
                     </button>
                   )}
                 </div>
               )}
 
               {!isLoading && error && visibleMessages.length === 0 && conversationId && (
-                <p className="conversation-status">暂时无法显示此会话内容。</p>
+                <p className="conversation-status">{t("暂时无法显示此会话内容。")}</p>
               )}
 
               {visibleMessages.map((message, index) => {
@@ -983,7 +984,7 @@ export function ConversationPage({
                         <CompletedQuestionCard questions={questionPart.questions} />
                       ) : (
                         <div className="question-card__history" role="status">
-                          此题卡当前不等待答题。
+                          {t("此题卡当前不等待答题。")}
                         </div>
                       ))}
                   </article>
@@ -992,7 +993,7 @@ export function ConversationPage({
 
               {pendingText && (
                 <article
-                  aria-label="正在发送的消息"
+                  aria-label={t("正在发送的消息")}
                   className="conversation-message conversation-message--user conversation-message--pending"
                 >
                   <p className="conversation-message__text">{pendingText}</p>
@@ -1002,7 +1003,7 @@ export function ConversationPage({
               {currentStreamedOutput?.text && (
                 <article
                   aria-label={
-                    currentStreamedOutput.status === "failed" ? "未完成的助手回答" : "助手回答"
+                    currentStreamedOutput.status === "failed" ? t("未完成的助手回答") : t("助手回答")
                   }
                   className={`conversation-message conversation-message--assistant${
                     currentStreamedOutput.status === "streaming"
@@ -1019,7 +1020,7 @@ export function ConversationPage({
                   </div>
                   {currentStreamedOutput.status === "failed" && (
                     <p className="conversation-stream-status" role="status">
-                      回答未完成，刷新后不会保留这部分内容。
+                      {t("回答未完成，刷新后不会保留这部分内容。")}
                     </p>
                   )}
                 </article>
@@ -1027,14 +1028,14 @@ export function ConversationPage({
 
               {isSubmitting && (
                 <p className="conversation-status" role="status">
-                  助手正在生成…
+                  {t("助手正在生成…")}
                 </p>
               )}
             </div>
 
             <form className="conversation-composer" onSubmit={(event) => void handleSend(event)}>
               <label className="conversation-visually-hidden" htmlFor="conversation-message-input">
-                发送消息
+                {t("发送消息")}
               </label>
               <textarea
                 id="conversation-message-input"
@@ -1045,22 +1046,22 @@ export function ConversationPage({
                 onKeyDown={handleComposerKeyDown}
                 placeholder={
                   pendingQuestion
-                    ? "请先完成题卡选择。"
-                    : "输入消息，Enter 发送，Shift + Enter 换行"
+                    ? t("请先完成题卡选择。")
+                    : t("输入消息，Enter 发送，Shift + Enter 换行")
                 }
                 value={draft}
               />
               <div className="conversation-composer__footer">
-                {error && <span>检查消息状态后再决定是否重试。</span>}
+                {error && <span>{t("检查消息状态后再决定是否重试。")}</span>}
                 <button
-                  aria-label="发送消息"
+                  aria-label={t("发送消息")}
                   className="button button--primary conversation-composer__send"
                   disabled={!draft.trim() || isSubmitting || isLoading || Boolean(pendingQuestion)}
                   ref={composerSendButtonRef}
                   type="submit"
                 >
                   <PlatformIcon name="arrow" size={16} />
-                  发送
+                  {t("发送")}
                 </button>
               </div>
             </form>

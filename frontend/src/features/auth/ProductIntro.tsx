@@ -1,5 +1,6 @@
 import { PlatformIcon, type PlatformIconName } from "../platform/PlatformIcon";
 import { AuthWorkspacePreview } from "./AuthWorkspacePreview";
+import { t } from "../../i18n/localeStore";
 
 const capabilities: {
   title: string;
@@ -38,20 +39,20 @@ export function ProductIntro() {
         </div>
 
         <div className="product-copy">
-          <span className="product-kicker">一站式 AI 智能应用平台</span>
-          <h1 id="product-title">你的 AI 全能工作空间</h1>
-          <p>汇集多种 AI 智能体与实用工具，让不同问题都能找到合适的解决方式。</p>
+          <span className="product-kicker">{t("一站式 AI 智能应用平台")}</span>
+          <h1 id="product-title">{t("你的 AI 全能工作空间")}</h1>
+          <p>{t("汇集多种 AI 智能体与实用工具，让不同问题都能找到合适的解决方式。")}</p>
         </div>
 
-        <ul aria-label="OrionAI 核心能力" className="product-capabilities">
+        <ul aria-label={t("OrionAI 核心能力")} className="product-capabilities">
           {capabilities.map((capability) => (
             <li className="product-capability" key={capability.title}>
               <span className="product-capability-icon">
                 <PlatformIcon name={capability.icon} size={19} />
               </span>
               <span className="product-capability-copy">
-                <strong>{capability.title}</strong>
-                <span>{capability.description}</span>
+                <strong>{t(capability.title)}</strong>
+                <span>{t(capability.description)}</span>
               </span>
             </li>
           ))}

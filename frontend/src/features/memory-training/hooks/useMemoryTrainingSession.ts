@@ -15,6 +15,7 @@ import {
   type TrainingResult,
   type TrainingStatus,
 } from "../api/memoryTrainingApi";
+import { t } from "../../../i18n/localeStore";
 
 const SESSION_STORAGE_KEY = "orionai.memory-training.session";
 const ANSWER_STORAGE_PREFIX = "orionai.memory-training.answers:";
@@ -142,7 +143,7 @@ export function useMemoryTrainingSession() {
           phase: "generation_failed",
           imageUrl: null,
           remainingMs: 0,
-          error: "题目准备失败，请重新开始训练。",
+          error: t("题目准备失败，请重新开始训练。"),
         }));
       }
     },
@@ -181,7 +182,7 @@ export function useMemoryTrainingSession() {
               preparation,
               sessionId,
               imageUrl: status.image_url,
-              error: "图片加载失败，请检查网络后重试。",
+              error: t("图片加载失败，请检查网络后重试。"),
             }));
           }
         } else {
@@ -193,14 +194,14 @@ export function useMemoryTrainingSession() {
           ...INITIAL_STATE,
           phase: "prepare",
           preparation,
-          error: error instanceof Error ? "上次训练已过期，请重新开始。" : null,
+          error: error instanceof Error ? t("上次训练已过期，请重新开始。") : null,
         });
       }
     } catch (error) {
       setSession((current) => ({
         ...current,
         phase: "error",
-        error: error instanceof Error ? error.message : "训练信息加载失败，请稍后重试。",
+        error: error instanceof Error ? error.message : t("训练信息加载失败，请稍后重试。"),
       }));
     }
   }, [applyStatus]);
@@ -229,7 +230,7 @@ export function useMemoryTrainingSession() {
           phase: "image_loading",
           imageUrl,
           busy: false,
-          error: "图片加载失败，请检查网络后重试。",
+          error: t("图片加载失败，请检查网络后重试。"),
         }));
       }
     },
@@ -253,7 +254,7 @@ export function useMemoryTrainingSession() {
         ...current,
         phase: "prepare",
         busy: false,
-        error: error instanceof Error ? error.message : "无法开始训练，请稍后重试。",
+        error: error instanceof Error ? error.message : t("无法开始训练，请稍后重试。"),
       }));
     }
   }, [beginObservation]);
@@ -292,7 +293,7 @@ export function useMemoryTrainingSession() {
       setSession((current) => ({
         ...current,
         busy: false,
-        error: error instanceof Error ? error.message : "答案提交失败，请重试。",
+        error: error instanceof Error ? error.message : t("答案提交失败，请重试。"),
       }));
     }
   }, [session.answers, session.questions.length, session.sessionId]);
@@ -334,13 +335,17 @@ export function useMemoryTrainingSession() {
         const status = await getTrainingStatus(session.sessionId as string);
         if (active) await applyStatus(status);
       } catch (error) {
-        if (active && error instanceof Error && error.message.includes("过期")) {
+        if (
+          active &&
+          error instanceof Error &&
+          (error.message.includes("过期") || error.message.toLowerCase().includes("expired"))
+        ) {
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
           setSession((current) => ({
             ...current,
             phase: "error",
             imageUrl: null,
-            error: "训练已过期，请重新开始。",
+            error: t("训练已过期，请重新开始。"),
           }));
         }
       }

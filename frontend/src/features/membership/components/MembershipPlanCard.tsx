@@ -1,6 +1,7 @@
 import { PlatformIcon } from "../../platform/PlatformIcon";
 import { formatDuration } from "../membershipUtils";
 import type { MembershipPlan } from "../types";
+import { t } from "../../../i18n/localeStore";
 
 interface MembershipPlanCardProps {
   plan: MembershipPlan;
@@ -24,8 +25,8 @@ export function MembershipPlanCard({
       }
     >
       <div className="membership-plan-card__labels">
-        {isRecommended && <span className="membership-plan-card__recommend">推荐</span>}
-        {isCurrent && <span className="membership-plan-card__current">当前套餐</span>}
+        {isRecommended && <span className="membership-plan-card__recommend">{t("推荐")}</span>}
+        {isCurrent && <span className="membership-plan-card__current">{t("当前套餐")}</span>}
       </div>
       <h3>{plan.name}</h3>
       <p className="membership-plan-card__duration">{formatDuration(plan.duration_days)}</p>
@@ -33,13 +34,13 @@ export function MembershipPlanCard({
         <span>¥</span>
         {plan.price}
       </p>
-      <p className="membership-plan-card__note">所有套餐享受相同的会员身份</p>
+      <p className="membership-plan-card__note">{t("所有套餐享受相同的会员身份")}</p>
       <button
         className="button button--primary membership-plan-card__action"
         onClick={onSelect}
         type="button"
       >
-        {isCurrent ? "续费此套餐" : "立即开通"}
+        {isCurrent ? t("续费此套餐") : t("立即开通")}
         <PlatformIcon name="arrow" size={16} />
       </button>
     </article>
