@@ -81,6 +81,12 @@ docker compose up -d --build frontend
 
 Compose 文件中的 API、Worker 和 Beat 均等待 PostgreSQL 与 Redis 健康检查；仅 API 容器在启动 Uvicorn 前执行 Alembic 迁移。提醒扫描由 Celery Beat 每 30 秒触发，Beat 必须保持单实例。提醒规则和执行状态以 PostgreSQL 为准，Redis 仅作为 Celery broker。
 
+记忆训练图片不会在 Docker 启动时同步到 OSS。新增或维护 `frontend/public/memory-training-assets/` 中的素材后，先启动 Compose，再显式运行以下命令，将缺失或内容变化的图片写入 OSS，并幂等登记图片 URL：
+
+~~~powershell
+docker compose exec backend python -m app.scripts.upload_memory_images /app/memory-training-assets
+~~~
+
 Compose 默认给 API、提醒 Worker 和 Beat 分配不同的 Snowflake worker ID。若增加 Worker 容器，需在该服务配置中为每个同时运行的进程设置唯一 `SNOWFLAKE_WORKER_ID`；不要横向扩展 Beat。
 
 打开 http://localhost:5173 查看前端，http://localhost:8000/api/health 检查后端，http://localhost:8000/docs 查看 FastAPI 自动生成的接口文档。停止 Compose 服务：

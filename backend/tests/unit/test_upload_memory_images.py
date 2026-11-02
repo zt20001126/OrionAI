@@ -60,6 +60,7 @@ def test_changed_default_asset_uses_a_new_content_addressed_object() -> None:
 
     assert repeated_key == expected_key
     assert repeated_upload is False
+    assert len(storage.put_calls) == 1
 
 
 def test_reimport_of_same_content_reuses_content_addressed_object() -> None:
@@ -73,4 +74,4 @@ def test_reimport_of_same_content_reuses_content_addressed_object() -> None:
     assert first_key == second_key == object_key
     assert first_upload is True
     assert second_upload is False
-    assert len(storage.put_calls) == 2
+    assert len(storage.put_calls) == 1

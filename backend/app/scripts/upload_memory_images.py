@@ -129,13 +129,7 @@ def _upload_if_needed(
                 f"OSS 内容版本对象已存在且内容不同，拒绝覆盖：{versioned_object_key}"
             )
         object_key = versioned_object_key
-    # 再次设置对象级 ACL，保证重复导入也会把相同素材设为公开读。
-    storage.put_object(
-        object_key,
-        image_bytes,
-        content_type=content_type,
-        public_read=True,
-    )
+    # 内容一致时复用已有对象，避免重复写入 OSS。
     return object_key, False
 
 

@@ -32,7 +32,7 @@
 
 ### 1.3 已确认的图片维护方式
 
-训练素材维护在 `frontend/public/memory-training-assets/`，文件使用英文 kebab-case 命名并带两位数字前缀，以固定图片与 OSS 对象编号的对应关系。后端镜像会包含该目录，部署启动时调用上传登记脚本，将素材按文件名排序后上传到项目配置的 OSS，并将公开访问 URL 幂等写入 `memory_images`。对象放在 `memory-training/` 路径，首次导入使用 `memory-training-0001.png` 等名称；若同名对象内容不同时，使用内容 SHA-256 生成不可变版本对象名，保留旧对象并登记新版本。首版不开发图片管理 API 或后台页面。图片需有合法使用权、不含敏感个人信息，并满足当前模型服务的数据处理要求。训练图片不接受普通用户上传。
+训练素材维护在 `frontend/public/memory-training-assets/`，文件使用英文 kebab-case 命名并带两位数字前缀，以固定图片与 OSS 对象编号的对应关系。后端镜像会包含该目录，但 Docker 启动不访问 OSS。维护人员在需要时显式运行 `docker compose exec backend python -m app.scripts.upload_memory_images /app/memory-training-assets`，将素材按文件名排序后同步到项目配置的 OSS，并将公开访问 URL 幂等写入 `memory_images`。内容相同的 OSS 对象会直接复用，不重复写入；对象缺失时上传；同名对象内容不同时，使用内容 SHA-256 生成不可变版本对象名，保留旧对象并登记新版本。首版不开发图片管理 API 或后台页面。图片需有合法使用权、不含敏感个人信息，并满足当前模型服务的数据处理要求。训练图片不接受普通用户上传。
 
 ### 1.4 已确认的实现约束
 
@@ -238,7 +238,7 @@ sequenceDiagram
 
 ### 7.3 OSS 对象维护
 
-部署命令会调用 `backend/app/scripts/upload_memory_images.py`，读取镜像中的 `/app/memory-training-assets`，上传到当前配置的 OSS。脚本按文件名排序，首次使用 `memory-training-0001.png` 到 `memory-training-0005.png` 这样的统一对象名，放在 `memory-training/` 路径并设置公开读 ACL；若同名对象已存在但内容不同，则上传到带完整 SHA-256 摘要的新对象键，不覆盖旧对象。随后脚本幂等登记实际对象的公开 URL。也可在部署后手动运行该脚本维护素材。停用只阻止新会话抽取，不删除对象。由于链接公开，任何持有链接的人都能读取图片；只应使用已获授权且适合公开访问、适合发送给模型的素材。
+部署启动不调用图片同步脚本。Compose 服务启动并完成数据库迁移后，可显式执行 `docker compose exec backend python -m app.scripts.upload_memory_images /app/memory-training-assets`，读取镜像或挂载目录中的素材并同步到当前配置的 OSS。脚本按文件名排序，首次使用 `memory-training-0001.png` 到 `memory-training-0005.png` 这样的统一对象名，放在 `memory-training/` 路径并设置公开读 ACL；已有且内容相同的对象会复用，不重复写入；对象缺失时上传；若同名对象内容不同，则上传到带完整 SHA-256 摘要的新对象键，不覆盖旧对象。随后脚本幂等登记实际对象的公开 URL。停用只阻止新会话抽取，不删除对象。由于链接公开，任何持有链接的人都能读取图片；只应使用已获授权且适合公开访问、适合发送给模型的素材。
 
 ## 8. Redis 会话设计
 
@@ -780,7 +780,7 @@ frontend/src/features/memory-training/
 
 ## 19. 实现登记
 
-- 素材上传入口：`backend/app/scripts/upload_memory_images.py <素材目录>`。部署时后端镜像将 `frontend/public/memory-training-assets/` 复制为 `/app/memory-training-assets` 并自动调用该脚本；该命令读取项目 OSS/数据库配置，校验 PNG/JPEG 文件签名，按排序后的文件名分配 `memory-training-0001.png` 等名称，上传至 `memory-training/` 路径，设置对象公开读并登记公开 URL。同名对象内容变化时会写入带 SHA-256 摘要的新对象键，避免覆盖旧素材。已完成首批 5 张素材上传与数据库登记。
+- 素材上传入口：`backend/app/scripts/upload_memory_images.py <素材目录>`。后端镜像将 `frontend/public/memory-training-assets/` 复制为 `/app/memory-training-assets`，Compose 运行时也会挂载该目录。图片同步不会随服务启动执行；维护人员可在服务启动并完成迁移后运行 `docker compose exec backend python -m app.scripts.upload_memory_images /app/memory-training-assets`。脚本读取项目 OSS/数据库配置，校验 PNG/JPEG 文件签名，按排序后的文件名分配 `memory-training-0001.png` 等名称，缺失时上传到 `memory-training/` 路径并设置公开读，内容相同时复用已有对象，然后幂等登记公开 URL。同名对象内容变化时会写入带 SHA-256 摘要的新对象键，避免覆盖旧素材。已完成首批 5 张素材上传与数据库登记。
 - 图片表：`memory_images(id, image_url, enabled, created_at)`；不包含 `content_type`、`file_size_bytes`、对象键和图片原始文件名。
 - 模型：`MemoryTrainingQuestionGenerator` 使用 `OpenAICompatibleChatModelProvider` 传入独立的百炼配置，通过图片 URL + 文本提示词和 JSON mode 一次生成五题；平台默认模型保持 DeepSeek 配置。
 - 运行方式：API 在 `memory_training` 队列投递任务；现有 Compose `celery-worker` 同时监听 `reminders,memory_training`，不增加额外容器。

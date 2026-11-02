@@ -24,7 +24,7 @@ services:
     command:
       - sh
       - -c
-      - alembic upgrade head && python -m app.scripts.upload_memory_images /app/memory-training-assets && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-include '*.md'
+      - alembic upgrade head && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --reload-include '*.md'
     environment:
       ENVIRONMENT: development
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in the project .env}
