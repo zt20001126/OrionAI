@@ -7,6 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN python -m pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+
 COPY backend/pyproject.toml ./pyproject.toml
 
 # pyproject.toml 完整描述构建依赖、项目依赖和 dev 可选依赖。
