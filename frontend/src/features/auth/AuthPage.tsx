@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { useToast } from "../../components/ToastProvider";
-import { BrandMark, ProductIntro } from "./ProductIntro";
+import { ProductIntro } from "./ProductIntro";
 import { LanguageSwitcher } from "../../i18n/LanguageSwitcher";
 import { t } from "../../i18n/localeStore";
 import { DemoAccountDialog } from "./DemoAccountDialog";
@@ -25,9 +25,9 @@ interface AuthPageProps {
   onAuthenticated: (identity: AuthIdentity, method: AuthMethod) => void | Promise<void>;
 }
 
-const viewContent: Record<AuthView, { title: string; subtitle: string }> = {
-  login: { title: "登录 OrionAI", subtitle: "欢迎回来，请登录你的工作空间。" },
-  register: { title: "创建你的账号", subtitle: "验证邮箱，开启 AI 智能体开发。" },
+const viewContent: Record<AuthView, { title: string; subtitle?: string }> = {
+  login: { title: "登录 OrionAI" },
+  register: { title: "注册 OrionAI" },
   password_reset: { title: "重置密码", subtitle: "通过邮箱验证码设置新密码。" },
 };
 
@@ -139,11 +139,6 @@ export function AuthPage({
       <section className="auth-panel" aria-label={t("账号认证")}>
         <LanguageSwitcher className="language-switcher--auth" />
         <section className="auth-card" aria-labelledby="auth-title">
-          <div className="auth-card-brand">
-            <BrandMark />
-              <span>OrionAI</span>
-          </div>
-
           {view !== "password_reset" ? (
             <div className="auth-tabs" role="tablist" aria-label={t("登录或注册")}>
               <button
@@ -178,7 +173,7 @@ export function AuthPage({
 
           <div className="auth-heading">
             <h2 id="auth-title">{t(content.title)}</h2>
-            <p className="auth-subtitle">{t(content.subtitle)}</p>
+            {content.subtitle && <p className="auth-subtitle">{t(content.subtitle)}</p>}
           </div>
 
           <form
@@ -273,7 +268,6 @@ export function AuthPage({
 
             {view === "login" && (
               <div className="form-options">
-                <span>{t("使用注册邮箱登录")}</span>
                 <button
                   className="text-link"
                   onClick={() => changeView("password_reset")}
@@ -306,9 +300,6 @@ export function AuthPage({
 
           {view === "login" && (
             <div className="auth-guest-option">
-              <div className="auth-guest-divider" aria-hidden="true">
-                <span>{t("或")}</span>
-              </div>
               <button
                 className="button button--outline auth-guest-button"
                 disabled={isSubmitting || isGuestSubmitting}
@@ -318,22 +309,14 @@ export function AuthPage({
                 {isGuestSubmitting ? (
                   <>
                     <span className="button-spinner auth-guest-spinner" aria-hidden="true" />
-                    {t("正在进入访客空间…")}
+                    {t("正在进入访客模式…")}
                   </>
                 ) : (
-                  t("以访客身份体验")
+                  t("访客登录")
                 )}
               </button>
-              <p className="auth-guest-note">
-                {t("无需注册 · 会话默认有效 7 天，清除 Cookie 后无法恢复访客数据")}
-              </p>
             </div>
           )}
-
-          <p className="auth-security-note">
-            <ShieldIcon />
-            <span>{t("安全加密连接 · 会话仅保存在安全 Cookie 中")}</span>
-          </p>
         </section>
       </section>
       {view === "login" && isDemoDialogOpen && (
@@ -412,15 +395,6 @@ function ChevronLeftIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="m12.5 4.5-5.5 5.5 5.5 5.5" />
-    </svg>
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path d="M10 2.5 16 5v4.4c0 3.7-2.5 6.4-6 8.1-3.5-1.7-6-4.4-6-8.1V5l6-2.5Z" />
-      <path d="m7.5 9.8 1.7 1.7 3.5-3.5" />
     </svg>
   );
 }
