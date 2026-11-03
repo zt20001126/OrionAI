@@ -59,6 +59,11 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         "app.core.application.create_basic_conversation_agent",
         lambda *, chat_model, checkpointer: agent,
     )
+    digital_human_agent = object()
+    monkeypatch.setattr(
+        "app.core.application.DigitalHumanRuntime",
+        lambda **_kwargs: digital_human_agent,
+    )
     resume_agent = object()
     monkeypatch.setattr("app.core.application.ResumeAgent", lambda **_kwargs: resume_agent)
     monkeypatch.setattr(
@@ -69,6 +74,22 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         "app.core.application.ensure_image_agent_skill",
         lambda session: seed_sessions.append(session),
     )
+    monkeypatch.setattr(
+        "app.core.application.ensure_digital_human_skill",
+        lambda session: seed_sessions.append(session),
+    )
+    monkeypatch.setattr(
+        "app.core.application.ensure_resume_assistant_skill",
+        lambda session: seed_sessions.append(session),
+    )
+    monkeypatch.setattr(
+        "app.core.application.ensure_reminder_tool_skill",
+        lambda session: seed_sessions.append(session),
+    )
+    monkeypatch.setattr(
+        "app.core.application.ensure_memory_training_tool_skill",
+        lambda session: seed_sessions.append(session),
+    )
     image_agent = object()
     monkeypatch.setattr("app.core.application.ImageAgent", lambda **_kwargs: image_agent)
 
@@ -76,8 +97,9 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
     lifespan = create_agent_lifespan(settings)
     async with lifespan(application):
         assert checkpointer.setup_called
-        assert len(seed_sessions) == 2
+        assert len(seed_sessions) == 6
         assert application.state.conversation_agent is agent
+        assert application.state.agent_registry.get("digital_human") is digital_human_agent
         assert application.state.agent_registry.get("image_agent") is image_agent
         assert application.state.agent_registry.get("resume_assistant") is resume_agent
         assert isinstance(

@@ -19,7 +19,9 @@ import {
   getMembershipCheckoutOrderId,
   getMembershipOrderId,
   getConversationId,
+  getDigitalHumanConversationId,
   isConversationPath,
+  isDigitalHumanPath,
   isMembershipCheckoutPath,
   isMembershipOrderDetailPath,
   isPlatformPath,
@@ -40,6 +42,11 @@ type PopNavigationStage = "restoring" | "confirming" | "navigating";
 const MembershipPage = lazy(() =>
   import("../features/membership/MembershipPage").then((module) => ({
     default: module.MembershipPage,
+  })),
+);
+const DigitalHumanPage = lazy(() =>
+  import("../features/digital-human/DigitalHumanPage").then((module) => ({
+    default: module.DigitalHumanPage,
   })),
 );
 const MembershipCheckoutPage = lazy(() =>
@@ -438,6 +445,7 @@ function AppContent() {
     ? guestSafePathname
     : platformPaths.market;
   const conversationId = getConversationId(safePathname);
+  const digitalHumanConversationId = getDigitalHumanConversationId(safePathname);
   const page = (() => {
     if (safePathname === platformPaths.market) return <SkillMarketPage onNavigate={navigate} />;
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
@@ -456,6 +464,9 @@ function AppContent() {
     }
     if (safePathname === platformPaths.memoryTraining) {
       return <MemoryTrainingPage onNavigate={navigate} />;
+    }
+    if (isDigitalHumanPath(safePathname)) {
+      return <DigitalHumanPage conversationId={digitalHumanConversationId} onNavigate={navigate} />;
     }
     if (safePathname === platformPaths.membership) {
       return <MembershipPage isGuest={isGuest} onNavigate={navigate} />;

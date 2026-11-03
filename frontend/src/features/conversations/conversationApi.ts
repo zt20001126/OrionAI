@@ -145,7 +145,12 @@ function getResponseError(response: Response, payload: unknown): ConversationApi
 function getUserFacingErrorMessage(detail: unknown, status: number): string {
   if (status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
   if (status === 404) return t("会话不存在或无权访问，无法打开。");
-  if (status === 409) return t("当前会话正在等待题卡答案，请先完成题卡。");
+  if (status === 409) {
+    if (typeof detail === "string" && /幂等键|本次发送|相同消息/.test(detail)) {
+      return getSafeErrorDetail(detail, t("消息发送冲突，请稍后重试。"));
+    }
+    return t("当前会话正在等待题卡答案，请先完成题卡。");
+  }
   if (status === 422) return t("请检查填写内容是否正确。");
   if (status === 503) return t("对话服务暂不可用，请稍后重试。");
   if (status >= 500) return t("对话服务暂不可用，请稍后重试。");
@@ -185,12 +190,14 @@ export function streamConversationMessage(
   message: string,
   onTextDelta: (content: string) => void,
   signal: AbortSignal,
+  idempotencyKey?: string,
 ): Promise<ConversationMessage | null> {
   return streamConversationTurn(
     `/${conversationId}/messages/stream`,
     { message },
     onTextDelta,
     signal,
+    idempotencyKey,
   );
 }
 
@@ -220,13 +227,17 @@ async function streamConversationTurn(
   body: object,
   onTextDelta: (content: string) => void,
   signal: AbortSignal,
+  idempotencyKey?: string,
 ): Promise<ConversationMessage | null> {
   let response: Response;
   try {
     response = await fetch(`/api/conversations${path}`, {
       method: "POST",
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
       body: JSON.stringify(body),
       signal,
     });
@@ -334,7 +345,10 @@ export function getConversationErrorMessage(error: unknown): string {
 
   if (error.status === 401) return t("登录状态已失效，请刷新页面后重新登录。");
   if (error.status === 404) return t("会话不存在或无权访问，无法打开。");
-  if (error.status === 409) return t("当前会话正在等待题卡答案，请先完成题卡。");
+  if (error.status === 409) {
+    if (/幂等键|本次发送|相同消息/.test(error.message)) return error.message;
+    return t("当前会话正在等待题卡答案，请先完成题卡。");
+  }
   if (error.status === 503) return error.message || t("对话服务暂不可用，请稍后重试。");
   return error.message;
 }

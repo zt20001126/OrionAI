@@ -10,6 +10,7 @@ export const platformPaths = {
   reminders: "/reminders",
   reminderCreate: "/reminders/new",
   memoryTraining: "/memory-training",
+  digitalHuman: "/digital-human",
   settings: "/settings",
   securitySettings: "/settings/security",
   feedbackSettings: "/settings/feedback",
@@ -25,12 +26,18 @@ export type PlatformPath = Exclude<
   "/login" | "/chat" | "/membership/checkout"
 >;
 export type ConversationPath = typeof platformPaths.chat | `${typeof platformPaths.chat}/${string}`;
+export type DigitalHumanConversationPath =
+  typeof platformPaths.digitalHuman | `${typeof platformPaths.digitalHuman}/${string}`;
 export type MembershipCheckoutPath = string & { readonly __membershipCheckoutPath: unique symbol };
 export type MembershipOrderDetailPath = string & {
   readonly __membershipOrderDetailPath: unique symbol;
 };
 export type PlatformRoute =
-  PlatformPath | ConversationPath | MembershipCheckoutPath | MembershipOrderDetailPath;
+  | PlatformPath
+  | ConversationPath
+  | DigitalHumanConversationPath
+  | MembershipCheckoutPath
+  | MembershipOrderDetailPath;
 
 export function isSettingsPath(pathname: string): boolean {
   return (
@@ -86,6 +93,11 @@ export function isPlatformPath(pathname: string): pathname is PlatformRoute {
     return /^\/chat\/\d+$/.test(pathname);
   }
 
+  if (pathname === platformPaths.digitalHuman) return true;
+  if (pathname.startsWith(`${platformPaths.digitalHuman}/`)) {
+    return /^\/digital-human\/\d+$/.test(pathname);
+  }
+
   if (isMembershipCheckoutPath(pathname) || isMembershipOrderDetailPath(pathname)) return true;
 
   return Object.values(platformPaths).some(
@@ -104,6 +116,19 @@ export function getConversationId(pathname: PlatformRoute): string | null {
 
 export function isConversationPath(pathname: PlatformRoute): pathname is ConversationPath {
   return pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
+}
+
+export function getDigitalHumanConversationId(pathname: PlatformRoute): string | null {
+  if (!pathname.startsWith(`${platformPaths.digitalHuman}/`)) return null;
+  return pathname.slice(`${platformPaths.digitalHuman}/`.length);
+}
+
+export function isDigitalHumanPath(
+  pathname: PlatformRoute,
+): pathname is DigitalHumanConversationPath {
+  return (
+    pathname === platformPaths.digitalHuman || pathname.startsWith(`${platformPaths.digitalHuman}/`)
+  );
 }
 
 export const navigationItems = [

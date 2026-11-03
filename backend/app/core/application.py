@@ -21,6 +21,12 @@ from app.modules.agents.resume_agent.runtime import ResumeAgent
 from app.modules.auth.errors import AuthError
 from app.modules.conversations.errors import ConversationError
 from app.modules.conversations.title import ModelConversationTitleGenerator
+from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
+from app.modules.digital_human.constants import DIGITAL_HUMAN_MAX_AUDIO_BYTES
+from app.modules.digital_human.middleware.upload_limit import (
+    DigitalHumanAudioUploadLimitMiddleware,
+)
+from app.modules.digital_human.service.errors import DigitalHumanError
 from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
 from app.modules.image_generation.providers.tokenhub_client import TokenHubImageClient
 from app.modules.image_generation.service import TaskResultStore
@@ -33,6 +39,7 @@ from app.modules.resume.errors import ResumeError
 from app.modules.resume.service import ResumeApplicationService
 from app.modules.skills.errors import SkillsError
 from app.modules.skills.repository import (
+    ensure_digital_human_skill,
     ensure_general_chat_skill,
     ensure_image_agent_skill,
     ensure_memory_training_tool_skill,
@@ -66,11 +73,16 @@ def create_agent_lifespan(
                     ensure_resume_assistant_skill(session)
                     ensure_reminder_tool_skill(session)
                     ensure_memory_training_tool_skill(session)
+                    ensure_digital_human_skill(session)
                 except SQLAlchemyError:
                     session.rollback()
                     logger.exception("general_chat_skill_initialization_failed")
                     raise
             conversation_agent = create_basic_conversation_agent(
+                chat_model=chat_model,
+                checkpointer=checkpointer,
+            )
+            digital_human_agent = DigitalHumanRuntime(
                 chat_model=chat_model,
                 checkpointer=checkpointer,
             )
@@ -110,6 +122,7 @@ def create_agent_lifespan(
             application.state.agent_registry = AgentRegistry(
                 {
                     "general_chat": conversation_agent,
+                    "digital_human": digital_human_agent,
                     "image_agent": image_agent,
                     "resume_assistant": resume_agent,
                 }
@@ -148,6 +161,13 @@ def create_app(
     ) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
+    @application.exception_handler(DigitalHumanError)
+    async def handle_digital_human_error(
+        _request: Request,
+        error: DigitalHumanError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
     @application.exception_handler(SkillsError)
     async def handle_skills_error(_request: Request, error: SkillsError) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
@@ -181,6 +201,10 @@ def create_app(
     async def handle_payment_error(_request: Request, error: PaymentError) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
+    application.add_middleware(
+        DigitalHumanAudioUploadLimitMiddleware,
+        max_audio_bytes=DIGITAL_HUMAN_MAX_AUDIO_BYTES,
+    )
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

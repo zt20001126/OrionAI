@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -26,6 +26,7 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
+from app.modules.conversations.dependencies import get_optional_idempotency_store
 from app.modules.conversations.models import Conversation
 from app.modules.conversations.service import ConversationService
 from app.modules.conversations.title import fallback_conversation_title
@@ -107,6 +108,57 @@ class BlockingTitleGenerator:
     async def generate_title(self, _first_user_message: str) -> str | None:
         self.started.set()
         await asyncio.Event().wait()
+
+
+class FakeIdempotencyStore:
+    """为 HTTP 契约测试提供原子占用和状态转换行为。"""
+
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+
+    def reserve(self, key: str, value: str, *, ttl_seconds: int) -> bool:
+        del ttl_seconds
+        if key in self.values:
+            return False
+        self.values[key] = value
+        return True
+
+    def get(self, key: str) -> str | None:
+        return self.values.get(key)
+
+    def set_if_token(self, key: str, token: str, value: str, *, ttl_seconds: int) -> bool:
+        del ttl_seconds
+        current = self.values.get(key)
+        if current is None or json.loads(current).get("token") != token:
+            return False
+        self.values[key] = value
+        return True
+
+    def set_if_state(
+        self,
+        key: str,
+        state: str,
+        request_hash: str,
+        value: str,
+        *,
+        ttl_seconds: int,
+    ) -> bool:
+        del ttl_seconds
+        current = self.values.get(key)
+        if current is None:
+            return False
+        current_state = json.loads(current)
+        if current_state.get("state") != state or current_state.get("request_hash") != request_hash:
+            return False
+        self.values[key] = value
+        return True
+
+    def delete_if_token(self, key: str, token: str) -> bool:
+        current = self.values.get(key)
+        if current is None or json.loads(current).get("token") != token:
+            return False
+        del self.values[key]
+        return True
 
 
 @asynccontextmanager
@@ -221,6 +273,7 @@ def conversation_client() -> Iterator[
         ]
     )
     title_generator = FixedTitleGenerator()
+    idempotency_store = FakeIdempotencyStore()
     test_app = create_app(lifespan=_test_lifespan)
 
     def override_db_session() -> Iterator[Session]:
@@ -238,9 +291,13 @@ def conversation_client() -> Iterator[
 
         return None
 
+    def override_idempotency_store(request: Request) -> Iterator[FakeIdempotencyStore | None]:
+        yield idempotency_store if request.headers.get("idempotency-key") else None
+
     test_app.dependency_overrides[get_db_session] = override_db_session
     test_app.dependency_overrides[get_current_user] = override_current_user
     test_app.dependency_overrides[require_membership_access] = override_membership_access
+    test_app.dependency_overrides[get_optional_idempotency_store] = override_idempotency_store
     test_app.state.conversation_agent = agent
     test_app.state.agent_registry = {"general_chat": agent, "image_agent": agent}
     test_app.state.conversation_title_generator = title_generator
@@ -336,6 +393,67 @@ def test_streaming_message_persists_the_complete_answer(
     stored_messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
     assert [message["role"] for message in stored_messages] == ["user", "assistant"]
     assert stored_messages[-1]["content"] == {"parts": [{"type": "text", "text": answer}]}
+
+
+def test_stream_idempotency_replays_completed_turn_without_running_agent_twice(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, agent, _title_generator, _session_factory = conversation_client
+    conversation_id = client.post("/api/conversations").json()["id"]
+    headers = {"Idempotency-Key": "93f79528-3cfb-45ef-84d1-6dfbe6e34e10"}
+    path = f"/api/conversations/{conversation_id}/messages/stream"
+
+    first = client.post(path, json={"message": "只执行一次"}, headers=headers)
+    replay = client.post(path, json={"message": "只执行一次"}, headers=headers)
+    conflict = client.post(path, json={"message": "换了正文"}, headers=headers)
+
+    assert first.status_code == 200
+    assert replay.status_code == 200, replay.text
+    assert conflict.status_code == 409
+    first_events = _decode_sse_events(first.content)
+    replay_events = _decode_sse_events(replay.content)
+    assert first_events[-1]["data"] == replay_events[-1]["data"] == {"status": "completed"}
+    assert "".join(event["data"]["content"] for event in first_events[1:-1]) == "".join(
+        event["data"]["content"] for event in replay_events[1:-1]
+    )
+    assert len(agent.calls) == 1
+    messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
+    assert [message["role"] for message in messages] == ["user", "assistant"]
+
+
+def test_stream_idempotency_retry_reuses_saved_user_message_after_agent_failure(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, agent, _title_generator, _session_factory = conversation_client
+    conversation_id = client.post("/api/conversations").json()["id"]
+    agent.responses.insert(
+        0,
+        RuntimeError("temporary model failure"),
+    )
+    headers = {"Idempotency-Key": "18df2e3c-f344-4d63-b282-2d2b4ea42edf"}
+    path = f"/api/conversations/{conversation_id}/messages/stream"
+
+    failed = client.post(path, json={"message": "这条消息可以重试"}, headers=headers)
+    retried = client.post(path, json={"message": "这条消息可以重试"}, headers=headers)
+
+    assert failed.status_code == retried.status_code == 200
+    assert _decode_sse_events(failed.content)[-1]["data"] == {"status": "failed"}
+    assert _decode_sse_events(retried.content)[-1]["data"] == {"status": "completed"}
+    assert len(agent.calls) == 2
+    messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
+    assert [message["role"] for message in messages] == ["user", "assistant"]
 
 
 def test_streaming_question_answer_resumes_the_same_conversation(

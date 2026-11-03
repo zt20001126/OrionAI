@@ -45,6 +45,13 @@ MEMORY_TRAINING_TOOL = {
     "type": "tool",
     "status": "published",
 }
+DIGITAL_HUMAN = {
+    "code": "digital_human",
+    "name": "数字人助手",
+    "description": "通过文字或语音与数字人助手进行多轮对话。",
+    "type": "agent",
+    "status": "published",
+}
 
 
 def list_market_skills(
@@ -312,6 +319,32 @@ def ensure_memory_training_tool_skill(session: Session) -> None:
             session.scalar(select(Skill.id).where(Skill.code == MEMORY_TRAINING_TOOL["code"]))
             is None
         ):
+            session.add(Skill(**values))
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()
+
+
+def ensure_digital_human_skill(session: Session) -> None:
+    """幂等发布数字人 Agent 技能，不覆盖管理员对已有条目的修改。"""
+
+    values = DIGITAL_HUMAN.copy()
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    else:
+        if session.scalar(select(Skill.id).where(Skill.code == DIGITAL_HUMAN["code"])) is None:
             session.add(Skill(**values))
         session.commit()
         return

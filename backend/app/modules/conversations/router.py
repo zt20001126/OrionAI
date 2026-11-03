@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 
 from app.modules.auth.dependencies import validate_origin
@@ -22,6 +22,10 @@ from app.shared.streaming import create_sse_response
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 PageLimit = Annotated[int, Query(ge=1, le=100, description="每页条数，最大 100。")]
 PageOffset = Annotated[int, Query(ge=0, description="分页偏移量。")]
+IdempotencyKey = Annotated[
+    str | None,
+    Header(alias="Idempotency-Key", max_length=64, description="可选的单轮消息防重 UUID。"),
+]
 
 
 @router.post(
@@ -76,10 +80,16 @@ def stream_message(
     payload: MessageCreateRequest,
     user: CurrentUser,
     service: ConversationServiceDependency,
+    idempotency_key: IdempotencyKey = None,
 ) -> StreamingResponse:
     """先完成消息预检，再以 SSE 返回 Agent 的逐段回答。"""
 
-    prepared = service.prepare_message_stream(user, conversation_id, payload.message)
+    prepared = service.prepare_message_stream(
+        user,
+        conversation_id,
+        payload.message,
+        idempotency_key=idempotency_key,
+    )
     return create_sse_response(service.stream_turn(prepared))
 
 

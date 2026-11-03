@@ -11,6 +11,7 @@ type PlaceholderPath = Exclude<
   | typeof platformPaths.reminders
   | typeof platformPaths.reminderCreate
   | typeof platformPaths.memoryTraining
+  | typeof platformPaths.digitalHuman
   | typeof platformPaths.settings
   | typeof platformPaths.securitySettings
   | typeof platformPaths.feedbackSettings

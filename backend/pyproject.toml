@@ -41,6 +41,7 @@ include = ["app*"]
 [tool.setuptools.package-data]
 "app.modules.agents.image_agent.prompts" = ["templates/*.md"]
 "app.modules.agents.resume_agent.prompts" = ["system.md"]
+"app.modules.digital_human.agent.prompts" = ["system.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

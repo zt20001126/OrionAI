@@ -11,6 +11,7 @@ const RUNNABLE_SKILL_CODES = new Set([
   "resume_assistant",
   "reminder",
   "memory_training",
+  "digital_human",
 ]);
 
 /** 当前前端已接入使用入口的技能编码。 */
@@ -64,6 +65,12 @@ export async function launchSkill(
   }
   if (skill.code === "memory_training") {
     onNavigate(platformPaths.memoryTraining);
+    return;
+  }
+
+  if (skill.code === "digital_human") {
+    const conversation = await createConversation(skill.code);
+    onNavigate(`${platformPaths.digitalHuman}/${conversation.id}`);
     return;
   }
 
