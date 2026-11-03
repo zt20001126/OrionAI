@@ -1,7 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "../../components/ToastProvider";
+import { setLocale } from "../../i18n/localeStore";
 import { login, register } from "./authApi";
 import { AuthPage } from "./AuthPage";
 
@@ -14,7 +15,10 @@ vi.mock("./authApi", async (importOriginal) => {
   };
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setLocale("zh-CN");
+});
 
 describe("AuthPage", () => {
   it("shows the demo account dialog on login without an inline notice", () => {
@@ -24,12 +28,15 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    expect(screen.getByRole("dialog", { name: "体验账号" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
     expect(screen.getByText("admin@admin.com")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "复制账号" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "复制密码" })).toBeInTheDocument();
+    expect(screen.queryByText("账号")).not.toBeInTheDocument();
     expect(
-      screen.getByText("可体验会员功能。此账号为共享演示数据，请勿保存个人信息。"),
-    ).toBeInTheDocument();
+      screen.queryByText("可体验会员功能。此账号为共享演示数据，请勿保存个人信息。"),
+    ).not.toBeInTheDocument();
     expect(document.querySelector(".auth-demo-notice")).not.toBeInTheDocument();
     expect(screen.getByLabelText("邮箱")).toHaveAttribute("type", "email");
   });
@@ -42,7 +49,7 @@ describe("AuthPage", () => {
     );
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "体验账号" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("邮箱")).toHaveFocus());
 
     fireEvent.click(screen.getByRole("tab", { name: "注册" }));
@@ -63,7 +70,7 @@ describe("AuthPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
 
-    expect(screen.queryByRole("dialog", { name: "体验账号" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
   });
 
   it("starts keyboard focus in the dialog and keeps focus inside it", () => {
@@ -73,7 +80,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    const closeButton = screen.getByRole("button", { name: "关闭体验账号提示" });
+    const closeButton = screen.getByRole("button", { name: "关闭测试账号弹窗" });
     const acknowledgeButton = screen.getByRole("button", { name: "我知道了" });
     expect(closeButton).toHaveFocus();
 
@@ -89,12 +96,12 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "关闭体验账号提示" }));
+    fireEvent.click(screen.getByRole("button", { name: "关闭测试账号弹窗" }));
 
-    expect(screen.queryByRole("dialog", { name: "体验账号" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
   });
 
-  it("copies the demo account and reports success or failure", async () => {
+  it("copies the account and password and reports success or failure", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -110,11 +117,34 @@ describe("AuthPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "复制账号" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("admin@admin.com"));
-    expect(await screen.findByText("体验账号已复制。")).toBeInTheDocument();
+    expect(await screen.findByText("复制成功。")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "复制密码" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("admin"));
+    expect(await screen.findByText("复制成功。")).toBeInTheDocument();
 
     writeText.mockRejectedValueOnce(new Error("clipboard unavailable"));
-    fireEvent.click(screen.getByRole("button", { name: "复制账号" }));
-    expect(await screen.findByText("复制失败，请手动复制账号。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "复制密码" }));
+    expect(await screen.findByText("复制失败，请重试。")).toBeInTheDocument();
+  });
+
+  it("updates the test account dialog text when the language changes", () => {
+    setLocale("zh-CN");
+
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
+    act(() => setLocale("en"));
+
+    expect(screen.getByRole("dialog", { name: "Test Account" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Got it" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy password" })).toBeInTheDocument();
+
+    setLocale("zh-CN");
   });
 
   it("keeps email-only validation on registration", () => {

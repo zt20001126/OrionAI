@@ -28,7 +28,10 @@ export type PlatformIconName =
   | "expand"
   | "message"
   | "send"
-  | "microphone";
+  | "microphone"
+  | "flask"
+  | "lock"
+  | "copy";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -124,6 +127,26 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
       {name === "chevron" && <path d="m7 10 5 5 5-5" />}
       {name === "arrow" && <path d="M5 12h14m-6-6 6 6-6 6" />}
       {name === "close" && <path d="m6 6 12 12M18 6 6 18" />}
+      {name === "flask" && (
+        <>
+          <path d="M9 3.5h6M10 3.5v6l-5.2 8.2A2.5 2.5 0 0 0 6.9 21h10.2a2.5 2.5 0 0 0 2.1-3.3L14 9.5v-6" />
+          <path d="M7.5 15h9" />
+        </>
+      )}
+      {name === "lock" && (
+        <>
+          <rect x="4.5" y="10" width="15" height="10.5" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+          <circle cx="12" cy="15" r="1" />
+          <path d="M12 16v2" />
+        </>
+      )}
+      {name === "copy" && (
+        <>
+          <rect x="8" y="8" width="11" height="12" rx="2" />
+          <path d="M16 8V6a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h1" />
+        </>
+      )}
       {name === "microphone" && (
         <>
           <rect x="9" y="3.5" width="6" height="11" rx="3" />
