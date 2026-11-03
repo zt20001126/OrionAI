@@ -1,0 +1,90 @@
+.ambient-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient-background--auth {
+  z-index: 0;
+  background: var(--auth-page-base);
+}
+
+.ambient-background--auth::before,
+.ambient-background--auth::after {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+}
+
+.ambient-background--auth::before {
+  background:
+    radial-gradient(ellipse at 14% 0%, var(--auth-page-blue), transparent 48%),
+    radial-gradient(ellipse at 96% 8%, var(--auth-page-lavender), transparent 43%),
+    radial-gradient(ellipse at 54% 108%, var(--auth-page-pink), transparent 46%),
+    linear-gradient(
+      125deg,
+      var(--auth-page-base) 0%,
+      var(--auth-page-neutral) 54%,
+      var(--auth-page-lavender-neutral) 100%
+    );
+}
+
+.ambient-background--auth::after {
+  background:
+    radial-gradient(
+      ellipse 84% 76% at 4% -22%,
+      transparent 72%,
+      var(--auth-arc-blue) 72.3%,
+      transparent 73.2%
+    ),
+    radial-gradient(
+      ellipse 70% 80% at 100% 118%,
+      transparent 73%,
+      var(--auth-arc-lavender) 73.3%,
+      transparent 74.2%
+    );
+}
+
+.ambient-background--app {
+  z-index: -1;
+  --app-glow-x: 18px;
+  --app-glow-y: -14px;
+}
+
+.ambient-background--app::before {
+  position: absolute;
+  z-index: 0;
+  inset: -28px;
+  background:
+    radial-gradient(ellipse at 8% 4%, var(--app-page-blue), transparent 52%),
+    radial-gradient(ellipse at 96% 100%, var(--app-page-lavender), transparent 50%);
+  content: "";
+  animation: app-background-drift 30s ease-in-out infinite;
+  will-change: transform;
+}
+
+@keyframes app-background-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    transform: translate3d(var(--app-glow-x), var(--app-glow-y), 0);
+  }
+}
+
+@media (max-width: 800px) {
+  .ambient-background--app {
+    --app-glow-x: 10px;
+    --app-glow-y: -8px;
+  }
+
+  .ambient-background--app::before {
+    animation-duration: 34s;
+    opacity: 0.78;
+  }
+}

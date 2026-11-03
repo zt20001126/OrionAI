@@ -65,6 +65,9 @@
   --auth-page-lavender-neutral: #fbf9ff;
   --auth-arc-blue: rgb(125 165 224 / 12%);
   --auth-arc-lavender: rgb(157 128 214 / 10%);
+  --app-page-base: #fafbff;
+  --app-page-blue: rgb(229 240 255 / 44%);
+  --app-page-lavender: rgb(238 232 255 / 38%);
   --auth-card-radius: 20px;
   --auth-submit-gradient: linear-gradient(
     90deg,
@@ -166,46 +169,8 @@ button {
   min-height: 100vh;
   min-height: 100svh;
   grid-template-columns: minmax(0, 1.22fr) minmax(440px, 0.9fr);
-  background: var(--auth-page-base);
+  background: transparent;
   animation: auth-enter 220ms ease-out both;
-}
-
-.auth-layout::before,
-.auth-layout::after {
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-}
-
-.auth-layout::before {
-  background:
-    radial-gradient(ellipse at 14% 0%, var(--auth-page-blue), transparent 48%),
-    radial-gradient(ellipse at 96% 8%, var(--auth-page-lavender), transparent 43%),
-    radial-gradient(ellipse at 54% 108%, var(--auth-page-pink), transparent 46%),
-    linear-gradient(
-      125deg,
-      var(--auth-page-base) 0%,
-      var(--auth-page-neutral) 54%,
-      var(--auth-page-lavender-neutral) 100%
-    );
-}
-
-.auth-layout::after {
-  background:
-    radial-gradient(
-      ellipse 84% 76% at 4% -22%,
-      transparent 72%,
-      var(--auth-arc-blue) 72.3%,
-      transparent 73.2%
-    ),
-    radial-gradient(
-      ellipse 70% 80% at 100% 118%,
-      transparent 73%,
-      var(--auth-arc-lavender) 73.3%,
-      transparent 74.2%
-    );
 }
 
 .product-panel {

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
+import { AmbientBackground } from "../components/AmbientBackground";
 import { ToastProvider, useToast } from "../components/ToastProvider";
 import { AuthPage } from "../features/auth/AuthPage";
 import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
@@ -413,6 +414,7 @@ function AppContent() {
   if (isRestoringSession) {
     return (
       <main className="auth-layout">
+        <AmbientBackground mode="auth" />
         <ProductIntro />
         <section className="auth-panel">
           <LanguageSwitcher className="language-switcher--auth" />

@@ -467,11 +467,14 @@
 }
 
 .platform-main {
+  position: relative;
+  isolation: isolate;
   display: flex;
   min-width: 0;
   min-height: 100vh;
   min-height: 100svh;
   flex-direction: column;
+  background: var(--app-page-base);
 }
 
 .platform-main--conversation {

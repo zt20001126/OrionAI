@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 
+import { AmbientBackground } from "../../components/AmbientBackground";
 import "./platform.css";
 
 import { ProfileMenu } from "./ProfileMenu";
@@ -111,6 +112,7 @@ export function PlatformLayout({
       <div
         className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}${isSessionsPage ? " platform-main--sessions" : ""}${isDigitalHumanPage ? " platform-main--digital-human" : ""}`}
       >
+        <AmbientBackground mode="app" />
         <header className="platform-topbar">
           <div className="platform-topbar__context">
             <strong>{t(pageTitle)}</strong>

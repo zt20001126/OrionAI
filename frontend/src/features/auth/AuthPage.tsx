@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
+import { AmbientBackground } from "../../components/AmbientBackground";
 import { useToast } from "../../components/ToastProvider";
 import { ProductIntro } from "./ProductIntro";
 import { LanguageSwitcher } from "../../i18n/LanguageSwitcher";
@@ -135,6 +136,7 @@ export function AuthPage({
 
   return (
     <main className="auth-layout">
+      <AmbientBackground mode="auth" />
       <ProductIntro />
       <section className="auth-panel" aria-label={t("账号认证")}>
         <LanguageSwitcher className="language-switcher--auth" />
