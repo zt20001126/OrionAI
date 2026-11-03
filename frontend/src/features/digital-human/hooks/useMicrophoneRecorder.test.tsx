@@ -44,7 +44,9 @@ describe("useMicrophoneRecorder", () => {
       configurable: true,
       value: { getUserMedia: vi.fn(() => permissionRequest) },
     });
-    const { result } = renderHook(() => useMicrophoneRecorder({ onTranscribed: vi.fn() }));
+    const { result } = renderHook(() =>
+      useMicrophoneRecorder({ onTranscribed: vi.fn(), onError: vi.fn() }),
+    );
     let starting = Promise.resolve();
 
     act(() => {
@@ -68,7 +70,9 @@ describe("useMicrophoneRecorder", () => {
       configurable: true,
       value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
     });
-    const { result } = renderHook(() => useMicrophoneRecorder({ onTranscribed: vi.fn() }));
+    const { result } = renderHook(() =>
+      useMicrophoneRecorder({ onTranscribed: vi.fn(), onError: vi.fn() }),
+    );
 
     await act(async () => {
       await result.current.startRecording();

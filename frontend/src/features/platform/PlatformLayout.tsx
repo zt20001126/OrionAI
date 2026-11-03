@@ -109,7 +109,7 @@ export function PlatformLayout({
       />
 
       <div
-        className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}${isSessionsPage ? " platform-main--sessions" : ""}`}
+        className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}${isSessionsPage ? " platform-main--sessions" : ""}${isDigitalHumanPage ? " platform-main--digital-human" : ""}`}
       >
         <header className="platform-topbar">
           <div className="platform-topbar__context">
@@ -132,11 +132,11 @@ export function PlatformLayout({
         </header>
 
         <main
-          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}${isResumePage ? " platform-content--resume" : ""}${isSessionsPage ? " platform-content--sessions" : ""}`}
+          className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}${isResumePage ? " platform-content--resume" : ""}${isSessionsPage ? " platform-content--sessions" : ""}${isDigitalHumanPage ? " platform-content--digital-human" : ""}`}
         >
           {children}
         </main>
-        {!isConversationPage && !isResumePage && !isSessionsPage && (
+        {!isConversationPage && !isResumePage && !isSessionsPage && !isDigitalHumanPage && (
           <footer className="platform-footer">{t("© OrionAI · 为智能体应用而构建")}</footer>
         )}
       </div>

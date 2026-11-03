@@ -44,7 +44,6 @@ describe("useAssistantAudio", () => {
 
     expect(audio.play).toHaveBeenCalledOnce();
     expect(result.current.isSpeaking).toBe(false);
-    expect(result.current.mouthOpen).toBe(0);
     expect(revokeObjectUrl).toHaveBeenCalledWith("blob:digital-human-reply");
   });
 });

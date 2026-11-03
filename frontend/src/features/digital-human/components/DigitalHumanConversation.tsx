@@ -1,3 +1,7 @@
+import { useLayoutEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 import { t } from "../../../i18n/localeStore";
 import type { ConversationMessage } from "../../conversations/conversationApi";
 
@@ -6,7 +10,6 @@ interface DigitalHumanConversationProps {
   pendingMessage: string | null;
   streamedAssistantText: string;
   isLoading: boolean;
-  isThinking: boolean;
 }
 
 function getText(message: ConversationMessage): string {
@@ -19,19 +22,27 @@ function getText(message: ConversationMessage): string {
     .join("\n");
 }
 
+/** 展示当前会话的消息流，只保留消息加载反馈，不在聊天区重复显示智能体状态。 */
 export function DigitalHumanConversation({
   messages,
   pendingMessage,
   streamedAssistantText,
   isLoading,
-  isThinking,
 }: DigitalHumanConversationProps) {
+  const messageListRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const messageList = messageListRef.current;
+    if (messageList) messageList.scrollTop = messageList.scrollHeight;
+  }, [isLoading, messages, pendingMessage, streamedAssistantText]);
+
   return (
     <div
       aria-label={t("对话消息")}
       className="digital-human-messages"
       role="log"
       aria-live="polite"
+      ref={messageListRef}
     >
       {messages.map((message) => {
         const text = getText(message);
@@ -41,7 +52,9 @@ export function DigitalHumanConversation({
             className={`digital-human-message digital-human-message--${message.role}`}
             key={message.id}
           >
-            <p>{text}</p>
+            <div className="digital-human-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+            </div>
           </article>
         );
       })}
@@ -50,7 +63,9 @@ export function DigitalHumanConversation({
           aria-label={t("正在发送的消息")}
           className="digital-human-message digital-human-message--user digital-human-message--pending"
         >
-          <p>{pendingMessage}</p>
+          <div className="digital-human-markdown">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{pendingMessage}</ReactMarkdown>
+          </div>
         </article>
       )}
       {streamedAssistantText && (
@@ -58,20 +73,14 @@ export function DigitalHumanConversation({
           aria-label={t("助手回答")}
           className="digital-human-message digital-human-message--assistant digital-human-message--streaming"
         >
-          <p>{streamedAssistantText}</p>
+          <div className="digital-human-markdown">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedAssistantText}</ReactMarkdown>
+          </div>
         </article>
       )}
       {isLoading && (
         <p className="digital-human-message-status" role="status">
           {t("正在加载对话…")}
-        </p>
-      )}
-      {!isLoading && messages.length === 0 && !pendingMessage && !streamedAssistantText && (
-        <p className="digital-human-message-status">{t("开始一段文字或语音对话。")}</p>
-      )}
-      {isThinking && (
-        <p className="digital-human-message-status" role="status">
-          {t("数字人正在思考…")}
         </p>
       )}
     </div>

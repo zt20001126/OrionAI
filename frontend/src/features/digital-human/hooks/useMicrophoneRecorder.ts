@@ -16,12 +16,12 @@ export type RecorderStatus = "idle" | "starting" | "listening" | "transcribing";
 
 interface UseMicrophoneRecorderOptions {
   onTranscribed: (text: string) => void;
+  onError: (message: string) => void;
 }
 
 /** 管理一次性录音、轨道释放和 ASR 转写，不把音频写入浏览器持久存储。 */
-export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOptions) {
+export function useMicrophoneRecorder({ onTranscribed, onError }: UseMicrophoneRecorderOptions) {
   const [status, setStatus] = useState<RecorderStatus>("idle");
-  const [error, setError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -30,10 +30,15 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
   const startLockRef = useRef(false);
   const mountedRef = useRef(true);
   const transcribedRef = useRef(onTranscribed);
+  const errorRef = useRef(onError);
 
   useEffect(() => {
     transcribedRef.current = onTranscribed;
   }, [onTranscribed]);
+
+  useEffect(() => {
+    errorRef.current = onError;
+  }, [onError]);
 
   const releaseMicrophone = useCallback(() => {
     if (timerRef.current !== null) {
@@ -55,9 +60,8 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
 
   const startRecording = useCallback(async () => {
     if (startLockRef.current || recorderRef.current) return;
-    setError(null);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
-      setError(t("当前浏览器不支持麦克风录音，请使用文字输入。"));
+      errorRef.current(t("当前浏览器不支持麦克风录音，请使用文字输入。"));
       return;
     }
 
@@ -82,7 +86,7 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onerror = () => {
-        if (mountedRef.current) setError(t("录音失败，请检查麦克风后重试。"));
+        if (mountedRef.current) errorRef.current(t("录音失败，请检查麦克风后重试。"));
         releaseMicrophone();
         if (mountedRef.current) setStatus("idle");
       };
@@ -93,7 +97,7 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
         if (!mountedRef.current) return;
         if (recording.size === 0) {
           if (mountedRef.current) {
-            setError(t("没有录到语音，请重试。"));
+            errorRef.current(t("没有录到语音，请重试。"));
             setStatus("idle");
           }
           return;
@@ -110,7 +114,7 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
           })
           .catch((requestError: unknown) => {
             if (!controller.signal.aborted && mountedRef.current) {
-              setError(
+              errorRef.current(
                 requestError instanceof Error ? requestError.message : t("语音识别失败，请重试。"),
               );
               setStatus("idle");
@@ -125,14 +129,14 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
       timerRef.current = window.setTimeout(stopRecording, MAX_RECORDING_MS);
     } catch {
       releaseMicrophone();
-      setStatus("idle");
-      setError(t("无法访问麦克风，请检查浏览器权限后重试。"));
+      if (mountedRef.current) {
+        setStatus("idle");
+        errorRef.current(t("无法访问麦克风，请检查浏览器权限后重试。"));
+      }
     } finally {
       startLockRef.current = false;
     }
   }, [releaseMicrophone, stopRecording]);
-
-  const clearError = useCallback(() => setError(null), []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -144,5 +148,5 @@ export function useMicrophoneRecorder({ onTranscribed }: UseMicrophoneRecorderOp
     };
   }, [releaseMicrophone, stopRecording]);
 
-  return { status, error, clearError, startRecording, stopRecording };
+  return { status, startRecording, stopRecording };
 }

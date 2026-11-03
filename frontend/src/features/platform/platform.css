@@ -35,6 +35,14 @@
   overflow: hidden;
 }
 
+.platform-shell--digital-human {
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+
 .platform-sidebar {
   position: sticky;
   top: 0;
@@ -484,6 +492,12 @@
   overflow: hidden;
 }
 
+.platform-main--digital-human {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .platform-topbar {
   position: sticky;
   top: 0;
@@ -597,6 +611,20 @@
   flex: 1 1 0;
   overflow: hidden;
   padding: var(--space-6) clamp(var(--space-5), 3vw, var(--space-8));
+}
+
+.platform-content--digital-human {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 0;
+  align-self: stretch;
+  overflow: hidden;
+  padding: var(--space-3);
+}
+
+.platform-shell--digital-human .platform-footer {
+  display: none;
 }
 
 .platform-footer {
@@ -1701,6 +1729,17 @@
     flex: 1 1 0;
   }
 
+  .platform-shell--digital-human {
+    height: 100vh;
+    height: 100svh;
+  }
+
+  .platform-main--digital-human {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+
   .platform-topbar {
     min-height: 56px;
     padding-inline: var(--space-5);
@@ -1723,6 +1762,11 @@
   .platform-content--sessions {
     min-height: 0;
     padding: var(--space-5);
+  }
+
+  .platform-content--digital-human {
+    min-height: 0;
+    padding: var(--space-2);
   }
 
   .market-intro {
@@ -1771,6 +1815,10 @@
 
   .platform-content--sessions {
     padding: var(--space-4) var(--space-3);
+  }
+
+  .platform-content--digital-human {
+    padding: var(--space-2);
   }
 
   .market-page {

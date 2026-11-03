@@ -1,0 +1,108 @@
+.vrm-preview {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 1200px);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: var(--space-6);
+  gap: var(--space-4);
+}
+
+.vrm-preview__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.vrm-preview__header h1 {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  line-height: var(--line-height-tight);
+}
+
+.vrm-preview__header p,
+.vrm-preview__details {
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.vrm-preview__header p {
+  margin: var(--space-2) 0 0;
+}
+
+.vrm-preview__controls {
+  flex: 0 0 auto;
+}
+
+.vrm-preview__stage {
+  position: relative;
+  display: grid;
+  min-height: min(72vh, 720px);
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface-muted);
+}
+
+.vrm-preview__stage canvas {
+  display: block;
+  width: 100%;
+  min-height: min(72vh, 720px);
+  touch-action: none;
+}
+
+.vrm-preview__message,
+.vrm-preview__error {
+  align-self: center;
+  justify-self: center;
+  max-width: min(680px, calc(100% - var(--space-6)));
+  margin: var(--space-6);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.vrm-preview__error {
+  width: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-danger-line);
+  border-radius: var(--radius-card);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  text-align: left;
+}
+
+.vrm-preview__error pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font: inherit;
+}
+
+.vrm-preview__details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.vrm-preview__notice {
+  color: var(--color-warning);
+}
+
+@media (max-width: 560px) {
+  .vrm-preview {
+    padding: var(--space-4);
+  }
+
+  .vrm-preview__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  .vrm-preview__stage,
+  .vrm-preview__stage canvas {
+    min-height: 68vh;
+  }
+}
