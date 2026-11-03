@@ -156,7 +156,6 @@ export function SkillMarketPage({ onNavigate }: SkillMarketPageProps) {
           <div>
             <h2 id="category-title">{t("技能分类")}</h2>
           </div>
-          <span className="market-section__hint">{t("按技能类型筛选")}</span>
         </div>
         <div aria-label={t("技能分类")} className="category-list" role="group">
           {skillCategories.map((category) => (

@@ -38,7 +38,12 @@
 }
 
 .membership-entry--sidebar .platform-icon {
-  color: var(--color-membership-gold);
+  color: var(--color-membership-crown-inactive);
+  transition: color var(--motion-fast);
+}
+
+.membership-entry--sidebar.is-member .platform-icon {
+  color: var(--color-membership-crown-active);
 }
 
 .membership-entry--sidebar:hover {

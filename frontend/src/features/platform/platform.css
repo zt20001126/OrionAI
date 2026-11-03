@@ -636,7 +636,6 @@
 
 .market-header {
   display: flex;
-  min-height: 88px;
   align-items: center;
 }
 
@@ -723,7 +722,6 @@
   min-height: 28px;
 }
 
-.market-section__hint,
 .skill-count {
   color: var(--color-text-tertiary);
   font-size: var(--font-size-xs);
@@ -1892,10 +1890,6 @@
   .market-search input {
     height: 40px;
     font-size: var(--font-size-sm);
-  }
-
-  .market-section__hint {
-    display: none;
   }
 
   .category-list {

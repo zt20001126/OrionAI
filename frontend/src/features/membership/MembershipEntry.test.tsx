@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MembershipEntry } from "./MembershipEntry";
@@ -62,5 +62,58 @@ describe("MembershipEntry", () => {
     expect(entry).toHaveAttribute("data-tooltip", "会员中心");
     fireEvent.click(entry);
     expect(onNavigate).toHaveBeenCalledWith("/membership");
+  });
+
+  it("uses the active period for the sidebar crown and turns it gray at expiry", async () => {
+    const activeOverview = {
+      active_period: {
+        order_id: "1",
+        plan_id: "2",
+        plan_name: "后端套餐",
+        starts_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 800).toISOString(),
+      },
+      upcoming_periods: [],
+      latest_expired_period: null,
+    };
+    vi.mocked(getMembershipOverview).mockResolvedValueOnce(activeOverview).mockResolvedValueOnce({
+      active_period: null,
+      upcoming_periods: [],
+      latest_expired_period: activeOverview.active_period,
+    });
+
+    render(
+      <MembershipStatusProvider isGuest={false}>
+        <MembershipEntry onNavigate={vi.fn()} variant="sidebar" />
+      </MembershipStatusProvider>,
+    );
+
+    const entry = await screen.findByRole("button", { name: "会员中心" });
+    await waitFor(() => expect(entry).toHaveClass("is-member"));
+    await waitFor(() => expect(entry).not.toHaveClass("is-member"), { timeout: 1500 });
+    expect(getMembershipOverview).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the sidebar crown gray when only an expired period exists", async () => {
+    vi.mocked(getMembershipOverview).mockResolvedValue({
+      active_period: null,
+      upcoming_periods: [],
+      latest_expired_period: {
+        order_id: "1",
+        plan_id: "2",
+        plan_name: "后端套餐",
+        starts_at: new Date(Date.now() - 172800000).toISOString(),
+        expires_at: new Date(Date.now() - 86400000).toISOString(),
+      },
+    });
+
+    render(
+      <MembershipStatusProvider isGuest={false}>
+        <MembershipEntry onNavigate={vi.fn()} variant="sidebar" />
+      </MembershipStatusProvider>,
+    );
+
+    const entry = await screen.findByRole("button", { name: "会员中心" });
+    expect(entry).not.toHaveClass("is-member");
   });
 });

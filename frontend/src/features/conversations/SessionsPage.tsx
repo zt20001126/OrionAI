@@ -14,7 +14,6 @@ export function SessionsPage({ onNavigate }: SessionsPageProps) {
       <header className="sessions-page__header">
         <div>
           <h1 id="sessions-title">{t("会话记录")}</h1>
-          <p>{t("查看并继续你与对话助手的历史对话。")}</p>
         </div>
         <button
           className="button button--primary"

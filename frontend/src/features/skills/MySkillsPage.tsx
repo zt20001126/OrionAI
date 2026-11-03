@@ -114,7 +114,6 @@ export function MySkillsPage({ onNavigate }: MySkillsPageProps) {
       <section className="market-header" aria-labelledby="my-skills-title">
         <div>
           <h1 id="my-skills-title">{t("我的技能")}</h1>
-          <p>{t("已添加的技能会显示在这里；从技能市场添加后即可使用可运行的技能。")}</p>
         </div>
       </section>
 

@@ -43,6 +43,8 @@
   --color-membership-gold-soft: #fff7e7;
   --color-membership-gold-line: #f1d7a6;
   --color-membership-gold-hover: #fff1d6;
+  --color-membership-crown-active: #d4a047;
+  --color-membership-crown-inactive: #94a3b8;
   --gradient-membership-banner: linear-gradient(115deg, #f3edff 0%, #edf4ff 58%, #f7f8ff 100%);
   --color-overlay: rgb(15 23 42 / 38%);
   --color-spinner-track: rgb(255 255 255 / 48%);
