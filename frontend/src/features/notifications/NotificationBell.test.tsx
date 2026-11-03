@@ -66,6 +66,17 @@ describe("NotificationBell", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("renders a sidebar label and opens the existing notification popover", async () => {
+    render(<NotificationBell account={null} isGuest variant="sidebar" />);
+
+    const trigger = screen.getByRole("button", { name: "通知中心" });
+    expect(trigger).toHaveTextContent("通知中心");
+    expect(trigger.parentElement).toHaveAttribute("data-tooltip", "通知中心");
+
+    fireEvent.click(trigger);
+    expect(await screen.findByRole("dialog", { name: "通知中心" })).toBeInTheDocument();
+  });
+
   it("shows the empty state for a user with no notifications", async () => {
     render(<NotificationBell account={null} isGuest />);
     fireEvent.click(screen.getByRole("button", { name: "通知中心" }));

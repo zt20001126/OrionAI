@@ -10,6 +10,7 @@ import "./notifications.css";
 interface NotificationBellProps {
   account: string | null;
   isGuest: boolean;
+  variant?: "default" | "sidebar";
 }
 
 interface PopoverPosition extends CSSProperties {
@@ -25,7 +26,7 @@ const POPOVER_GAP = 8;
 const POPOVER_MAX_HEIGHT = 520;
 const POPOVER_MIN_HEIGHT = 200;
 
-export function NotificationBell({ account, isGuest }: NotificationBellProps) {
+export function NotificationBell({ account, isGuest, variant = "default" }: NotificationBellProps) {
   const { hasUnread, isReady, markAsRead, notifications } = useNotifications(account, isGuest);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<PopoverPosition>({
@@ -106,18 +107,25 @@ export function NotificationBell({ account, isGuest }: NotificationBellProps) {
 
   return (
     <>
-      <div className="notification-bell" ref={rootRef}>
+      <div
+        className={`notification-bell${variant === "sidebar" ? " notification-bell--sidebar" : ""}`}
+        data-tooltip={variant === "sidebar" ? t("通知中心") : undefined}
+        ref={rootRef}
+      >
         <button
           aria-controls={isOpen ? popoverId : undefined}
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-label={t("通知中心")}
-          className="notification-button"
+          className={`notification-button${variant === "sidebar" ? " notification-button--sidebar" : ""}`}
           onClick={togglePopover}
           ref={triggerRef}
           type="button"
         >
           <PlatformIcon name="bell" />
+          {variant === "sidebar" && (
+            <span className="notification-button__label">{t("通知中心")}</span>
+          )}
           {hasUnread && <span aria-hidden="true" className="notification-button__unread-dot" />}
         </button>
         <span aria-hidden="true" className="notification-bell__tooltip" role="tooltip">

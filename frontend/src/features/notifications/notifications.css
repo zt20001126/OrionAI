@@ -4,6 +4,51 @@
   flex: 0 0 auto;
 }
 
+.notification-bell--sidebar {
+  width: 100%;
+}
+
+.notification-bell--sidebar .notification-bell__tooltip {
+  display: none;
+}
+
+.notification-button.notification-button--sidebar {
+  display: flex;
+  width: 100%;
+  height: 40px;
+  min-height: 40px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-control);
+}
+
+.notification-button.notification-button--sidebar .notification-button__label {
+  color: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 450;
+}
+
+.notification-button.notification-button--sidebar:hover {
+  color: var(--color-brand-active);
+  background: var(--color-brand-soft);
+}
+
+.platform-sidebar--collapsed .notification-bell--sidebar,
+.platform-sidebar--collapsed .notification-button--sidebar {
+  width: 40px;
+}
+
+.platform-sidebar--collapsed .notification-button--sidebar {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.platform-sidebar--collapsed .notification-button__label {
+  display: none;
+}
+
 .notification-button > .notification-button__unread-dot {
   border-color: var(--color-surface);
   background: var(--color-danger);

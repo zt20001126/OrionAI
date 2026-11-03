@@ -48,4 +48,19 @@ describe("MembershipEntry", () => {
     expect(await screen.findByRole("button", { name: "开通会员" })).toBeInTheDocument();
     expect(getMembershipOverview).not.toHaveBeenCalled();
   });
+
+  it("shows the sidebar label and keeps navigating to the membership center", () => {
+    const onNavigate = vi.fn();
+
+    render(
+      <MembershipStatusProvider isGuest>
+        <MembershipEntry onNavigate={onNavigate} variant="sidebar" />
+      </MembershipStatusProvider>,
+    );
+
+    const entry = screen.getByRole("button", { name: "会员中心" });
+    expect(entry).toHaveAttribute("data-tooltip", "会员中心");
+    fireEvent.click(entry);
+    expect(onNavigate).toHaveBeenCalledWith("/membership");
+  });
 });

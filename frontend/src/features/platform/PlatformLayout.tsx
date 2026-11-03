@@ -3,10 +3,7 @@ import { useState, type ReactNode } from "react";
 import { AmbientBackground } from "../../components/AmbientBackground";
 import "./platform.css";
 
-import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
-import { MembershipEntry } from "../membership/MembershipEntry";
-import { NotificationBell } from "../notifications/NotificationBell";
 import { t } from "../../i18n/localeStore";
 import {
   isMembershipCheckoutPath,
@@ -116,20 +113,6 @@ export function PlatformLayout({
         <header className="platform-topbar">
           <div className="platform-topbar__context">
             <strong>{t(pageTitle)}</strong>
-          </div>
-          <div className="platform-topbar__actions">
-            <MembershipEntry onNavigate={onNavigate} />
-            <NotificationBell account={isGuest ? null : account} isGuest={isGuest} />
-            <ProfileMenu
-              account={account}
-              avatarUrl={avatarUrl}
-              isLoggingOut={isLoggingOut}
-              isGuest={isGuest}
-              nickname={nickname}
-              onLogout={onLogout}
-              onNavigate={onNavigate}
-              triggerLabel={t("更多用户选项")}
-            />
           </div>
         </header>
 

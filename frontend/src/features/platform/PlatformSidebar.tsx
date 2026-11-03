@@ -1,4 +1,6 @@
 import { BrandMark } from "../auth/ProductIntro";
+import { MembershipEntry } from "../membership/MembershipEntry";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformIcon } from "./PlatformIcon";
 import { navigationItems, platformPaths, type PlatformRoute } from "./platformData";
@@ -83,6 +85,14 @@ export function PlatformSidebar({
       </nav>
 
       <div className="platform-sidebar__footer">
+        <div className="platform-sidebar__utility-actions">
+          <MembershipEntry onNavigate={onNavigate} variant="sidebar" />
+          <NotificationBell
+            account={isGuest ? null : account}
+            isGuest={isGuest}
+            variant="sidebar"
+          />
+        </div>
         <div className="sidebar-account">
           <ProfileMenu
             account={account}
