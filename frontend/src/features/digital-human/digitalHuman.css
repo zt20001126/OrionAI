@@ -102,18 +102,6 @@
   background: var(--color-brand);
 }
 
-.digital-human-avatar__credit {
-  position: absolute;
-  z-index: 2;
-  left: var(--space-3);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
-.digital-human-avatar__credit {
-  bottom: var(--space-2);
-}
-
 .digital-human-avatar__compatibility {
   top: var(--space-3);
   max-width: calc(100% - var(--space-6));

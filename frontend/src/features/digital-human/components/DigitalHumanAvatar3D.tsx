@@ -1,6 +1,5 @@
 import { Component, Suspense, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import type { VRM } from "@pixiv/three-vrm";
 import { Canvas } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import type { PerspectiveCamera as ThreePerspectiveCamera } from "three";
@@ -102,15 +101,8 @@ export function DigitalHumanAvatar3D({
       >
         {t(STATUS_LABELS[status])}
       </span>
-      {vrm && <small className="digital-human-avatar__credit">{getAvatarCredit(vrm)}</small>}
     </div>
   );
-}
-
-function getAvatarCredit(vrm: VRM): string {
-  const title = vrm.meta.metaVersion === "0" ? vrm.meta.title : vrm.meta.name;
-  const author = vrm.meta.metaVersion === "0" ? vrm.meta.author : vrm.meta.authors.join(", ");
-  return [title, author].filter(Boolean).join(" · ");
 }
 
 interface AvatarCanvasErrorBoundaryProps {

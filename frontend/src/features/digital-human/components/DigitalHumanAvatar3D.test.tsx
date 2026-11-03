@@ -51,7 +51,7 @@ describe("DigitalHumanAvatar3D", () => {
     expect(screen.queryByTestId("avatar-canvas")).not.toBeInTheDocument();
   });
 
-  it("renders the canvas when a VRM model is available", () => {
+  it("renders the canvas without model credits when a VRM model is available", () => {
     const vrm = {
       meta: { author: "JustAPal", metaVersion: "0", title: "Mal 14.16 Optimized" },
     } as unknown as VRM;
@@ -61,7 +61,7 @@ describe("DigitalHumanAvatar3D", () => {
     render(<DigitalHumanAvatar3D mouthOpen={0.6} onLoadError={onLoadError} status="speaking" />);
 
     expect(screen.getByTestId("avatar-canvas")).toBeInTheDocument();
-    expect(screen.getByText("Mal 14.16 Optimized · JustAPal")).toBeInTheDocument();
+    expect(screen.queryByText("Mal 14.16 Optimized · JustAPal")).not.toBeInTheDocument();
     expect(onLoadError).not.toHaveBeenCalled();
     expect(screen.getByText("当前模型不包含嘴型表情，语音口型同步不可用。")).toBeInTheDocument();
   });
