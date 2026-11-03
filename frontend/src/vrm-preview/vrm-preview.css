@@ -86,10 +86,6 @@
   gap: var(--space-2) var(--space-4);
 }
 
-.vrm-preview__notice {
-  color: var(--color-warning);
-}
-
 @media (max-width: 560px) {
   .vrm-preview {
     padding: var(--space-4);

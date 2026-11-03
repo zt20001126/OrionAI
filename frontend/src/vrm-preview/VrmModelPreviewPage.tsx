@@ -9,10 +9,8 @@ import type { VRM } from "@pixiv/three-vrm";
 import "./vrm-preview.css";
 
 const REQUESTED_MODEL_URL = "/models/digital-human.vrm";
-const EXISTING_MODEL_FALLBACK_URL = "/models/digital-human-1.vrm";
 
 interface LoadedVrm {
-  fallbackNotice: string | null;
   frameBounds: ModelFrameBounds;
   url: string;
   vrm: VRM;
@@ -119,9 +117,6 @@ export function VrmModelPreviewPage() {
       {loadedModel && (
         <footer className="vrm-preview__details" aria-live="polite">
           <span>当前模型：{loadedModel.url}</span>
-          {loadedModel.fallbackNotice && (
-            <span className="vrm-preview__notice">{loadedModel.fallbackNotice}</span>
-          )}
         </footer>
       )}
     </main>
@@ -172,29 +167,12 @@ function VrmPreviewScene({ bounds, vrm }: { bounds: ModelFrameBounds; vrm: VRM }
 }
 
 async function loadPreviewModel(signal: AbortSignal): Promise<LoadedVrm> {
-  try {
-    const vrm = await loadVrmAtUrl(REQUESTED_MODEL_URL, signal);
-    return {
-      fallbackNotice: null,
-      frameBounds: getModelFrameBounds(vrm),
-      url: REQUESTED_MODEL_URL,
-      vrm,
-    };
-  } catch (error) {
-    if (!(error instanceof ModelHttpError) || error.status !== 404) throw error;
-
-    const fallbackNotice =
-      `${REQUESTED_MODEL_URL} 返回 HTTP 404，仓库中未找到该文件；当前改用 ${EXISTING_MODEL_FALLBACK_URL}。`;
-    console.warn(`[VRM 预览] ${fallbackNotice}`, error);
-    const vrm = await loadVrmAtUrl(EXISTING_MODEL_FALLBACK_URL, signal);
-
-    return {
-      fallbackNotice,
-      frameBounds: getModelFrameBounds(vrm),
-      url: EXISTING_MODEL_FALLBACK_URL,
-      vrm,
-    };
-  }
+  const vrm = await loadVrmAtUrl(REQUESTED_MODEL_URL, signal);
+  return {
+    frameBounds: getModelFrameBounds(vrm),
+    url: REQUESTED_MODEL_URL,
+    vrm,
+  };
 }
 
 async function loadVrmAtUrl(url: string, signal: AbortSignal): Promise<VRM> {

@@ -3,7 +3,7 @@ import { GLTFLoader, type GLTF } from "three/addons/loaders/GLTFLoader.js";
 import { Mesh } from "three";
 import type { VRM } from "@pixiv/three-vrm";
 
-export const VRM_MODEL_URL = "/models/mal-14.16.vrm";
+export const VRM_MODEL_URL = "/models/digital-human.vrm";
 
 /** 读取并准备一个 VRM 资源；原始文件只读，不会被改写。 */
 export async function loadVrmAvatar(signal: AbortSignal): Promise<VRM> {
