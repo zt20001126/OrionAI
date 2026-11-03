@@ -10,6 +10,16 @@ const BLINK_MIN_INTERVAL_SECONDS = 2.8;
 const BLINK_INTERVAL_VARIANCE_SECONDS = 2.6;
 const UPPER_ARM_RELAX_ANGLE = 1.25;
 const POSE_BLEND_SPEED = 4;
+const CHEST_BREATHING_AMPLITUDE = 0.07;
+const IDLE_HEAD_PITCH_AMPLITUDE = 0.06;
+const IDLE_HEAD_TILT_AMPLITUDE = 0.06;
+const LISTENING_HEAD_PITCH_AMPLITUDE = 0.22;
+const LISTENING_HEAD_TILT = 0.11;
+const THINKING_HEAD_PITCH = 0.3;
+const THINKING_HEAD_TILT = -0.26;
+const SPEAKING_HEAD_PITCH_AMPLITUDE = 0.16;
+const SPEAKING_HEAD_TILT_AMPLITUDE = 0.09;
+const SPEAKING_ARM_GESTURE_AMPLITUDE = 0.6;
 const MOUTH_EXPRESSIONS = [VRMExpressionPresetName.Aa, VRMExpressionPresetName.Oh];
 
 interface BlinkState {
@@ -163,7 +173,8 @@ export function useVrmAvatarAnimation(
 
     if (rig.chest) {
       if (!prefersReducedMotion.current) {
-        rig.chest.rotation.x = rig.chestBaseRotation + Math.sin(rig.elapsed * 1.4) * 0.012;
+        rig.chest.rotation.x =
+          rig.chestBaseRotation + Math.sin(rig.elapsed * 1.4) * CHEST_BREATHING_AMPLITUDE;
       } else {
         rig.chest.rotation.x = rig.chestBaseRotation;
       }
@@ -183,22 +194,26 @@ export function getStatusMotionTargets(
   switch (status) {
     case "listening":
       return {
-        headPitch: Math.sin(elapsed * 1.25) * 0.035,
-        headTilt: 0.012,
+        headPitch: Math.sin(elapsed * 1.25) * LISTENING_HEAD_PITCH_AMPLITUDE,
+        headTilt: LISTENING_HEAD_TILT,
         speakingGesture: 0,
       };
     case "thinking":
-      return { headPitch: 0.07, headTilt: -0.06, speakingGesture: 0 };
+      return {
+        headPitch: THINKING_HEAD_PITCH,
+        headTilt: THINKING_HEAD_TILT,
+        speakingGesture: 0,
+      };
     case "speaking":
       return {
-        headPitch: Math.sin(elapsed * 1.8) * 0.015,
-        headTilt: Math.sin(elapsed * 0.9) * 0.01,
-        speakingGesture: Math.sin(elapsed * 2.2) * 0.1,
+        headPitch: Math.sin(elapsed * 1.8) * SPEAKING_HEAD_PITCH_AMPLITUDE,
+        headTilt: Math.sin(elapsed * 0.9) * SPEAKING_HEAD_TILT_AMPLITUDE,
+        speakingGesture: Math.sin(elapsed * 2.2) * SPEAKING_ARM_GESTURE_AMPLITUDE,
       };
     case "idle":
       return {
-        headPitch: Math.sin(elapsed * 0.45) * 0.006,
-        headTilt: Math.sin(elapsed * 0.3) * 0.01,
+        headPitch: Math.sin(elapsed * 0.45) * IDLE_HEAD_PITCH_AMPLITUDE,
+        headTilt: Math.sin(elapsed * 0.3) * IDLE_HEAD_TILT_AMPLITUDE,
         speakingGesture: 0,
       };
   }
