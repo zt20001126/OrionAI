@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getStatusMotionTargets } from "./useVrmAvatarAnimation";
+import { getIdleMotionTargets, getStatusMotionTargets } from "./useVrmAvatarAnimation";
 
 describe("getStatusMotionTargets", () => {
   it("adds a visible nod while listening", () => {
@@ -8,6 +8,7 @@ describe("getStatusMotionTargets", () => {
 
     expect(motion.headPitch).toBeCloseTo(0.22);
     expect(motion.headTilt).toBeCloseTo(0.11);
+    expect(motion.headYaw).toBe(0);
     expect(motion.speakingGesture).toBe(0);
   });
 
@@ -29,13 +30,31 @@ describe("getStatusMotionTargets", () => {
 
     expect(motion.headPitch).toBeCloseTo(0.06);
     expect(motion.headTilt).toBeCloseTo(Math.sin((Math.PI / 0.9) * 0.3) * 0.06);
+    expect(motion.headYaw).toBeCloseTo(Math.sin((Math.PI / 0.9) * 0.24) * 0.045);
   });
 
   it("disables body motion when reduced motion is requested", () => {
     expect(getStatusMotionTargets("speaking", 2, false)).toEqual({
       headPitch: 0,
       headTilt: 0,
+      headYaw: 0,
       speakingGesture: 0,
+    });
+  });
+
+  it("keeps idle arm sway subtle and includes the occasional weight shift", () => {
+    const motion = getIdleMotionTargets(1, 0.02, true);
+
+    expect(Math.abs(motion.armSway)).toBeLessThanOrEqual(0.008);
+    expect(Math.abs(motion.shoulderSway)).toBeLessThanOrEqual(0.01);
+    expect(motion.weightShift).toBe(0.02);
+  });
+
+  it("disables idle motion targets when reduced motion is requested", () => {
+    expect(getIdleMotionTargets(1, 0.02, false)).toEqual({
+      armSway: 0,
+      shoulderSway: 0,
+      weightShift: 0,
     });
   });
 });
