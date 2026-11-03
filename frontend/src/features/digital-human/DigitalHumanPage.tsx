@@ -15,6 +15,7 @@ import { DigitalHumanConversation } from "./components/DigitalHumanConversation"
 import { DigitalHumanApiError, synthesizeSpeech } from "./digitalHumanApi";
 import { useAssistantAudio } from "./hooks/useAssistantAudio";
 import { useMicrophoneRecorder } from "./hooks/useMicrophoneRecorder";
+import { createRequestKey } from "./requestKey";
 import type { DigitalHumanStatus } from "./types";
 import "./digitalHuman.css";
 
@@ -51,10 +52,6 @@ function prepareSpeechText(text: string): string {
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-function createRequestKey(): string {
-  return crypto.randomUUID();
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -187,12 +184,12 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
-    const requestKey =
-      idempotencyRef.current?.text === message ? idempotencyRef.current.key : createRequestKey();
-    idempotencyRef.current = { key: requestKey, text: message };
     let activeConversationId = conversationId;
 
     try {
+      const requestKey =
+        idempotencyRef.current?.text === message ? idempotencyRef.current.key : createRequestKey();
+      idempotencyRef.current = { key: requestKey, text: message };
       activeConversationId = activeConversationId ?? (await startNewConversation(true));
       if (!activeConversationId) return;
       await streamConversationMessage(
