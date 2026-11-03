@@ -1,11 +1,17 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useToast } from "../../components/ToastProvider";
-import { t } from "../../i18n/localeStore";
-import { PlatformIcon } from "../platform/PlatformIcon";
+import { useLocale } from "../../i18n/LocaleProvider";
+import { getLocaleTag, t } from "../../i18n/localeStore";
+import { PlatformIcon, type PlatformIconName } from "../platform/PlatformIcon";
 import "./demo-account-dialog.css";
 
-const DEMO_ACCOUNT = "admin@admin.com";
+const DEMO_CREDENTIALS = {
+  account: "admin@admin.com",
+  password: "admin",
+} as const;
+
+type CredentialKey = keyof typeof DEMO_CREDENTIALS;
 
 interface DemoAccountDialogProps {
   onClose: () => void;
@@ -14,8 +20,11 @@ interface DemoAccountDialogProps {
 
 export function DemoAccountDialog({ onClose, restoreFocus }: DemoAccountDialogProps) {
   const { showToast } = useToast();
+  const locale = useLocale();
+  const [copiedCredential, setCopiedCredential] = useState<CredentialKey | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
 
   const dismissDialog = useCallback(() => {
     onClose();
@@ -57,14 +66,50 @@ export function DemoAccountDialog({ onClose, restoreFocus }: DemoAccountDialogPr
     };
   }, [dismissDialog]);
 
-  async function handleCopyAccount() {
+  useEffect(
+    () => () => {
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  async function handleCopyCredential(key: CredentialKey, value: string) {
     try {
-      await navigator.clipboard.writeText(DEMO_ACCOUNT);
-      showToast("success", t("体验账号已复制。"));
+      await navigator.clipboard.writeText(value);
+      setCopiedCredential(key);
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopiedCredential(null);
+      }, 1400);
+      showToast("success", t("复制成功。"));
     } catch {
-      showToast("error", t("复制失败，请手动复制账号。"));
+      showToast("error", t("复制失败，请重试。"));
     }
   }
+
+  const credentials: {
+    key: CredentialKey;
+    value: string;
+    icon: PlatformIconName;
+    copyLabel: string;
+  }[] = [
+    {
+      key: "account",
+      value: DEMO_CREDENTIALS.account,
+      icon: "user",
+      copyLabel: t("复制账号"),
+    },
+    {
+      key: "password",
+      value: DEMO_CREDENTIALS.password,
+      icon: "lock",
+      copyLabel: t("复制密码"),
+    },
+  ];
 
   return (
     <div
@@ -74,15 +119,15 @@ export function DemoAccountDialog({ onClose, restoreFocus }: DemoAccountDialogPr
       }}
     >
       <section
-        aria-describedby="demo-account-dialog-description"
         aria-labelledby="demo-account-dialog-title"
         aria-modal="true"
         className="demo-account-dialog"
+        lang={getLocaleTag(locale)}
         ref={dialogRef}
         role="dialog"
       >
         <button
-          aria-label={t("关闭体验账号提示")}
+          aria-label={t("关闭测试账号弹窗")}
           className="demo-account-dialog__close"
           onClick={dismissDialog}
           ref={closeButtonRef}
@@ -90,29 +135,29 @@ export function DemoAccountDialog({ onClose, restoreFocus }: DemoAccountDialogPr
         >
           <PlatformIcon name="close" size={19} />
         </button>
-        <h2 id="demo-account-dialog-title">{t("体验账号")}</h2>
+        <h2 className="demo-account-dialog__title" id="demo-account-dialog-title">
+          <PlatformIcon name="flask" size={19} />
+          <span>{t("测试账号")}</span>
+        </h2>
         <div className="demo-account-dialog__credentials">
-          <div className="demo-account-dialog__field">
-            <span className="demo-account-dialog__label">{t("账号")}</span>
-            <div className="demo-account-dialog__account-row">
-              <code>{DEMO_ACCOUNT}</code>
+          {credentials.map((credential) => (
+            <div className="demo-account-dialog__credential" key={credential.key}>
+              <PlatformIcon name={credential.icon} size={20} />
+              <code>{credential.value}</code>
               <button
-                className="button button--outline demo-account-dialog__copy"
-                onClick={() => void handleCopyAccount()}
+                aria-label={credential.copyLabel}
+                className="demo-account-dialog__copy"
+                onClick={() => void handleCopyCredential(credential.key, credential.value)}
                 type="button"
               >
-                {t("复制账号")}
+                <PlatformIcon
+                  name={copiedCredential === credential.key ? "check" : "copy"}
+                  size={18}
+                />
               </button>
             </div>
-          </div>
-          <div className="demo-account-dialog__field">
-            <span className="demo-account-dialog__label">{t("密码")}</span>
-            <code>admin</code>
-          </div>
+          ))}
         </div>
-        <p id="demo-account-dialog-description">
-          {t("可体验会员功能。此账号为共享演示数据，请勿保存个人信息。")}
-        </p>
         <div className="demo-account-dialog__actions">
           <button className="button button--primary" onClick={dismissDialog} type="button">
             {t("我知道了")}

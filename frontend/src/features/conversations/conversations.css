@@ -22,12 +22,6 @@
   line-height: var(--line-height-tight);
 }
 
-.sessions-page__header p {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-secondary);
-  line-height: var(--line-height-normal);
-}
-
 .conversation-history {
   display: grid;
   min-width: 0;

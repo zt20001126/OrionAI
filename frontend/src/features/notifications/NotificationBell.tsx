@@ -10,11 +10,13 @@ import "./notifications.css";
 interface NotificationBellProps {
   account: string | null;
   isGuest: boolean;
+  variant?: "default" | "sidebar";
 }
 
 interface PopoverPosition extends CSSProperties {
   left: number;
-  top: number;
+  top: number | "auto";
+  bottom: number | "auto";
   width: number;
   maxHeight: number;
 }
@@ -23,9 +25,9 @@ const POPOVER_WIDTH = 380;
 const VIEWPORT_PADDING = 12;
 const POPOVER_GAP = 8;
 const POPOVER_MAX_HEIGHT = 520;
-const POPOVER_MIN_HEIGHT = 200;
+const POPOVER_PREFERRED_HEIGHT = 200;
 
-export function NotificationBell({ account, isGuest }: NotificationBellProps) {
+export function NotificationBell({ account, isGuest, variant = "default" }: NotificationBellProps) {
   const { hasUnread, isReady, markAsRead, notifications } = useNotifications(account, isGuest);
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<PopoverPosition>({
@@ -33,6 +35,7 @@ export function NotificationBell({ account, isGuest }: NotificationBellProps) {
     top: VIEWPORT_PADDING,
     width: POPOVER_WIDTH,
     maxHeight: POPOVER_MAX_HEIGHT,
+    bottom: "auto",
   });
   const rootRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -51,15 +54,41 @@ export function NotificationBell({ account, isGuest }: NotificationBellProps) {
     const maxLeft = Math.max(VIEWPORT_PADDING, viewportWidth - width - VIEWPORT_PADDING);
     const left = Math.max(VIEWPORT_PADDING, Math.min(rect.right - width, maxLeft));
     const availableHeight = Math.max(0, viewportHeight - VIEWPORT_PADDING * 2);
-    const minimumHeight = Math.min(POPOVER_MIN_HEIGHT, availableHeight);
-    const latestTop = Math.max(VIEWPORT_PADDING, viewportHeight - minimumHeight - VIEWPORT_PADDING);
-    const top = Math.min(rect.bottom + POPOVER_GAP, latestTop);
-    const maxHeight = Math.max(
+    const availableAbove = Math.max(0, rect.top - POPOVER_GAP - VIEWPORT_PADDING);
+    const availableBelow = Math.max(
       0,
-      Math.min(POPOVER_MAX_HEIGHT, viewportHeight - top - VIEWPORT_PADDING),
+      viewportHeight - rect.bottom - POPOVER_GAP - VIEWPORT_PADDING,
     );
 
-    setPosition({ left, top, width, maxHeight });
+    if (availableAbove >= POPOVER_PREFERRED_HEIGHT) {
+      setPosition({
+        left,
+        top: "auto",
+        bottom: viewportHeight - rect.top + POPOVER_GAP,
+        width,
+        maxHeight: Math.min(POPOVER_MAX_HEIGHT, availableAbove),
+      });
+      return;
+    }
+
+    if (availableBelow >= POPOVER_PREFERRED_HEIGHT) {
+      setPosition({
+        left,
+        top: rect.bottom + POPOVER_GAP,
+        bottom: "auto",
+        width,
+        maxHeight: Math.min(POPOVER_MAX_HEIGHT, availableBelow),
+      });
+      return;
+    }
+
+    setPosition({
+      left,
+      top: VIEWPORT_PADDING,
+      bottom: "auto",
+      width,
+      maxHeight: Math.min(POPOVER_MAX_HEIGHT, availableHeight),
+    });
   }, []);
 
   const closePopover = useCallback((restoreFocus = false) => {
@@ -93,12 +122,14 @@ export function NotificationBell({ account, isGuest }: NotificationBellProps) {
     }
 
     window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
     updatePosition();
 
     return () => {
       window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
     };
@@ -106,18 +137,25 @@ export function NotificationBell({ account, isGuest }: NotificationBellProps) {
 
   return (
     <>
-      <div className="notification-bell" ref={rootRef}>
+      <div
+        className={`notification-bell${variant === "sidebar" ? " notification-bell--sidebar" : ""}`}
+        data-tooltip={variant === "sidebar" ? t("通知中心") : undefined}
+        ref={rootRef}
+      >
         <button
           aria-controls={isOpen ? popoverId : undefined}
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           aria-label={t("通知中心")}
-          className="notification-button"
+          className={`notification-button${variant === "sidebar" ? " notification-button--sidebar" : ""}`}
           onClick={togglePopover}
           ref={triggerRef}
           type="button"
         >
           <PlatformIcon name="bell" />
+          {variant === "sidebar" && (
+            <span className="notification-button__label">{t("通知中心")}</span>
+          )}
           {hasUnread && <span aria-hidden="true" className="notification-button__unread-dot" />}
         </button>
         <span aria-hidden="true" className="notification-bell__tooltip" role="tooltip">

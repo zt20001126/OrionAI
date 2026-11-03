@@ -1,19 +1,11 @@
 import { useState, type ReactNode } from "react";
 
+import { AmbientBackground } from "../../components/AmbientBackground";
 import "./platform.css";
 
-import { ProfileMenu } from "./ProfileMenu";
 import { PlatformSidebar } from "./PlatformSidebar";
-import { MembershipEntry } from "../membership/MembershipEntry";
-import { NotificationBell } from "../notifications/NotificationBell";
 import { t } from "../../i18n/localeStore";
-import {
-  isMembershipCheckoutPath,
-  isMembershipOrderDetailPath,
-  isDigitalHumanPath,
-  platformPaths,
-  type PlatformRoute,
-} from "./platformData";
+import { isDigitalHumanPath, platformPaths, type PlatformRoute } from "./platformData";
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = "orionai:platform-sidebar-collapsed";
 
@@ -47,39 +39,6 @@ export function PlatformLayout({
   const isDigitalHumanPage = isDigitalHumanPath(pathname);
   const [sidebarPreference, setSidebarPreference] = useState(readSidebarPreference);
   const sidebarCollapsed = sidebarPreference ?? isResumePage;
-  const pageTitle =
-    pathname === platformPaths.market
-      ? "技能市场"
-      : pathname === platformPaths.mySkills
-        ? "我的技能"
-        : pathname === platformPaths.sessions
-          ? "会话记录"
-          : pathname === platformPaths.resume
-            ? "简历助手"
-            : pathname === platformPaths.reminders || pathname === platformPaths.reminderCreate
-              ? pathname === platformPaths.reminderCreate
-                ? "新建提醒"
-                : "提醒助手"
-              : pathname === platformPaths.settings
-                ? "个人设置"
-                : pathname === platformPaths.securitySettings
-                  ? "安全设置"
-                  : pathname === platformPaths.feedbackSettings
-                    ? "问题反馈"
-                    : pathname === platformPaths.chat ||
-                        pathname.startsWith(`${platformPaths.chat}/`)
-                      ? "对话助手"
-                      : pathname === platformPaths.membership
-                        ? "会员中心"
-                        : isDigitalHumanPage
-                          ? "数字人助手"
-                          : isMembershipCheckoutPath(pathname)
-                            ? "确认支付"
-                            : pathname === platformPaths.membershipOrders
-                              ? "我的订单"
-                              : isMembershipOrderDetailPath(pathname)
-                                ? "订单详情"
-                                : "OrionAI";
 
   function toggleSidebar() {
     const nextCollapsed = !sidebarCollapsed;
@@ -111,26 +70,7 @@ export function PlatformLayout({
       <div
         className={`platform-main${isConversationPage ? " platform-main--conversation" : ""}${isResumePage ? " platform-main--resume" : ""}${isSessionsPage ? " platform-main--sessions" : ""}${isDigitalHumanPage ? " platform-main--digital-human" : ""}`}
       >
-        <header className="platform-topbar">
-          <div className="platform-topbar__context">
-            <strong>{t(pageTitle)}</strong>
-          </div>
-          <div className="platform-topbar__actions">
-            <MembershipEntry onNavigate={onNavigate} />
-            <NotificationBell account={isGuest ? null : account} isGuest={isGuest} />
-            <ProfileMenu
-              account={account}
-              avatarUrl={avatarUrl}
-              isLoggingOut={isLoggingOut}
-              isGuest={isGuest}
-              nickname={nickname}
-              onLogout={onLogout}
-              onNavigate={onNavigate}
-              triggerLabel={t("更多用户选项")}
-            />
-          </div>
-        </header>
-
+        <AmbientBackground mode="app" />
         <main
           className={`platform-content${isConversationPage ? " platform-content--conversation" : ""}${isResumePage ? " platform-content--resume" : ""}${isSessionsPage ? " platform-content--sessions" : ""}${isDigitalHumanPage ? " platform-content--digital-human" : ""}`}
         >

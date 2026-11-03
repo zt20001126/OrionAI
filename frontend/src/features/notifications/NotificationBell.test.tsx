@@ -66,6 +66,17 @@ describe("NotificationBell", () => {
     expect(trigger).toHaveFocus();
   });
 
+  it("renders a sidebar label and opens the existing notification popover", async () => {
+    render(<NotificationBell account={null} isGuest variant="sidebar" />);
+
+    const trigger = screen.getByRole("button", { name: "通知中心" });
+    expect(trigger).toHaveTextContent("通知中心");
+    expect(trigger.parentElement).toHaveAttribute("data-tooltip", "通知中心");
+
+    fireEvent.click(trigger);
+    expect(await screen.findByRole("dialog", { name: "通知中心" })).toBeInTheDocument();
+  });
+
   it("shows the empty state for a user with no notifications", async () => {
     render(<NotificationBell account={null} isGuest />);
     fireEvent.click(screen.getByRole("button", { name: "通知中心" }));
@@ -97,6 +108,63 @@ describe("NotificationBell", () => {
       expect(left + width).toBeLessThanOrEqual(308);
       expect(top).toBeGreaterThanOrEqual(12);
       expect(top + maxHeight).toBeLessThanOrEqual(268);
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
+    }
+  });
+
+  it.each([
+    [1920, 1080],
+    [1366, 768],
+    [1280, 720],
+  ])(
+    "opens above the sidebar trigger and keeps a gap at %i×%i",
+    async (viewportWidth, viewportHeight) => {
+      const originalWidth = window.innerWidth;
+      const originalHeight = window.innerHeight;
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: viewportWidth });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: viewportHeight });
+
+      try {
+        render(<NotificationBell account={null} isGuest variant="sidebar" />);
+        const trigger = screen.getByRole("button", { name: "通知中心" });
+        vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(
+          new DOMRect(0, viewportHeight - 72, 232, 40),
+        );
+        fireEvent.click(trigger);
+
+        const popover = await screen.findByRole("dialog", { name: "通知中心" });
+
+        expect(popover.style.top).toBe("auto");
+        expect(Number.parseFloat(popover.style.left)).toBe(12);
+        expect(Number.parseFloat(popover.style.bottom)).toBe(80);
+        expect(Number.parseFloat(popover.style.width)).toBe(380);
+        expect(Number.parseFloat(popover.style.maxHeight)).toBe(520);
+      } finally {
+        Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+        Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
+      }
+    },
+  );
+
+  it("keeps the popover inside a very short viewport when neither side has room", async () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 180 });
+
+    try {
+      render(<NotificationBell account={null} isGuest variant="sidebar" />);
+      const trigger = screen.getByRole("button", { name: "通知中心" });
+      vi.spyOn(trigger, "getBoundingClientRect").mockReturnValue(new DOMRect(0, 70, 232, 40));
+      fireEvent.click(trigger);
+
+      const popover = await screen.findByRole("dialog", { name: "通知中心" });
+
+      expect(popover.style.top).toBe("12px");
+      expect(Number.parseFloat(popover.style.maxHeight)).toBe(156);
+      expect(popover.style.bottom).toBe("auto");
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
       Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });

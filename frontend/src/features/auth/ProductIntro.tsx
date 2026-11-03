@@ -1,5 +1,5 @@
 import { PlatformIcon, type PlatformIconName } from "../platform/PlatformIcon";
-import { AuthWorkspacePreview } from "./AuthWorkspacePreview";
+import { AuthSkillsPreview } from "./AuthSkillsPreview";
 import { t } from "../../i18n/localeStore";
 
 const capabilities: {
@@ -8,23 +8,23 @@ const capabilities: {
   icon: PlatformIconName;
 }[] = [
   {
-    title: "丰富的技能市场",
-    description: "发现不同领域的 AI 能力",
+    title: "丰富的智能体",
+    description: "多种专业 AI 助手",
     icon: "market",
   },
   {
-    title: "专属智能体",
-    description: "选择适合任务的智能助手",
-    icon: "assistant",
-  },
-  {
-    title: "实用 AI 工具",
-    description: "高效处理各类日常任务",
+    title: "实用工具",
+    description: "轻松处理日常任务",
     icon: "tools",
   },
   {
-    title: "持续扩展",
-    description: "更多应用场景不断加入",
+    title: "智能交互",
+    description: "自然流畅的 AI 对话",
+    icon: "sessions",
+  },
+  {
+    title: "持续更新",
+    description: "探索更多 AI 应用",
     icon: "agents",
   },
 ];
@@ -39,9 +39,9 @@ export function ProductIntro() {
         </div>
 
         <div className="product-copy">
-          <span className="product-kicker">{t("一站式 AI 智能应用平台")}</span>
-          <h1 id="product-title">{t("你的 AI 全能工作空间")}</h1>
-          <p>{t("汇集多种 AI 智能体与实用工具，让不同问题都能找到合适的解决方式。")}</p>
+          <span className="product-kicker">{t("一站式 AI 智能体与工具平台")}</span>
+          <h1 id="product-title">{t("探索 AI 的更多可能")}</h1>
+          <p>{t("从智能对话到专业任务处理，发现适合不同场景的 AI 智能体与工具。")}</p>
         </div>
 
         <ul aria-label={t("OrionAI 核心能力")} className="product-capabilities">
@@ -58,7 +58,7 @@ export function ProductIntro() {
           ))}
         </ul>
 
-        <AuthWorkspacePreview />
+        <AuthSkillsPreview />
       </div>
     </aside>
   );

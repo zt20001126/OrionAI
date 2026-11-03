@@ -206,6 +206,9 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         requestKey,
       );
       const persistedHistory = await refreshMessages(activeConversationId);
+      // 持久化消息已加载，移除临时流式气泡，避免 TTS 期间重复展示同一回复。
+      setStreamedAssistantText("");
+      assistantStreamRef.current = "";
       setIsSubmitting(false);
       setDraft("");
       setPendingMessage(null);
