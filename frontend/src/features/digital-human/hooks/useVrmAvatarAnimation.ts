@@ -8,7 +8,8 @@ import type { DigitalHumanStatus } from "../types";
 const BLINK_DURATION_SECONDS = 0.18;
 const BLINK_MIN_INTERVAL_SECONDS = 2.8;
 const BLINK_INTERVAL_VARIANCE_SECONDS = 2.6;
-const UPPER_ARM_RELAX_ANGLE = 0.82;
+const UPPER_ARM_RELAX_ANGLE = 1.25;
+const POSE_BLEND_SPEED = 4;
 const MOUTH_EXPRESSIONS = [VRMExpressionPresetName.Aa, VRMExpressionPresetName.Oh];
 
 interface BlinkState {
@@ -20,10 +21,23 @@ interface BreathingRig {
   chest: Object3D | null;
   chestBaseRotation: number;
   elapsed: number;
+  head: Object3D | null;
+  headBasePitch: number;
+  headBaseTilt: number;
   leftUpperArm: Object3D | null;
   leftUpperArmBaseRotation: number;
   rightUpperArm: Object3D | null;
   rightUpperArmBaseRotation: number;
+  smoothedArmRelaxAngle: number;
+  smoothedHeadPitch: number;
+  smoothedHeadTilt: number;
+  smoothedSpeakingGesture: number;
+}
+
+interface StatusMotionTargets {
+  headPitch: number;
+  headTilt: number;
+  speakingGesture: number;
 }
 
 /** 驱动 VRM 的眨眼、轻微呼吸和音量关联嘴型，不处理语音播放。 */
@@ -38,29 +52,48 @@ export function useVrmAvatarAnimation(
     chest: null,
     chestBaseRotation: 0,
     elapsed: 0,
+    head: null,
+    headBasePitch: 0,
+    headBaseTilt: 0,
     leftUpperArm: null,
     leftUpperArmBaseRotation: 0,
     rightUpperArm: null,
     rightUpperArmBaseRotation: 0,
+    smoothedArmRelaxAngle: 0,
+    smoothedHeadPitch: 0,
+    smoothedHeadTilt: 0,
+    smoothedSpeakingGesture: 0,
   });
   const smoothedMouth = useRef(0);
 
   useEffect(() => {
     const chest = vrm.humanoid?.getNormalizedBoneNode("chest") ?? null;
+    const head = vrm.humanoid?.getNormalizedBoneNode("head") ?? null;
     const leftUpperArm = vrm.humanoid?.getNormalizedBoneNode("leftUpperArm") ?? null;
     const rightUpperArm = vrm.humanoid?.getNormalizedBoneNode("rightUpperArm") ?? null;
     breathingRig.current = {
       chest,
       chestBaseRotation: chest?.rotation.x ?? 0,
       elapsed: 0,
+      head,
+      headBasePitch: head?.rotation.x ?? 0,
+      headBaseTilt: head?.rotation.z ?? 0,
       leftUpperArm,
       leftUpperArmBaseRotation: leftUpperArm?.rotation.z ?? 0,
       rightUpperArm,
       rightUpperArmBaseRotation: rightUpperArm?.rotation.z ?? 0,
+      smoothedArmRelaxAngle: 0,
+      smoothedHeadPitch: 0,
+      smoothedHeadTilt: 0,
+      smoothedSpeakingGesture: 0,
     };
 
     return () => {
       if (chest) chest.rotation.x = breathingRig.current.chestBaseRotation;
+      if (head) {
+        head.rotation.x = breathingRig.current.headBasePitch;
+        head.rotation.z = breathingRig.current.headBaseTilt;
+      }
       if (leftUpperArm) leftUpperArm.rotation.z = breathingRig.current.leftUpperArmBaseRotation;
       if (rightUpperArm) rightUpperArm.rotation.z = breathingRig.current.rightUpperArmBaseRotation;
     };
@@ -105,16 +138,31 @@ export function useVrmAvatarAnimation(
     if (mouthExpression) manager?.setValue(mouthExpression, smoothedMouth.current);
 
     const rig = breathingRig.current;
+    rig.elapsed += delta;
+
+    const targets = getStatusMotionTargets(status, rig.elapsed, !prefersReducedMotion.current);
+    const blend = Math.min(1, delta * POSE_BLEND_SPEED);
+    rig.smoothedArmRelaxAngle += (UPPER_ARM_RELAX_ANGLE - rig.smoothedArmRelaxAngle) * blend;
+    rig.smoothedHeadPitch += (targets.headPitch - rig.smoothedHeadPitch) * blend;
+    rig.smoothedHeadTilt += (targets.headTilt - rig.smoothedHeadTilt) * blend;
+    rig.smoothedSpeakingGesture +=
+      (targets.speakingGesture - rig.smoothedSpeakingGesture) * blend;
+
+    if (rig.head) {
+      rig.head.rotation.x = rig.headBasePitch + rig.smoothedHeadPitch;
+      rig.head.rotation.z = rig.headBaseTilt + rig.smoothedHeadTilt;
+    }
+
     if (rig.leftUpperArm) {
-      rig.leftUpperArm.rotation.z = rig.leftUpperArmBaseRotation - UPPER_ARM_RELAX_ANGLE;
+      rig.leftUpperArm.rotation.z = rig.leftUpperArmBaseRotation + rig.smoothedArmRelaxAngle;
     }
     if (rig.rightUpperArm) {
-      rig.rightUpperArm.rotation.z = rig.rightUpperArmBaseRotation + UPPER_ARM_RELAX_ANGLE;
+      rig.rightUpperArm.rotation.z =
+        rig.rightUpperArmBaseRotation - rig.smoothedArmRelaxAngle + rig.smoothedSpeakingGesture;
     }
 
     if (rig.chest) {
-      if (!prefersReducedMotion.current && (status === "idle" || status === "thinking")) {
-        rig.elapsed += delta;
+      if (!prefersReducedMotion.current) {
         rig.chest.rotation.x = rig.chestBaseRotation + Math.sin(rig.elapsed * 1.4) * 0.012;
       } else {
         rig.chest.rotation.x = rig.chestBaseRotation;
@@ -123,6 +171,37 @@ export function useVrmAvatarAnimation(
 
     vrm.update(delta);
   });
+}
+
+export function getStatusMotionTargets(
+  status: DigitalHumanStatus,
+  elapsed: number,
+  motionEnabled: boolean,
+): StatusMotionTargets {
+  if (!motionEnabled) return { headPitch: 0, headTilt: 0, speakingGesture: 0 };
+
+  switch (status) {
+    case "listening":
+      return {
+        headPitch: Math.sin(elapsed * 1.25) * 0.035,
+        headTilt: 0.012,
+        speakingGesture: 0,
+      };
+    case "thinking":
+      return { headPitch: 0.07, headTilt: -0.06, speakingGesture: 0 };
+    case "speaking":
+      return {
+        headPitch: Math.sin(elapsed * 1.8) * 0.015,
+        headTilt: Math.sin(elapsed * 0.9) * 0.01,
+        speakingGesture: Math.sin(elapsed * 2.2) * 0.1,
+      };
+    case "idle":
+      return {
+        headPitch: Math.sin(elapsed * 0.45) * 0.006,
+        headTilt: Math.sin(elapsed * 0.3) * 0.01,
+        speakingGesture: 0,
+      };
+  }
 }
 
 function nextBlinkAmount(blink: BlinkState, delta: number): number {
