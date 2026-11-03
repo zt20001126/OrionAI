@@ -23,7 +23,7 @@
   4. 现有会话 SSE 路由按会话技能分派数字人 Runtime，逐段发送文本增量，并按现有机制保存用户与助手文字消息。
   5. SSE 正常结束后，前端读取已保存的助手文本，请求 TTS；浏览器播放返回音频，并通过 Web Audio API 的音量分析驱动独立数字人组件的嘴部开合。
   6. 页面用数字人模块提供的过滤列表恢复历史会话，消息正文仍从现有消息接口读取。
-- **业务规则与边界：** 一段时间只允许一个录音、ASR、对话流或 TTS 播放任务；麦克风录音时长前端限制为 120 秒；上传大小和 Provider 超时由后端限制；没有有效转写文本时不得创建用户消息；语音失败不丢失已经保存的文本消息。
+- **业务规则与边界：** 一段时间只允许一个录音、ASR、对话流或 TTS 播放任务；麦克风单次录音时长限制为 30 秒；上传大小和 Provider 超时由后端限制；没有有效转写文本时不得创建用户消息；语音失败不丢失已经保存的文本消息。
 - **异常行为：** 麦克风未授权或浏览器不支持 MediaRecorder 时显示可读错误；ASR、LLM、TTS 分别有独立失败提示和重试入口；LLM 流失败时沿用 SSE `end.status=failed` 语义；TTS 失败时仍保留文字答案并将角色状态复位。
 - **权限与数据范围：** 新增语音和历史接口均基于 `CurrentUser`；会话创建、消息发送继续经过现有技能准入和会员依赖；历史查询仅返回当前用户且 `skill_code=digital_human` 的会话。
 - **约束：** 不持久化录音和合成音频；ASR 转写作为普通 `user` 文本 part，助手回复作为普通 `assistant` 文本 part；不改现有 API SSE 事件封装；不增加数据库表或字段。
@@ -53,9 +53,9 @@
 |---|---|---|
 | 内建技能代码 | `digital_human`，类型 `agent` | 复用 skills / user_skills 权限和会话 `skill_code` 绑定 |
 | ASR 模型 | `qwen-audio-3.1-asr-flash` 非流式 HTTP | 支持短音频 Base64 Data URI，服务端无需上传到可公开访问的存储 |
-| TTS 模型 | `cosyvoice-v3-flash` 非流式 HTTP，音频格式 mp3，默认音色配置化 | 返回临时下载地址后由后端立即拉取并代理音频字节 |
-| 语音大小 | 后端原始上传上限 7 MiB；TTS 响应上限 8 MiB | Base64 膨胀后仍留在较小请求范围；具体值由配置控制 |
-| 录音时长 | 前端 120 秒；ASR Provider 还会执行自身时长约束 | 不引入音频解码依赖；超时和模型限制失败均转为可读错误 |
+| TTS 模型 | `qwen-audio-3.1-tts-flash` 非流式 HTTP，音频格式 mp3 | 返回临时下载地址后由后端立即拉取并代理音频字节 |
+| 语音大小 | 后端原始上传上限 7 MiB；TTS 响应上限 8 MiB | 固定在数字人模块代码中，不从环境变量覆盖 |
+| 录音时长 | 前端单次录音最长 30 秒 | 浏览器录音到时自动停止；不引入音频解码依赖 |
 | 识别后的发送 | 转写填入草稿，由用户确认发送 | 避免误识别直接触发 Agent 和消息持久化 |
 | SSE 幂等键 | 数字人页面每轮生成 UUID，通过可选 `Idempotency-Key` 传递 | 复用 SSE 路由且避免双击、重复提交及传输重放造成重复执行 |
 
@@ -71,7 +71,7 @@
 | `backend/app/modules/agents/registry.py`、`backend/app/core/application.py` | AgentRegistry 按技能代码调度；应用 lifespan 初始化模型、Checkpointer 和技能 | 注册数字人专属 Runtime，并在应用启动时幂等确保技能存在 |
 | `backend/app/infrastructure/database/checkpointer.py`、`agent/memory/thread.py` | PostgreSQL LangGraph Checkpointer 连接生命周期；线程 ID 区分用户、技能、会话 | 继续复用单一 Checkpointer；数字人线程按 `digital_human` 隔离 |
 | `backend/app/shared/streaming/response.py`、`events.py`、`encoder.py` | SSE 的 `start`、`message`、`heartbeat`、`end` 外壳；`message.data.type` 标识业务消息 | 原样复用；不在此协议中塞 Base64 音频，音频单独使用 HTTP 二进制响应 |
-| `backend/app/core/config.py`、`.env.example` | Pydantic Settings / SecretStr 配置；已有百炼 API Key、Workspace OpenAI-compatible URL 和模型设置，当前被 memory training 使用 | 复用 API Key 与 Workspace 域名来源；补充 ASR/TTS 模型、超时和大小配置，不把密钥送到前端 |
+| `backend/app/core/config.py`、`.env.example` | Pydantic Settings / SecretStr 配置；已有百炼 API Key、Workspace OpenAI-compatible URL 和模型设置，当前被 memory training 使用 | 复用 API Key 与 Workspace 域名来源；语音模型、音色、超时和上限固定在数字人模块代码中，不把密钥送到前端 |
 | `backend/pyproject.toml` | 当前依赖含 `httpx`、`python-multipart`、SQLAlchemy、LangGraph | ASR/TTS 可用现有 HTTP 和表单依赖；预期无需新增运行依赖 |
 | `frontend/src/features/conversations/conversationApi.ts` | 同源 `/api` Cookie 请求、消息类型、SSE reader 和 `end` 状态检查 | 复用会话创建、消息读取和 SSE 消费逻辑；补充可选幂等请求头的传递 |
 | `frontend/src/features/conversations/ConversationPage.tsx`、`conversations.css` | 通用对话页和消息呈现，内嵌 SSE、题卡与输入状态处理 | 参考消息与 SSE 行为；不将数字人状态、录音或音频播放逻辑并入通用聊天页 |
@@ -154,8 +154,7 @@ flowchart LR
 | `backend/app/modules/skills/repository.py` | 修改 | 增加幂等注册 `digital_human` 已发布 Agent 技能的方法 | 技能目录由现有 skills 模块拥有；只增加一条定义，不改通用技能行为 |
 | `backend/app/core/application.py` | 修改 | 生命周期注册数字人技能、构造专属 Runtime 并添加 AgentRegistry；注册数字人领域错误响应映射 | 符合现有组合根集中组装 Agent 和异常处理的方式 |
 | `backend/app/api/router.py` | 修改 | 聚合数字人 Router | 保持模块路由集中注册 |
-| `backend/app/core/config.py` | 修改 | 补充 ASR/TTS 模型、超时、音频字节/文本上限配置；敏感值继续用 `SecretStr` | 遵循现有 Pydantic Settings 配置方式 |
-| `.env.example` | 修改 | 增加非密钥的模型、限制和超时示例；不填真实 API Key | 让部署者明确可调配置，不泄露凭据 |
+| `backend/app/modules/digital_human/constants.py` | 新增 | 固定语音模型、音色、超时、音频字节/文本上限；不增加语音环境变量 | 阿里云密钥仍复用 `Settings` 中的 SecretStr |
 | `backend/app/modules/conversations/router.py` | 修改 | 为普通消息 SSE 接受可选 `Idempotency-Key` | 只给主动选择该能力的客户端增加防重；原请求体和 SSE 格式不变 |
 | `backend/app/modules/conversations/dependencies.py` | 修改 | 为带幂等头的请求注入既有 Redis 客户端/幂等存储 | 复用现有 Redis 基础设施 |
 | `backend/app/modules/conversations/service.py` | 修改 | 处理幂等状态预留、完成记录、重复请求冲突/重放；不改变无头请求逻辑 | 保障重复请求不重复持久化或调用 Runtime |
@@ -243,7 +242,7 @@ frontend/src/app/App.tsx                             # 修改：页面路由
 | `GET /api/digital-human/conversations?limit&offset` | 新增 | `digital_human/router/router.py` | 返回当前用户的数字人会话摘要、分页信息；不返回其他技能会话 | 通用 `GET /api/conversations` 不支持 skill filter；前端过滤会漏掉跨页记录，故由数字人模块提供严格过滤列表 | 新路径，仅新页面使用 |
 | `GET /api/conversations/{conversation_id}/messages?limit&offset` | 保持不变 | `modules/conversations/router.py` | 继续返回当前用户会话消息和 `skill_code`；前端校验 skill_code 为 `digital_human` | 复用消息分页与所有权校验 | 不改变既有调用 |
 | `POST /api/conversations/{conversation_id}/messages/stream` | 可选头扩展 | `modules/conversations/router.py`、`service.py` | 请求体和 SSE 契约不变；数字人传 `Idempotency-Key: <UUID>`。同键处理中 409；完成后重放已持久化结果；不带头请求走当前行为 | 当前 SSE 已满足文本流，不需另建协议；现接口缺少请求去重，增加可选键以满足防重 NFR | 现有客户端不带头时兼容；数字人客户端必须带头并在同一次发送重试中复用该键 |
-| `POST /api/digital-human/speech/recognitions` | 新增 | `digital_human/router/router.py` | `multipart/form-data` 字段 `file`；成功返回 `{text, request_id?}`；空转写返回空字符串或受控验证错误；超限 413、格式错误 422、Provider 不可用 503 | 共享 SSE 无法接收上传音频；Provider 适配必须由后端执行 | 仅新页面调用；需要 Cookie 认证、Origin 校验和会员准入 |
+| `POST /api/digital-human/speech/recognitions` | 新增 | `digital_human/router/router.py` | `multipart/form-data` 字段 `file`；成功返回 `{text}`；空转写受控验证错误；超限 413、格式错误 422、Provider 不可用 503 | 共享 SSE 无法接收上传音频；Provider 适配必须由后端执行 | 仅新页面调用；需要 Cookie 认证、Origin 校验和会员准入 |
 | `POST /api/digital-human/speech/syntheses` | 新增 | `digital_human/router/router.py` | JSON `{text}`；成功返回 `audio/mpeg` 二进制，带 `Cache-Control: no-store`；校验失败 422、超时/上游失败 503 | SSE JSON envelope 不是音频传输协议；避免改 SSE 或泄漏百炼临时 URL | 仅新页面调用；浏览器创建临时 Blob URL 并在播放后释放 |
 | `/api/digital-human/*` | 新增认证保护 | 新模块依赖 | 使用 `CurrentUser`、`validate_origin` 和现有会员依赖；错误不包含密钥、上游响应全文或堆栈 | 沿用已有认证、来源校验和会员机制 | 未登录、未授权或无会员时沿用一致错误状态 |
 
@@ -275,14 +274,14 @@ frontend/src/app/App.tsx                             # 修改：页面路由
 - 默认模型建议 `qwen-audio-3.1-asr-flash` 非流式 HTTP。官方接口为工作空间域名下的 `/api/v1/services/aigc/multimodal-generation/generation`，输入支持音频 URL 或 Base64 Data URI；成功结果从 `output.text` 读取。参见[Qwen-Audio-ASR HTTP API](https://help.aliyun.com/zh/model-studio/qwen-audio-asr-http-api)。
 - 浏览器优先使用受支持的 MediaRecorder MIME 类型；后端依据真实 `Content-Type` 映射为 MIME Data URI 和音频格式，不把用户提供的任意 MIME 原样作为外部 URL 或任意文件类型。
 - 后端以受限大小读取上传、在请求生命周期内持有 bytes，向百炼发送 Base64 Data URI；不创建 OSS 对象、不落业务文件、不记录音频/Base64。设置最大原始字节 7 MiB、ASR 请求超时例如 60 秒；在 Provider/Settings 中配置，测试可注入 Mock HTTP transport。
-- 前端录音上限建议 120 秒；模型的录音时长规格仍需以部署所选版本的官方规格为准。ASR 失败、无语音、空文本、超时、限流和无效上游 JSON 转为稳定模块错误，不向客户端透传 Authorization 或完整上游 body。
+- 前端单次录音上限为 30 秒；请求体仍由后端限制，避免超大 multipart 在解析阶段占用过多资源。ASR 失败、无语音、空文本、超时、限流和无效上游 JSON 转为稳定模块错误，不向客户端透传 Authorization 或完整上游 body。
 
 ### TTS Provider
 
-- `providers/tts.py` 定义 `synthesize(text) -> bytes`；默认模型建议 `cosyvoice-v3-flash`，非流式生成 mp3，音色 ID 从后端配置读取。官方 HTTP 请求使用同一百炼工作空间专属域名和 `SpeechSynthesizer` API，响应提供临时 `output.audio.url`。参见[非实时语音合成用户指南](https://help.aliyun.com/zh/model-studio/non-realtime-tts-user-guide)和[CosyVoice HTTP API 参考](https://help.aliyun.com/zh/model-studio/cosyvoice-tts-http-api)。
+- `providers/tts.py` 定义 `synthesize(text) -> bytes`；使用 `qwen-audio-3.1-tts-flash` 非流式生成 mp3，音色 ID 固定在数字人模块代码中。`longanyang` 属于 CosyVoice，不能与 Qwen-Audio 3.1 混用；为保持男性普通话音色，使用 Qwen 支持的 `xunanchuan_v3.1`。官方 HTTP 请求使用百炼工作空间专属域名和 `SpeechSynthesizer` API，响应提供临时 `output.audio.url`。参见[Qwen-Audio-TTS HTTP API](https://help.aliyun.com/zh/model-studio/qwen-audio-tts-http-api)和[Qwen-Audio-TTS 音色列表](https://help.aliyun.com/zh/model-studio/qwen-audio-tts-voice-list)。
 - 由于临时 URL 有效期有限且可能跨域，不将其返回浏览器；后端在超时和大小限制内下载音频，再以 `audio/mpeg` 响应。仅接受预期 HTTPS 百炼/OSS 结果域名，避免将上游返回 URL 当作任意地址访问；限制 TTS 文本长度和结果字节数。
-- 使用 `httpx.AsyncClient` 异步请求，分离模型请求和音频下载超时；Provider API Key 仅通过 `Settings.aliyun_bailian_api_key` 的 SecretStr 获取，模型 ID、音色、超时和上限是普通服务端配置。
-- 已存在的 `ALIYUN_BAILIAN_BASE_URL` 是 OpenAI-compatible URL。Provider 应从已校验 URL 取得工作空间域名 origin，再拼接官方语音路径；不得直接在 `.../compatible-mode/v1` 后拼接造成错误路径。新模型及音频边界变量加入 Settings 和 `.env.example`，不另存或暴露密钥。
+- 使用 `httpx.AsyncClient` 异步请求，分离模型请求和音频下载超时；Provider API Key 仅通过 `Settings.aliyun_bailian_api_key` 的 SecretStr 获取，模型 ID、音色、超时和上限是数字人模块内的代码常量。
+- 已存在的 `ALIYUN_BAILIAN_BASE_URL` 是 OpenAI-compatible URL。Provider 应从已校验 URL 取得工作空间域名 origin，再拼接官方语音路径；不得直接在 `.../compatible-mode/v1` 后拼接造成错误路径。语音参数不增加到 `.env.example`，百炼 API Key 仍由后端环境变量提供。
 
 ## 11. 数字人动画与前端交互方案
 

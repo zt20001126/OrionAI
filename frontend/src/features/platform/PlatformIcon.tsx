@@ -27,7 +27,8 @@ export type PlatformIconName =
   | "collapse"
   | "expand"
   | "message"
-  | "send";
+  | "send"
+  | "microphone";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -123,6 +124,12 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
       {name === "chevron" && <path d="m7 10 5 5 5-5" />}
       {name === "arrow" && <path d="M5 12h14m-6-6 6 6-6 6" />}
       {name === "close" && <path d="m6 6 12 12M18 6 6 18" />}
+      {name === "microphone" && (
+        <>
+          <rect x="9" y="3.5" width="6" height="11" rx="3" />
+          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3m-4 0h8" />
+        </>
+      )}
       {name === "assistant" && (
         <>
           <rect x="4" y="7" width="16" height="12" rx="3" />

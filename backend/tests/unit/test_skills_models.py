@@ -13,7 +13,11 @@ from sqlalchemy.schema import CreateTable
 from app.infrastructure.database.base import Base
 from app.modules.auth.models import User
 from app.modules.skills.models import Skill, UserSkill
-from app.modules.skills.repository import ensure_general_chat_skill, ensure_image_agent_skill
+from app.modules.skills.repository import (
+    ensure_digital_human_skill,
+    ensure_general_chat_skill,
+    ensure_image_agent_skill,
+)
 
 
 def test_skills_models_match_postgresql_schema() -> None:
@@ -194,6 +198,36 @@ def test_image_agent_seed_adds_the_published_market_skill_idempotently() -> None
             assert (
                 session.scalar(
                     select(func.count()).select_from(Skill).where(Skill.code == "image_agent")
+                )
+                == 1
+            )
+    finally:
+        engine.dispose()
+
+
+def test_digital_human_skill_seed_is_idempotent_and_preserves_admin_changes() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as session:
+            ensure_digital_human_skill(session)
+            skill = session.scalar(select(Skill).where(Skill.code == "digital_human"))
+            assert skill is not None
+            skill_id = skill.id
+            skill.status = "disabled"
+            skill.name = "管理员暂时停用"
+            session.commit()
+
+            ensure_digital_human_skill(session)
+            skill = session.scalar(select(Skill).where(Skill.code == "digital_human"))
+
+            assert skill is not None
+            assert skill.id == skill_id
+            assert skill.status == "disabled"
+            assert skill.name == "管理员暂时停用"
+            assert (
+                session.scalar(
+                    select(func.count()).select_from(Skill).where(Skill.code == "digital_human")
                 )
                 == 1
             )

@@ -1,12 +1,16 @@
 """编排会话权限范围、消息持久化和 BaseAgent 调用。"""
 
 import asyncio
+import hashlib
+import json
 import logging
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import partial
+from uuid import UUID
 
 import anyio
 from pydantic import ValidationError
@@ -24,6 +28,7 @@ from app.agent.schemas import (
     AgentTextDelta,
     QuestionPayload,
 )
+from app.infrastructure.redis.idempotency import IdempotencyStore, IdempotencyStoreError
 from app.modules.auth.models import User
 from app.modules.conversations import repository
 from app.modules.conversations.errors import (
@@ -46,6 +51,7 @@ from app.modules.conversations.schemas import (
     QuestionAnswersRequest,
     QuestionContentPart,
     SubmittedQuestionAnswer,
+    TextContentPart,
 )
 from app.modules.conversations.title import (
     ConversationTitleGenerator,
@@ -58,6 +64,7 @@ from app.shared.streaming import EventType, StreamEvent
 logger = logging.getLogger(__name__)
 MAX_PAGE_SIZE = 100
 DEFAULT_PAGE_SIZE = 50
+IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 
 
 @dataclass(frozen=True)
@@ -70,6 +77,9 @@ class PreparedConversationTurn:
     message_id: int
     should_generate_title: bool
     resume_answers: dict[str, str] | None = None
+    idempotency_key: str | None = None
+    idempotency_token: str | None = None
+    cached_response_message: Message | None = None
 
 
 class ConversationService:
@@ -82,12 +92,14 @@ class ConversationService:
         agent: AgentRuntime | None,
         title_generator: ConversationTitleGenerator | None = None,
         agent_registry: dict[str, AgentRuntime] | None = None,
+        idempotency_store: IdempotencyStore | None = None,
     ) -> None:
         self._session = session
         self._agents = dict(agent_registry or {})
         if agent is not None:
             self._agents.setdefault(skills_repository.GENERAL_CHAT_SKILL_CODE, agent)
         self._title_generator = title_generator
+        self._idempotency_store = idempotency_store
 
     def create_conversation(
         self,
@@ -218,10 +230,65 @@ class ConversationService:
         user: User,
         conversation_id: int,
         message_text: str,
+        *,
+        idempotency_key: str | None = None,
     ) -> PreparedConversationTurn:
         """在 SSE 响应头发送前完成普通消息的业务校验和用户消息写入。"""
 
-        return self._prepare_message_turn(user, conversation_id, message_text)
+        if idempotency_key is None:
+            return self._prepare_message_turn(user, conversation_id, message_text)
+        try:
+            UUID(idempotency_key)
+        except ValueError:
+            raise ConversationValidationError("幂等键格式无效。") from None
+
+        conversation = self._get_conversation_safely(user.id, conversation_id)
+        self._require_skill(user.id, conversation.skill_code)
+        token, cached_message, retry_message = self._reserve_idempotency_key(
+            user_id=user.id,
+            conversation_id=conversation_id,
+            idempotency_key=idempotency_key,
+            message_text=message_text,
+        )
+        if cached_message is not None:
+            return PreparedConversationTurn(
+                user_id=user.id,
+                conversation=conversation,
+                message_text=message_text,
+                message_id=cached_message.id,
+                should_generate_title=False,
+                idempotency_key=idempotency_key,
+                cached_response_message=cached_message,
+            )
+
+        if retry_message is not None:
+            return PreparedConversationTurn(
+                user_id=user.id,
+                conversation=conversation,
+                message_text=message_text,
+                message_id=retry_message.id,
+                should_generate_title=False,
+                idempotency_key=idempotency_key,
+                idempotency_token=token,
+            )
+
+        try:
+            prepared = self._prepare_message_turn(user, conversation_id, message_text)
+        except Exception:
+            self._release_idempotency_key(
+                user_id=user.id,
+                conversation_id=conversation_id,
+                idempotency_key=idempotency_key,
+                token=token,
+            )
+            raise
+        prepared = replace(
+            prepared,
+            idempotency_key=idempotency_key,
+            idempotency_token=token,
+        )
+        self._bind_idempotency_user_message(prepared)
+        return prepared
 
     def prepare_answer_stream(
         self,
@@ -239,8 +306,25 @@ class ConversationService:
     ) -> AsyncIterator[StreamEvent]:
         """将 Agent 文本增量转为 SSE 消息，并在成功后保存正式结果。"""
 
+        if prepared.cached_response_message is not None:
+            cached_message = self._message_response(prepared.cached_response_message)
+            for part in cached_message.content.parts:
+                if isinstance(part, TextContentPart) and part.text:
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data={"type": "text_delta", "content": part.text},
+                    )
+                elif isinstance(part, QuestionContentPart):
+                    payload = ConversationQuestionEvent(message=cached_message)
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data=payload.model_dump(mode="json"),
+                    )
+            return
+
         agent = self._runtime_for(prepared.conversation)
         if agent is None:
+            self._fail_idempotency_key(prepared)
             raise ConversationUnavailableError
 
         title_task = (
@@ -279,7 +363,12 @@ class ConversationService:
                 prepared,
                 agent_response,
             )
+            self._complete_idempotency_key(
+                prepared,
+                assistant_message_id=int(persisted_turn.message.id),
+            )
         except asyncio.CancelledError:
+            self._fail_idempotency_key(prepared)
             if title_task is not None:
                 title_task.cancel()
                 with suppress(asyncio.CancelledError, Exception):
@@ -289,6 +378,7 @@ class ConversationService:
                     await self._finish_stream_title(prepared, None)
             raise
         except Exception as error:
+            self._fail_idempotency_key(prepared)
             await self._finish_stream_title(prepared, title_task)
             self._raise_agent_error(error)
 
@@ -332,6 +422,208 @@ class ConversationService:
             message_id=user_message.id,
             should_generate_title=should_generate_title,
         )
+
+    def _reserve_idempotency_key(
+        self,
+        *,
+        user_id: int,
+        conversation_id: int,
+        idempotency_key: str,
+        message_text: str,
+    ) -> tuple[str, Message | None, Message | None]:
+        """原子占用请求键；完成时重放，失败时重用原用户消息安全重试。"""
+
+        if self._idempotency_store is None:
+            raise ConversationUnavailableError
+        redis_key = self._idempotency_key(user_id, conversation_id, idempotency_key)
+        request_hash = hashlib.sha256(message_text.encode("utf-8")).hexdigest()
+        token = secrets.token_urlsafe(18)
+        state = {"request_hash": request_hash, "state": "processing", "token": token}
+        try:
+            reserved = self._idempotency_store.reserve(
+                redis_key,
+                json.dumps(state),
+                ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
+            )
+            if reserved:
+                return token, None, None
+            raw = self._idempotency_store.get(redis_key)
+        except IdempotencyStoreError:
+            logger.exception("conversation_idempotency_reserve_failed")
+            raise ConversationUnavailableError from None
+
+        if not raw:
+            raise ConversationConflictError("本次发送状态已过期，请重新发送。")
+        try:
+            existing = json.loads(raw)
+        except (TypeError, json.JSONDecodeError):
+            raise ConversationUnavailableError from None
+        if not isinstance(existing, dict):
+            raise ConversationUnavailableError
+        if existing.get("request_hash") != request_hash:
+            raise ConversationConflictError("幂等键已用于另一条消息，请重新发送。")
+        if existing.get("state") == "completed":
+            message_id = existing.get("assistant_message_id")
+            if not isinstance(message_id, int):
+                raise ConversationUnavailableError
+            try:
+                message = repository.get_message_by_id(self._session, conversation_id, message_id)
+            except SQLAlchemyError:
+                self._session.rollback()
+                raise ConversationUnavailableError from None
+            if message is None or message.role != "assistant":
+                raise ConversationUnavailableError
+            return token, message, None
+        if existing.get("state") == "failed":
+            message_id = existing.get("user_message_id")
+            if not isinstance(message_id, int):
+                raise ConversationConflictError("本次发送未完成，请检查会话后再重新发送。")
+            try:
+                message = repository.get_message_by_id(self._session, conversation_id, message_id)
+                has_later_messages = repository.has_messages_after(
+                    self._session,
+                    conversation_id,
+                    message_id,
+                )
+            except SQLAlchemyError:
+                self._session.rollback()
+                raise ConversationUnavailableError from None
+            if message is None or message.role != "user" or has_later_messages:
+                raise ConversationConflictError("会话已继续，请不要重放较早的发送请求。")
+            self._ensure_not_waiting(conversation_id)
+            retry_token = secrets.token_urlsafe(18)
+            retry_state = {
+                "request_hash": request_hash,
+                "state": "processing",
+                "token": retry_token,
+                "user_message_id": message.id,
+            }
+            try:
+                reserved_retry = self._idempotency_store.set_if_state(
+                    redis_key,
+                    "failed",
+                    request_hash,
+                    json.dumps(retry_state),
+                    ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
+                )
+            except IdempotencyStoreError:
+                logger.exception("conversation_idempotency_retry_reserve_failed")
+                raise ConversationUnavailableError from None
+            if not reserved_retry:
+                raise ConversationConflictError("相同消息正在重试，请稍候。")
+            return retry_token, None, message
+        raise ConversationConflictError("相同消息仍在处理中，请稍候。")
+
+    def _bind_idempotency_user_message(self, prepared: PreparedConversationTurn) -> None:
+        """保存已创建的用户消息 ID，使失败后的同键重试复用原消息。"""
+
+        if not prepared.idempotency_key or not prepared.idempotency_token:
+            return
+        redis_key = self._idempotency_key(
+            prepared.user_id,
+            prepared.conversation.id,
+            prepared.idempotency_key,
+        )
+        value = json.dumps(
+            {
+                "request_hash": hashlib.sha256(prepared.message_text.encode("utf-8")).hexdigest(),
+                "state": "processing",
+                "token": prepared.idempotency_token,
+                "user_message_id": prepared.message_id,
+            }
+        )
+        try:
+            saved = self._idempotency_store.set_if_token(
+                redis_key,
+                prepared.idempotency_token,
+                value,
+                ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
+            )
+        except IdempotencyStoreError:
+            logger.exception("conversation_idempotency_user_message_bind_failed")
+            raise ConversationUnavailableError from None
+        if not saved:
+            raise ConversationConflictError("本次发送状态已过期，请重新发送。")
+
+    def _complete_idempotency_key(
+        self,
+        prepared: PreparedConversationTurn,
+        assistant_message_id: int,
+    ) -> None:
+        """在助手消息提交后记录重放指针；Redis 故障不影响已提交的回复。"""
+
+        if not prepared.idempotency_key or not prepared.idempotency_token:
+            return
+        redis_key = self._idempotency_key(
+            prepared.user_id,
+            prepared.conversation.id,
+            prepared.idempotency_key,
+        )
+        value = json.dumps(
+            {
+                "request_hash": hashlib.sha256(prepared.message_text.encode("utf-8")).hexdigest(),
+                "state": "completed",
+                "assistant_message_id": assistant_message_id,
+            }
+        )
+        try:
+            self._idempotency_store.set_if_token(
+                redis_key,
+                prepared.idempotency_token,
+                value,
+                ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
+            )
+        except IdempotencyStoreError:
+            logger.exception("conversation_idempotency_complete_failed")
+
+    def _fail_idempotency_key(self, prepared: PreparedConversationTurn) -> None:
+        """记录失败轮次和原用户消息 ID，供同键重试复用。"""
+
+        if not prepared.idempotency_key or not prepared.idempotency_token:
+            return
+        redis_key = self._idempotency_key(
+            prepared.user_id,
+            prepared.conversation.id,
+            prepared.idempotency_key,
+        )
+        value = json.dumps(
+            {
+                "request_hash": hashlib.sha256(prepared.message_text.encode("utf-8")).hexdigest(),
+                "state": "failed",
+                "user_message_id": prepared.message_id,
+            }
+        )
+        try:
+            self._idempotency_store.set_if_token(
+                redis_key,
+                prepared.idempotency_token,
+                value,
+                ttl_seconds=IDEMPOTENCY_TTL_SECONDS,
+            )
+        except IdempotencyStoreError:
+            logger.exception("conversation_idempotency_fail_update_failed")
+
+    def _release_idempotency_key(
+        self,
+        *,
+        user_id: int,
+        conversation_id: int,
+        idempotency_key: str,
+        token: str,
+    ) -> None:
+        """请求预检失败时释放本次预留，允许用户纠正后重试。"""
+
+        if self._idempotency_store is None:
+            return
+        redis_key = self._idempotency_key(user_id, conversation_id, idempotency_key)
+        try:
+            self._idempotency_store.delete_if_token(redis_key, token)
+        except (IdempotencyStoreError, TypeError, json.JSONDecodeError):
+            logger.exception("conversation_idempotency_release_failed")
+
+    @staticmethod
+    def _idempotency_key(user_id: int, conversation_id: int, key: str) -> str:
+        return f"orionai:conversation:turn:{user_id}:{conversation_id}:{key}"
 
     def _prepare_answer_turn(
         self,

@@ -41,8 +41,8 @@ def list_conversations(
 def count_conversations(session: Session, user_id: int) -> int:
     """统计指定用户可访问的会话数量。"""
 
-    statement = select(func.count()).select_from(Conversation).where(
-        Conversation.user_id == user_id
+    statement = (
+        select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
     )
     return session.scalar(statement) or 0
 
@@ -96,10 +96,35 @@ def get_latest_message(session: Session, conversation_id: int) -> Message | None
     return session.scalar(statement)
 
 
+def get_message_by_id(
+    session: Session,
+    conversation_id: int,
+    message_id: int,
+) -> Message | None:
+    """在已校验的会话范围内读取指定消息。"""
+
+    statement = select(Message).where(
+        Message.id == message_id,
+        Message.conversation_id == conversation_id,
+    )
+    return session.scalar(statement)
+
+
 def has_messages(session: Session, conversation_id: int) -> bool:
     """检查会话是否已有用户可见消息。"""
 
     statement = select(Message.id).where(Message.conversation_id == conversation_id).limit(1)
+    return session.scalar(statement) is not None
+
+
+def has_messages_after(session: Session, conversation_id: int, message_id: int) -> bool:
+    """检查指定消息后是否已有后续会话消息。"""
+
+    statement = (
+        select(Message.id)
+        .where(Message.conversation_id == conversation_id, Message.id > message_id)
+        .limit(1)
+    )
     return session.scalar(statement) is not None
 
 

@@ -10,6 +10,7 @@ import { t } from "../../i18n/localeStore";
 import {
   isMembershipCheckoutPath,
   isMembershipOrderDetailPath,
+  isDigitalHumanPath,
   platformPaths,
   type PlatformRoute,
 } from "./platformData";
@@ -43,6 +44,7 @@ export function PlatformLayout({
     pathname === platformPaths.chat || pathname.startsWith(`${platformPaths.chat}/`);
   const isSessionsPage = pathname === platformPaths.sessions;
   const isResumePage = pathname === platformPaths.resume;
+  const isDigitalHumanPage = isDigitalHumanPath(pathname);
   const [sidebarPreference, setSidebarPreference] = useState(readSidebarPreference);
   const sidebarCollapsed = sidebarPreference ?? isResumePage;
   const pageTitle =
@@ -69,13 +71,15 @@ export function PlatformLayout({
                       ? "对话助手"
                       : pathname === platformPaths.membership
                         ? "会员中心"
-                        : isMembershipCheckoutPath(pathname)
-                          ? "确认支付"
-                          : pathname === platformPaths.membershipOrders
-                            ? "我的订单"
-                            : isMembershipOrderDetailPath(pathname)
-                              ? "订单详情"
-                              : "OrionAI";
+                        : isDigitalHumanPage
+                          ? "数字人助手"
+                          : isMembershipCheckoutPath(pathname)
+                            ? "确认支付"
+                            : pathname === platformPaths.membershipOrders
+                              ? "我的订单"
+                              : isMembershipOrderDetailPath(pathname)
+                                ? "订单详情"
+                                : "OrionAI";
 
   function toggleSidebar() {
     const nextCollapsed = !sidebarCollapsed;
@@ -89,7 +93,7 @@ export function PlatformLayout({
 
   return (
     <div
-      className={`platform-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}${isSessionsPage ? " platform-shell--sessions" : ""}`}
+      className={`platform-shell${sidebarCollapsed ? " is-sidebar-collapsed" : ""}${isConversationPage ? " platform-shell--conversation" : ""}${isResumePage ? " platform-shell--resume" : ""}${isSessionsPage ? " platform-shell--sessions" : ""}${isDigitalHumanPage ? " platform-shell--digital-human" : ""}`}
     >
       <PlatformSidebar
         account={account}
