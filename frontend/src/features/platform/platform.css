@@ -520,36 +520,6 @@
   overflow: hidden;
 }
 
-.platform-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  display: flex;
-  min-height: 60px;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 clamp(var(--space-5), 3vw, var(--space-8));
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
-}
-
-.platform-topbar__context {
-  display: flex;
-  align-items: center;
-}
-
-.platform-topbar__context {
-  gap: var(--space-2);
-  color: var(--color-text-tertiary);
-  font-size: var(--font-size-xs);
-}
-
-.platform-topbar__context strong {
-  color: var(--color-text);
-  font-weight: 550;
-}
-
 .notification-button {
   position: relative;
   display: grid;
@@ -1626,6 +1596,10 @@
 
 @media (max-width: 800px) {
   .platform-shell {
+    --platform-mobile-sidebar-offset: calc(
+      36px + 36px + var(--space-2) + var(--space-2) + var(--space-1) + 1px
+    );
+
     display: flex;
     flex-direction: column;
   }
@@ -1779,8 +1753,8 @@
   }
 
   .platform-main {
-    min-height: calc(100vh - 88px);
-    min-height: calc(100svh - 88px);
+    min-height: calc(100vh - var(--platform-mobile-sidebar-offset));
+    min-height: calc(100svh - var(--platform-mobile-sidebar-offset));
   }
 
   .platform-main--conversation {
@@ -1792,12 +1766,11 @@
   .platform-shell--resume {
     height: 100vh;
     height: 100svh;
-    grid-template-rows: 88px minmax(0, 1fr);
   }
 
   .platform-main--resume {
-    height: calc(100vh - 88px);
-    height: calc(100svh - 88px);
+    height: calc(100vh - var(--platform-mobile-sidebar-offset));
+    height: calc(100svh - var(--platform-mobile-sidebar-offset));
     min-height: 0;
     flex: 1 1 0;
   }
@@ -1817,11 +1790,6 @@
     height: auto;
     min-height: 0;
     flex: 1 1 0;
-  }
-
-  .platform-topbar {
-    min-height: 56px;
-    padding-inline: var(--space-5);
   }
 
   .platform-content {
@@ -1864,16 +1832,6 @@
     margin-right: calc(-1 * var(--space-3));
     margin-left: calc(-1 * var(--space-3));
     padding-inline: var(--space-3);
-  }
-
-  .platform-topbar {
-    min-height: 52px;
-    padding-inline: var(--space-3);
-  }
-
-  .platform-topbar__context {
-    gap: var(--space-1);
-    font-size: var(--font-size-xs);
   }
 
   .platform-content {
