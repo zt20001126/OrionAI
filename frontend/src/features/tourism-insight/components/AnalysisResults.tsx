@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
-import { listTourismResults, type TourismResultGroup } from "../api/tourismInsightApi";
+import {
+  listTourismResults,
+  type TourismResultGroup,
+  type TourismSentiment,
+} from "../api/tourismInsightApi";
 
 interface Props {
   reloadVersion: number;
   showToast: (type: "success" | "error", message: string) => void;
 }
 
+const SENTIMENT_LABELS: Record<TourismSentiment, string> = {
+  positive: "正向",
+  negative: "负向",
+  objective: "客观",
+};
+
+/** 展示每条匹配结果对应的情感分类。 */
 export function AnalysisResults({ reloadVersion, showToast }: Props) {
   const [items, setItems] = useState<TourismResultGroup[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -75,13 +86,22 @@ export function AnalysisResults({ reloadVersion, showToast }: Props) {
                 <article className="tourism-result__match" key={`${selected.comment.id}-${index}`}>
                   <header>
                     <strong>{match.rule?.subitem_name || "未匹配评分子项"}</strong>
-                    <span className={`tourism-status tourism-status--${match.status}`}>
-                      {match.status === "matched"
-                        ? "已匹配"
-                        : match.status === "review"
-                          ? "待核验"
-                          : "未匹配"}
-                    </span>
+                    <div className="tourism-result__match-badges">
+                      {match.sentiment && (
+                        <span
+                          className={`tourism-sentiment tourism-sentiment--${match.sentiment}`}
+                        >
+                          {SENTIMENT_LABELS[match.sentiment]}
+                        </span>
+                      )}
+                      <span className={`tourism-status tourism-status--${match.status}`}>
+                        {match.status === "matched"
+                          ? "已匹配"
+                          : match.status === "review"
+                            ? "待核验"
+                            : "未匹配"}
+                      </span>
+                    </div>
                   </header>
                   <dl>
                     {[

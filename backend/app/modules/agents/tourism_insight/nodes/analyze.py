@@ -57,7 +57,13 @@ def create_analyze_node(chat_model: Any, searcher: Callable[[int, str], list[dic
             raise ValueError("缺少可信用户上下文")
         if not facts_result.facts:
             unmatched = [
-                MatchCandidate(rule_id=None, evidence=None, reason=None, status="unmatched")
+                MatchCandidate(
+                    rule_id=None,
+                    evidence=None,
+                    reason=None,
+                    status="unmatched",
+                    sentiment=None,
+                )
             ]
             return {
                 "analysis_context": {
@@ -75,52 +81,37 @@ def create_analyze_node(chat_model: Any, searcher: Callable[[int, str], list[dic
                     if isinstance(candidate, dict) and isinstance(candidate.get("id"), str):
                         candidates_by_id[candidate["id"]] = candidate
 
-        if not candidates_by_id:
-            matches = [
-                MatchCandidate(
-                    rule_id=None,
-                    evidence=facts_result.facts[0].evidence,
-                    reason=None,
-                    status="unmatched",
-                )
-            ]
-        else:
-            prompt_content = {
-                "comment": text,
-                "facts": [fact.model_dump() for fact in facts_result.facts],
-                "candidate_rules": list(candidates_by_id.values()),
-            }
-            proposal = MatchProposalList.model_validate(
-                await match_model.ainvoke(
-                    [
-                        SystemMessage(content=f"{prompt}\n{match_instructions}"),
-                        HumanMessage(content=json.dumps(prompt_content, ensure_ascii=False)),
-                    ]
-                )
-            )
-            candidate_ids = set(candidates_by_id)
-            matches = []
-            for item in proposal.matches:
-                if item.rule_id is not None and item.rule_id not in candidate_ids:
-                    continue
-                if item.evidence and item.evidence not in text:
-                    continue
-                if item.status == "matched" and (item.rule_id is None or not item.evidence):
-                    continue
-                if item.status == "review" and (item.rule_id is None or not item.evidence):
-                    continue
-                if item.status == "unmatched" and item.rule_id is not None:
-                    continue
-                matches.append(item)
-            if not matches:
-                matches = [
-                    MatchCandidate(
-                        rule_id=None,
-                        evidence=facts_result.facts[0].evidence,
-                        reason=None,
-                        status="unmatched",
-                    )
+        # 即使规则检索为空，也让模型为拆分事实生成带情感的未匹配结果。
+        prompt_content = {
+            "comment": text,
+            "facts": [fact.model_dump() for fact in facts_result.facts],
+            "candidate_rules": list(candidates_by_id.values()),
+        }
+        proposal = MatchProposalList.model_validate(
+            await match_model.ainvoke(
+                [
+                    SystemMessage(content=f"{prompt}\n{match_instructions}"),
+                    HumanMessage(content=json.dumps(prompt_content, ensure_ascii=False)),
                 ]
+            )
+        )
+        candidate_ids = set(candidates_by_id)
+        matches = []
+        for item in proposal.matches:
+            if item.rule_id is not None and item.rule_id not in candidate_ids:
+                continue
+            if item.evidence and item.evidence not in text:
+                continue
+            if item.status in {"matched", "review"} and (item.rule_id is None or not item.evidence):
+                continue
+            if item.status == "unmatched" and item.rule_id is not None:
+                continue
+            if item.sentiment is None:
+                continue
+            matches.append(item)
+
+        if not matches:
+            raise ValueError("分析模型未生成包含有效情感分类的结果")
 
         return {
             "analysis_context": {

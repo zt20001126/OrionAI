@@ -171,6 +171,7 @@ class TourismInsightService:
                         evidence=match.evidence,
                         reason=match.reason,
                         rule=rule_response,
+                        sentiment=match.sentiment,
                     )
                 )
             groups.append(

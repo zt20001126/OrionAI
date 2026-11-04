@@ -33,10 +33,13 @@ export interface TourismImportResponse {
   errors: string[];
 }
 
+export type TourismSentiment = "positive" | "negative" | "objective";
+
 export interface TourismMatch {
   status: "matched" | "review" | "unmatched";
   evidence: string | null;
   reason: string | null;
+  sentiment: TourismSentiment | null;
   rule: {
     id: string;
     major_item: string;
