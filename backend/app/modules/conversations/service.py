@@ -1089,7 +1089,11 @@ class ConversationService:
         thread_id: str,
     ) -> dict[str, object]:
         configurable: dict[str, object] = {"thread_id": thread_id}
-        if prepared.conversation.skill_code in {"image_agent", "resume_assistant"}:
+        if prepared.conversation.skill_code in {
+            "image_agent",
+            "resume_assistant",
+            "tourism_insight",
+        }:
             configurable.update(
                 {
                     "user_id": prepared.user_id,
