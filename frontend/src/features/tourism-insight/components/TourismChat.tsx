@@ -174,6 +174,17 @@ export function TourismChat({ conversationId, enabled, onResults }: TourismChatP
             disabled={!enabled || busy}
             maxLength={20_000}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (
+                event.key !== "Enter" ||
+                event.shiftKey ||
+                event.nativeEvent.isComposing
+              ) {
+                return;
+              }
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }}
             placeholder={t("输入游客评论，查找对应评分依据...")}
             ref={inputRef}
             rows={2}
