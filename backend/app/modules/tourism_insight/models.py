@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -90,6 +91,10 @@ class CommentMatch(Base):
 
     __tablename__ = "comment_matches"
     __table_args__ = (
+        CheckConstraint(
+            "sentiment IS NULL OR sentiment IN ('positive', 'negative', 'objective')",
+            name="ck_comment_matches_sentiment",
+        ),
         Index("ix_comment_matches_user_comment", "user_id", "comment_id"),
         Index("ix_comment_matches_rule_id", "rule_id"),
     )
@@ -118,6 +123,9 @@ class CommentMatch(Base):
     reason: Mapped[str | None] = mapped_column(Text, comment="匹配判断依据")
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, comment="匹配状态：matched、review 或 unmatched"
+    )
+    sentiment: Mapped[str | None] = mapped_column(
+        String(20), comment="拆分评论结果的情感倾向：positive、negative 或 objective"
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -45,10 +45,13 @@ def test_replacing_rules_clears_matches_but_keeps_comments() -> None:
                         "evidence": "厕所很干净",
                         "reason": "直接描述卫生情况",
                         "status": "matched",
+                        "sentiment": "positive",
                     }
                 ],
             )
             session.commit()
+            saved_match = session.query(CommentMatch).one()
+            assert saved_match.sentiment == "positive"
 
             repository.replace_rules(session, user.id, [_rule("洗手设施")])
             session.commit()

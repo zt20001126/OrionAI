@@ -99,6 +99,10 @@ class MatchResponse(BaseModel):
     evidence: str | None = Field(description="原文证据片段")
     reason: str | None = Field(description="匹配依据")
     rule: MatchRuleResponse | None = Field(description="服务端读取的真实评分规则")
+    sentiment: Literal["positive", "negative", "objective"] | None = Field(
+        default=None,
+        description="该条拆分评论结果的情感倾向；历史结果或无事实证据时为空",
+    )
 
 
 class ResultGroupResponse(BaseModel):

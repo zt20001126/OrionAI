@@ -31,9 +31,14 @@ class MatchCandidate(BaseModel):
     evidence: str | None = Field(description="评论原文证据片段")
     reason: str | None = Field(description="匹配依据")
     status: Literal["matched", "review", "unmatched"] = Field(description="匹配状态")
+    sentiment: Literal["positive", "negative", "objective"] | None = Field(
+        description="该条拆分评论结果的情感倾向：正向、负向或客观；无事实证据时为空",
+    )
 
 
 class MatchProposalList(BaseModel):
     """模型针对当前评价给出的匹配列表。"""
 
-    matches: list[MatchCandidate] = Field(description="可以为空；多个事实可匹配多个评分子项")
+    matches: list[MatchCandidate] = Field(
+        description="有拆分事实时包含匹配或未匹配结果及情感；没有事实时可为空"
+    )
