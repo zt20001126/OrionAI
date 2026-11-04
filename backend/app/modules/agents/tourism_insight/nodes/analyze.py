@@ -5,6 +5,7 @@ from collections.abc import Callable
 from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import RunnableConfig
 
 from app.modules.agents.tourism_insight.prompts.loader import load_prompt
@@ -22,6 +23,12 @@ def create_analyze_node(chat_model: Any, searcher: Callable[[int, str], list[dic
     extraction_model = chat_model.with_structured_output(FactExtraction, method="json_mode")
     match_model = chat_model.with_structured_output(MatchProposalList, method="json_mode")
     prompt = load_prompt("analysis.md")
+    extraction_instructions = PydanticOutputParser(
+        pydantic_object=FactExtraction
+    ).get_format_instructions()
+    match_instructions = PydanticOutputParser(
+        pydantic_object=MatchProposalList
+    ).get_format_instructions()
 
     async def analyze_node(
         state: TourismInsightState,
@@ -38,7 +45,10 @@ def create_analyze_node(chat_model: Any, searcher: Callable[[int, str], list[dic
         text = message.content.strip() if message and isinstance(message.content, str) else ""
         facts_result = FactExtraction.model_validate(
             await extraction_model.ainvoke(
-                [SystemMessage(content=prompt), HumanMessage(content=text)]
+                [
+                    SystemMessage(content=f"{prompt}\n{extraction_instructions}"),
+                    HumanMessage(content=text),
+                ]
             )
         )
         configurable = dict((config or {}).get("configurable") or {})
@@ -83,7 +93,7 @@ def create_analyze_node(chat_model: Any, searcher: Callable[[int, str], list[dic
             proposal = MatchProposalList.model_validate(
                 await match_model.ainvoke(
                     [
-                        SystemMessage(content=prompt),
+                        SystemMessage(content=f"{prompt}\n{match_instructions}"),
                         HumanMessage(content=json.dumps(prompt_content, ensure_ascii=False)),
                     ]
                 )

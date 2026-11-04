@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.output_parsers import PydanticOutputParser
 
 from app.modules.agents.tourism_insight.prompts.loader import load_prompt
 from app.modules.agents.tourism_insight.schemas import ScopeDecision
@@ -18,7 +19,8 @@ OUT_OF_SCOPE_REPLY = (
 def create_scope_node(chat_model: Any) -> Callable[..., Any]:
     """创建业务范围节点；无关输入直接产生引导回复。"""
     model = chat_model.with_structured_output(ScopeDecision, method="json_mode")
-    system_prompt = load_prompt("system.md")
+    parser = PydanticOutputParser(pydantic_object=ScopeDecision)
+    system_prompt = f"{load_prompt('system.md')}\n{parser.get_format_instructions()}"
 
     async def scope_node(state: TourismInsightState) -> dict[str, object]:
         message = next(
