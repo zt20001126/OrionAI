@@ -18,6 +18,7 @@ from app.infrastructure.llm import ModelProviderError, OpenAICompatibleChatModel
 from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
 from app.modules.agents.registry import AgentRegistry
 from app.modules.agents.resume_agent.runtime import ResumeAgent
+from app.modules.agents.tourism_insight.runtime import TourismInsightAgent
 from app.modules.auth.errors import AuthError
 from app.modules.conversations.errors import ConversationError
 from app.modules.conversations.title import ModelConversationTitleGenerator
@@ -45,7 +46,10 @@ from app.modules.skills.repository import (
     ensure_memory_training_tool_skill,
     ensure_reminder_tool_skill,
     ensure_resume_assistant_skill,
+    ensure_tourism_insight_skill,
 )
+from app.modules.tourism_insight.errors import TourismInsightError
+from app.modules.tourism_insight.service.service import TourismInsightService
 from app.modules.users.errors import UsersError
 
 logger = logging.getLogger(__name__)
@@ -74,6 +78,7 @@ def create_agent_lifespan(
                     ensure_reminder_tool_skill(session)
                     ensure_memory_training_tool_skill(session)
                     ensure_digital_human_skill(session)
+                    ensure_tourism_insight_skill(session)
                 except SQLAlchemyError:
                     session.rollback()
                     logger.exception("general_chat_skill_initialization_failed")
@@ -118,6 +123,28 @@ def create_agent_lifespan(
                 resume_reader=read_resume_snapshot,
                 resume_writer=apply_resume_candidate,
             )
+
+            def search_tourism_rules(user_id: int, query: str) -> list[dict[str, object]]:
+                with SessionLocal() as session:
+                    return TourismInsightService(session).search_rules(user_id, query)
+
+            def save_tourism_analysis(
+                user_id: int,
+                text: str,
+                source_comment_id: str | None,
+                matches: list[dict[str, object]],
+            ) -> int:
+                with SessionLocal() as session:
+                    return TourismInsightService(session).save_analysis(
+                        user_id, text, source_comment_id, matches
+                    )
+
+            tourism_insight_agent = TourismInsightAgent(
+                chat_model=chat_model,
+                rule_searcher=search_tourism_rules,
+                result_saver=save_tourism_analysis,
+                checkpointer=checkpointer,
+            )
             application.state.conversation_agent = conversation_agent
             application.state.agent_registry = AgentRegistry(
                 {
@@ -125,8 +152,10 @@ def create_agent_lifespan(
                     "digital_human": digital_human_agent,
                     "image_agent": image_agent,
                     "resume_assistant": resume_agent,
+                    "tourism_insight": tourism_insight_agent,
                 }
             )
+            application.state.tourism_insight_agent = tourism_insight_agent
             application.state.conversation_title_generator = ModelConversationTitleGenerator(
                 model=title_model,
                 timeout_seconds=settings.conversation_title_timeout_seconds,
@@ -135,6 +164,7 @@ def create_agent_lifespan(
             del application.state.conversation_agent
             del application.state.agent_registry
             del application.state.conversation_title_generator
+            del application.state.tourism_insight_agent
 
     return lifespan
 
@@ -199,6 +229,12 @@ def create_app(
 
     @application.exception_handler(PaymentError)
     async def handle_payment_error(_request: Request, error: PaymentError) -> JSONResponse:
+        return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
+
+    @application.exception_handler(TourismInsightError)
+    async def handle_tourism_insight_error(
+        _request: Request, error: TourismInsightError
+    ) -> JSONResponse:
         return JSONResponse(status_code=error.status_code, content={"detail": error.detail})
 
     application.add_middleware(

@@ -11,6 +11,7 @@ export const platformPaths = {
   reminderCreate: "/reminders/new",
   memoryTraining: "/memory-training",
   digitalHuman: "/digital-human",
+  tourismInsight: "/tourism-insight",
   settings: "/settings",
   securitySettings: "/settings/security",
   feedbackSettings: "/settings/feedback",
@@ -23,11 +24,12 @@ export const platformPaths = {
 
 export type PlatformPath = Exclude<
   (typeof platformPaths)[keyof typeof platformPaths],
-  "/login" | "/chat" | "/membership/checkout"
+  "/login" | "/chat" | "/membership/checkout" | "/tourism-insight"
 >;
 export type ConversationPath = typeof platformPaths.chat | `${typeof platformPaths.chat}/${string}`;
 export type DigitalHumanConversationPath =
   typeof platformPaths.digitalHuman | `${typeof platformPaths.digitalHuman}/${string}`;
+export type TourismInsightPath = `${typeof platformPaths.tourismInsight}/${string}`;
 export type MembershipCheckoutPath = string & { readonly __membershipCheckoutPath: unique symbol };
 export type MembershipOrderDetailPath = string & {
   readonly __membershipOrderDetailPath: unique symbol;
@@ -36,6 +38,7 @@ export type PlatformRoute =
   | PlatformPath
   | ConversationPath
   | DigitalHumanConversationPath
+  | TourismInsightPath
   | MembershipCheckoutPath
   | MembershipOrderDetailPath;
 
@@ -98,12 +101,17 @@ export function isPlatformPath(pathname: string): pathname is PlatformRoute {
     return /^\/digital-human\/\d+$/.test(pathname);
   }
 
+  if (pathname.startsWith(`${platformPaths.tourismInsight}/`)) {
+    return /^\/tourism-insight\/\d+$/.test(pathname);
+  }
+
   if (isMembershipCheckoutPath(pathname) || isMembershipOrderDetailPath(pathname)) return true;
 
   return Object.values(platformPaths).some(
     (path) =>
       path !== platformPaths.login &&
       path !== platformPaths.chat &&
+      path !== platformPaths.tourismInsight &&
       path !== platformPaths.membershipCheckout &&
       path === pathname,
   );
@@ -129,6 +137,15 @@ export function isDigitalHumanPath(
   return (
     pathname === platformPaths.digitalHuman || pathname.startsWith(`${platformPaths.digitalHuman}/`)
   );
+}
+
+export function getTourismInsightConversationId(pathname: PlatformRoute): string | null {
+  if (!pathname.startsWith(`${platformPaths.tourismInsight}/`)) return null;
+  return pathname.slice(`${platformPaths.tourismInsight}/`.length);
+}
+
+export function isTourismInsightPath(pathname: PlatformRoute): pathname is TourismInsightPath {
+  return /^\/tourism-insight\/\d+$/.test(pathname);
 }
 
 export const navigationItems = [

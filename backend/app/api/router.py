@@ -14,6 +14,7 @@ from app.modules.payment.router import webhook_router as payment_webhook_router
 from app.modules.reminders.router import router as reminders_router
 from app.modules.resume.router import router as resume_router
 from app.modules.skills.router import router as skills_router
+from app.modules.tourism_insight.router.router import router as tourism_insight_router
 from app.modules.users.router import router as users_router
 
 api_router = APIRouter()
@@ -32,3 +33,4 @@ api_router.include_router(membership_router)
 api_router.include_router(membership_users_router)
 api_router.include_router(payment_router)
 api_router.include_router(payment_webhook_router)
+api_router.include_router(tourism_insight_router)

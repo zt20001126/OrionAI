@@ -21,8 +21,10 @@ import {
   getMembershipOrderId,
   getConversationId,
   getDigitalHumanConversationId,
+  getTourismInsightConversationId,
   isConversationPath,
   isDigitalHumanPath,
+  isTourismInsightPath,
   isMembershipCheckoutPath,
   isMembershipOrderDetailPath,
   isPlatformPath,
@@ -43,6 +45,11 @@ type PopNavigationStage = "restoring" | "confirming" | "navigating";
 const MembershipPage = lazy(() =>
   import("../features/membership/MembershipPage").then((module) => ({
     default: module.MembershipPage,
+  })),
+);
+const TourismInsightPage = lazy(() =>
+  import("../features/tourism-insight/pages/TourismInsightPage").then((module) => ({
+    default: module.TourismInsightPage,
   })),
 );
 const DigitalHumanPage = lazy(() =>
@@ -448,6 +455,7 @@ function AppContent() {
     : platformPaths.market;
   const conversationId = getConversationId(safePathname);
   const digitalHumanConversationId = getDigitalHumanConversationId(safePathname);
+  const tourismConversationId = getTourismInsightConversationId(safePathname);
   const page = (() => {
     if (safePathname === platformPaths.market) return <SkillMarketPage onNavigate={navigate} />;
     if (safePathname === platformPaths.mySkills) return <MySkillsPage onNavigate={navigate} />;
@@ -469,6 +477,9 @@ function AppContent() {
     }
     if (isDigitalHumanPath(safePathname)) {
       return <DigitalHumanPage conversationId={digitalHumanConversationId} onNavigate={navigate} />;
+    }
+    if (isTourismInsightPath(safePathname)) {
+      return <TourismInsightPage conversationId={tourismConversationId ?? ""} />;
     }
     if (safePathname === platformPaths.membership) {
       return <MembershipPage isGuest={isGuest} onNavigate={navigate} />;

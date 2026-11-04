@@ -12,6 +12,7 @@ const RUNNABLE_SKILL_CODES = new Set([
   "reminder",
   "memory_training",
   "digital_human",
+  "tourism_insight",
 ]);
 
 /** 当前前端已接入使用入口的技能编码。 */
@@ -71,6 +72,12 @@ export async function launchSkill(
   if (skill.code === "digital_human") {
     const conversation = await createConversation(skill.code);
     onNavigate(`${platformPaths.digitalHuman}/${conversation.id}`);
+    return;
+  }
+
+  if (skill.code === "tourism_insight") {
+    const conversation = await createConversation(skill.code);
+    onNavigate(`${platformPaths.tourismInsight}/${conversation.id}`);
     return;
   }
 
