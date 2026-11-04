@@ -12,6 +12,7 @@ const RUNNABLE_SKILL_CODES = new Set([
   "reminder",
   "memory_training",
   "digital_human",
+  "tourism_insight",
 ]);
 
 /** 当前前端已接入使用入口的技能编码。 */
