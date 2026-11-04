@@ -275,6 +275,9 @@
   font-size: var(--font-size-sm);
 }
 .tourism-chat__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border);
 }
@@ -286,43 +289,147 @@
   gap: var(--space-3);
   overflow: auto;
   padding: var(--space-4);
+  overscroll-behavior: contain;
 }
 .tourism-chat__message {
-  max-width: 86%;
+  width: fit-content;
+  max-width: 90%;
+  min-width: 0;
   padding: var(--space-3);
   border-radius: var(--radius-card);
   background: var(--color-surface-muted);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .tourism-chat__message--user {
+  max-width: 75%;
   align-self: flex-end;
   background: var(--color-brand-soft);
+  text-align: left;
 }
-.tourism-chat__message p {
-  margin: var(--space-2) 0 0;
+.tourism-chat__message--assistant {
+  align-self: flex-start;
+}
+.tourism-chat__markdown {
+  min-width: 0;
+  line-height: var(--line-height-relaxed);
+  overflow-wrap: anywhere;
+}
+.tourism-chat__markdown > :first-child {
+  margin-top: 0;
+}
+.tourism-chat__markdown > :last-child {
+  margin-bottom: 0;
+}
+.tourism-chat__markdown p,
+.tourism-chat__markdown ul,
+.tourism-chat__markdown ol,
+.tourism-chat__markdown blockquote,
+.tourism-chat__markdown pre,
+.tourism-chat__markdown table {
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+}
+.tourism-chat__markdown :is(ul, ol) {
+  padding-left: 1.5em;
+}
+.tourism-chat__markdown pre {
+  max-width: 100%;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+}
+.tourism-chat__markdown code {
+  overflow-wrap: anywhere;
+}
+.tourism-chat__markdown pre code {
+  overflow-wrap: normal;
+  white-space: pre;
+}
+.tourism-chat__markdown table {
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+  border-collapse: collapse;
+}
+.tourism-chat__markdown :is(th, td) {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+.tourism-chat__markdown th {
+  background: var(--color-surface);
+}
+.tourism-chat__markdown a {
+  color: var(--color-brand);
+  overflow-wrap: anywhere;
 }
 .tourism-chat__composer {
-  display: grid;
-  gap: var(--space-2);
   padding: var(--space-3);
   border-top: 1px solid var(--color-border);
 }
-.tourism-chat__composer textarea {
-  min-height: 80px;
-  resize: vertical;
+.tourism-chat__input-container {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  padding: var(--space-3);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+.tourism-chat__input-container:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: var(--focus-ring);
+}
+.tourism-chat__input-container textarea {
+  flex: 1;
+  min-width: 0;
+  min-height: 52px;
+  max-height: 140px;
+  resize: none;
+  overflow-y: auto;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: var(--space-2);
   color: var(--color-text);
   font: inherit;
 }
-.tourism-chat__composer button {
-  justify-self: end;
+.tourism-chat__input-container textarea:focus-visible {
+  outline: 0;
 }
-.tourism-chat__hint {
+.tourism-chat__input-container textarea::placeholder {
+  color: var(--color-text-tertiary);
+}
+.tourism-chat__send {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  padding: 0;
+}
+.tourism-chat__send svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.tourism-chat__empty {
+  margin: auto;
+  padding: var(--space-4);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+.tourism-chat__status {
   margin: 0;
-  padding: 0 var(--space-3) var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
 }

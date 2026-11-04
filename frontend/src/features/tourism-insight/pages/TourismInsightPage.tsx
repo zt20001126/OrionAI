@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { PlatformIcon } from "../../platform/PlatformIcon";
 import { useToast } from "../../../components/ToastProvider";
 import { t } from "../../../i18n/localeStore";
 import { getTourismSummary, type TourismSummary } from "../api/tourismInsightApi";
@@ -20,7 +21,7 @@ const TABS: Array<{ id: TabId; label: string }> = [
   { id: "results", label: "分析结果" },
 ];
 
-/** 文旅洞察技能专属工作台，组织数据管理、对话分析和结果查看。 */
+/** 评分依据助手专属工作台，组织数据管理、对话分析和结果查看。 */
 export function TourismInsightPage({ conversationId }: TourismInsightPageProps) {
   const { confirm, showToast } = useToast();
   const [activeTab, setActiveTab] = useState<TabId>("data");
@@ -36,7 +37,7 @@ export function TourismInsightPage({ conversationId }: TourismInsightPageProps) 
       })
       .catch((error: unknown) => {
         if (active)
-          showToast("error", error instanceof Error ? error.message : "文旅数据加载失败。");
+          showToast("error", error instanceof Error ? error.message : "评分数据加载失败。");
       });
     return () => {
       active = false;
@@ -48,11 +49,11 @@ export function TourismInsightPage({ conversationId }: TourismInsightPageProps) 
       <header className="tourism-page__header">
         <div className="tourism-page__identity">
           <span className="tourism-page__icon" aria-hidden="true">
-            ▥
+            <PlatformIcon name="assistant" size={26} />
           </span>
           <div>
-            <h1>{t("文旅洞察")}</h1>
-            <p>{t("智能解析游客评论，自动匹配文旅评价指标与评分规则。")}</p>
+            <h1>{t("评分依据助手")}</h1>
+            <p>{t("智能分析游客评论，匹配对应的评分指标与评分依据。")}</p>
           </div>
         </div>
         {summary && (
@@ -61,7 +62,7 @@ export function TourismInsightPage({ conversationId }: TourismInsightPageProps) 
           </p>
         )}
       </header>
-      <nav className="tourism-tabs" aria-label={t("文旅洞察功能")}>
+      <nav className="tourism-tabs" aria-label={t("评分依据助手功能")}>
         {TABS.map((tab) => (
           <button
             aria-current={activeTab === tab.id ? "page" : undefined}

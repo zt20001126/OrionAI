@@ -54,8 +54,8 @@ DIGITAL_HUMAN = {
 }
 TOURISM_INSIGHT = {
     "code": "tourism_insight",
-    "name": "文旅洞察",
-    "description": "分析游客评论并匹配文旅评价指标与评分规则",
+    "name": "评分依据助手",
+    "description": "智能分析游客评论，匹配对应的评分指标与评分依据。",
     "type": "agent",
     "status": "published",
 }
@@ -360,24 +360,38 @@ def ensure_digital_human_skill(session: Session) -> None:
 
 
 def ensure_tourism_insight_skill(session: Session) -> None:
-    """幂等发布文旅洞察技能，不覆盖已存在的市场配置。"""
+    """幂等发布评分依据助手，仅同步已有技能的展示名称和描述。"""
     values = TOURISM_INSIGHT.copy()
     dialect_name = session.get_bind().dialect.name
     if dialect_name == "postgresql":
+        insert_statement = postgresql_insert(Skill).values(**values)
         statement = (
-            postgresql_insert(Skill)
-            .values(**values)
-            .on_conflict_do_nothing(index_elements=[Skill.code])
+            insert_statement.on_conflict_do_update(
+                index_elements=[Skill.code],
+                set_={
+                    "name": insert_statement.excluded.name,
+                    "description": insert_statement.excluded.description,
+                },
+            )
         )
     elif dialect_name == "sqlite":
+        insert_statement = sqlite_insert(Skill).values(**values)
         statement = (
-            sqlite_insert(Skill)
-            .values(**values)
-            .on_conflict_do_nothing(index_elements=[Skill.code])
+            insert_statement.on_conflict_do_update(
+                index_elements=[Skill.code],
+                set_={
+                    "name": insert_statement.excluded.name,
+                    "description": insert_statement.excluded.description,
+                },
+            )
         )
     else:
-        if session.scalar(select(Skill.id).where(Skill.code == TOURISM_INSIGHT["code"])) is None:
+        skill = session.scalar(select(Skill).where(Skill.code == TOURISM_INSIGHT["code"]))
+        if skill is None:
             session.add(Skill(**values))
+        else:
+            skill.name = TOURISM_INSIGHT["name"]
+            skill.description = TOURISM_INSIGHT["description"]
         session.commit()
         return
     session.execute(statement)
