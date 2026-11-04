@@ -13,6 +13,7 @@ from app.modules.memory_training import models as memory_training_models  # noqa
 from app.modules.reminders import models as reminder_models  # noqa: F401
 from app.modules.resume import models as resume_models  # noqa: F401
 from app.modules.skills import models as skills_models  # noqa: F401
+from app.modules.tourism_insight import models as tourism_insight_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

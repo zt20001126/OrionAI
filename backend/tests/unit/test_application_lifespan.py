@@ -66,6 +66,11 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
     )
     resume_agent = object()
     monkeypatch.setattr("app.core.application.ResumeAgent", lambda **_kwargs: resume_agent)
+    tourism_insight_agent = object()
+    monkeypatch.setattr(
+        "app.core.application.TourismInsightAgent",
+        lambda **_kwargs: tourism_insight_agent,
+    )
     monkeypatch.setattr(
         "app.core.application.ensure_general_chat_skill",
         lambda session: seed_sessions.append(session),
@@ -90,6 +95,10 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
         "app.core.application.ensure_memory_training_tool_skill",
         lambda session: seed_sessions.append(session),
     )
+    monkeypatch.setattr(
+        "app.core.application.ensure_tourism_insight_skill",
+        lambda session: seed_sessions.append(session),
+    )
     image_agent = object()
     monkeypatch.setattr("app.core.application.ImageAgent", lambda **_kwargs: image_agent)
 
@@ -97,11 +106,13 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
     lifespan = create_agent_lifespan(settings)
     async with lifespan(application):
         assert checkpointer.setup_called
-        assert len(seed_sessions) == 6
+        assert len(seed_sessions) == 7
         assert application.state.conversation_agent is agent
         assert application.state.agent_registry.get("digital_human") is digital_human_agent
         assert application.state.agent_registry.get("image_agent") is image_agent
         assert application.state.agent_registry.get("resume_assistant") is resume_agent
+        assert application.state.agent_registry.get("tourism_insight") is tourism_insight_agent
+        assert application.state.tourism_insight_agent is tourism_insight_agent
         assert isinstance(
             application.state.conversation_title_generator,
             ModelConversationTitleGenerator,
@@ -112,3 +123,4 @@ async def test_agent_lifespan_initializes_and_releases_dependencies(
     assert not hasattr(application.state, "conversation_agent")
     assert not hasattr(application.state, "agent_registry")
     assert not hasattr(application.state, "conversation_title_generator")
+    assert not hasattr(application.state, "tourism_insight_agent")

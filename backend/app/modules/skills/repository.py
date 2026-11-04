@@ -52,6 +52,13 @@ DIGITAL_HUMAN = {
     "type": "agent",
     "status": "published",
 }
+TOURISM_INSIGHT = {
+    "code": "tourism_insight",
+    "name": "文旅洞察",
+    "description": "分析游客评论并匹配文旅评价指标与评分规则",
+    "type": "agent",
+    "status": "published",
+}
 
 
 def list_market_skills(
@@ -345,6 +352,31 @@ def ensure_digital_human_skill(session: Session) -> None:
         )
     else:
         if session.scalar(select(Skill.id).where(Skill.code == DIGITAL_HUMAN["code"])) is None:
+            session.add(Skill(**values))
+        session.commit()
+        return
+    session.execute(statement)
+    session.commit()
+
+
+def ensure_tourism_insight_skill(session: Session) -> None:
+    """幂等发布文旅洞察技能，不覆盖已存在的市场配置。"""
+    values = TOURISM_INSIGHT.copy()
+    dialect_name = session.get_bind().dialect.name
+    if dialect_name == "postgresql":
+        statement = (
+            postgresql_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    elif dialect_name == "sqlite":
+        statement = (
+            sqlite_insert(Skill)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=[Skill.code])
+        )
+    else:
+        if session.scalar(select(Skill.id).where(Skill.code == TOURISM_INSIGHT["code"])) is None:
             session.add(Skill(**values))
         session.commit()
         return

@@ -74,6 +74,12 @@ export async function launchSkill(
     return;
   }
 
+  if (skill.code === "tourism_insight") {
+    const conversation = await createConversation(skill.code);
+    onNavigate(`${platformPaths.tourismInsight}/${conversation.id}`);
+    return;
+  }
+
   const conversation = await createConversation(skill.code);
   onNavigate(`${platformPaths.chat}/${conversation.id}`);
 }
