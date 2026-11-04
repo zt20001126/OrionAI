@@ -67,12 +67,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`/api/tourism-insight${path}`, { credentials: "include", ...init });
   } catch {
-    throw new Error("暂时无法连接文旅洞察服务，请检查后端状态后重试。");
+    throw new Error("暂时无法连接评分依据助手，请检查后端状态后重试。");
   }
   const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const detail = payload && typeof payload === "object" && "detail" in payload ? payload.detail : null;
-    throw new Error(getSafeErrorDetail(detail, "文旅洞察请求失败，请稍后重试。"));
+    throw new Error(getSafeErrorDetail(detail, "评分依据助手请求失败，请稍后重试。"));
   }
   return payload as T;
 }
