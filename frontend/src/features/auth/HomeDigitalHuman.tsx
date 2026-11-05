@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
-import type { VrmLookTarget } from "../digital-human/hooks/useVrmAvatarAnimation";
+import { useVrmPointerLookTarget } from "../digital-human/hooks/useVrmPointerLookTarget";
 
 import "./home-digital-human.css";
 
@@ -16,7 +16,7 @@ const ignoreModelError = () => undefined;
 export function HomeDigitalHuman() {
   const [isWideViewport, setIsWideViewport] = useState(() => window.innerWidth > 980);
   const [isReady, setIsReady] = useState(false);
-  const lookTargetRef = useRef<VrmLookTarget | null>(null);
+  const lookTargetRef = useVrmPointerLookTarget();
 
   useEffect(() => {
     const updateViewport = () => setIsWideViewport(window.innerWidth > 980);
@@ -42,19 +42,6 @@ export function HomeDigitalHuman() {
       if (timeoutHandle !== null) window.clearTimeout(timeoutHandle);
     };
   }, [isWideViewport]);
-
-  useEffect(() => {
-    const updateLookTarget = (event: PointerEvent) => {
-      lookTargetRef.current = {
-        x: (event.clientX / window.innerWidth) * 2 - 1,
-        y: 1 - (event.clientY / window.innerHeight) * 2,
-        updatedAt: performance.now(),
-      };
-    };
-
-    window.addEventListener("pointermove", updateLookTarget, { passive: true });
-    return () => window.removeEventListener("pointermove", updateLookTarget);
-  }, []);
 
   return (
     <div aria-hidden="true" className="auth-digital-human">

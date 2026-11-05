@@ -5,14 +5,15 @@ import { useThree } from "@react-three/fiber";
 import { Box3, Vector3 } from "three";
 import type { PerspectiveCamera } from "three";
 
-import { useVrmAvatarAnimation, type VrmLookTarget } from "../hooks/useVrmAvatarAnimation";
+import { useVrmAvatarAnimation } from "../hooks/useVrmAvatarAnimation";
+import type { VrmLookTarget } from "../hooks/useVrmPointerLookTarget";
 import type { DigitalHumanStatus } from "../types";
 
 interface VrmAvatarSceneProps {
   cameraRef: RefObject<PerspectiveCamera | null>;
+  cameraFraming?: "assistant" | "home";
   lookTargetRef?: RefObject<VrmLookTarget | null>;
   mouthOpen: number;
-  presentation?: "assistant" | "home";
   status: DigitalHumanStatus;
   vrm: VRM;
 }
@@ -20,9 +21,9 @@ interface VrmAvatarSceneProps {
 /** 按模型包围盒和展示场景自动取景。 */
 export function VrmAvatarScene({
   cameraRef,
+  cameraFraming = "assistant",
   lookTargetRef,
   mouthOpen,
-  presentation = "assistant",
   status,
   vrm,
 }: VrmAvatarSceneProps) {
@@ -40,12 +41,12 @@ export function VrmAvatarScene({
     if (dimensions.y <= 0) return;
 
     // 助手页面聚焦头部和上身；首页展示更多身体，同时避免让水平手臂影响取景。
-    const framingHeight = dimensions.y * (presentation === "home" ? 0.94 : 0.56);
+    const framingHeight = dimensions.y * (cameraFraming === "home" ? 0.94 : 0.56);
     const verticalFieldOfView = (camera.fov * Math.PI) / 180;
     const halfFovTangent = Math.tan(verticalFieldOfView / 2);
     const distanceByHeight = framingHeight / (2 * halfFovTangent);
     const distance = distanceByHeight * 1.08;
-    const targetHeightRatio = presentation === "home" ? 0.54 : 0.72;
+    const targetHeightRatio = cameraFraming === "home" ? 0.54 : 0.72;
     const target = new Vector3(center.x, bounds.min.y + dimensions.y * targetHeightRatio, center.z);
 
     camera.position.set(target.x, target.y, target.z + distance);
@@ -54,7 +55,7 @@ export function VrmAvatarScene({
     camera.far = Math.max(dimensions.y * 20, distance + dimensions.y * 4);
     camera.lookAt(target);
     camera.updateProjectionMatrix();
-  }, [cameraRef, presentation, size.width, size.height, vrm]);
+  }, [cameraFraming, cameraRef, size.width, size.height, vrm]);
 
   return <primitive object={vrm.scene} />;
 }

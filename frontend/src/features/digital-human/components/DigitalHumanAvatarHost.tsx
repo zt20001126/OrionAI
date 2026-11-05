@@ -1,6 +1,7 @@
 import type { RefObject } from "react";
 
 import { useAudioMouthLevel } from "../hooks/useAudioMouthLevel";
+import { useVrmPointerLookTarget } from "../hooks/useVrmPointerLookTarget";
 import type { DigitalHumanStatus } from "../types";
 import { DigitalHumanAvatar3D } from "./DigitalHumanAvatar3D";
 
@@ -19,6 +20,15 @@ export function DigitalHumanAvatarHost({
   status,
 }: DigitalHumanAvatarHostProps) {
   const mouthOpen = useAudioMouthLevel(audioRef, isSpeaking);
+  const lookTargetRef = useVrmPointerLookTarget();
 
-  return <DigitalHumanAvatar3D mouthOpen={mouthOpen} onLoadError={onLoadError} status={status} />;
+  return (
+    <DigitalHumanAvatar3D
+      cameraFraming="home"
+      lookTargetRef={lookTargetRef}
+      mouthOpen={mouthOpen}
+      onLoadError={onLoadError}
+      status={status}
+    />
+  );
 }

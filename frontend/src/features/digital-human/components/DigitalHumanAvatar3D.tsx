@@ -6,12 +6,13 @@ import type { PerspectiveCamera as ThreePerspectiveCamera } from "three";
 
 import { t } from "../../../i18n/localeStore";
 import { useVrmAvatarModel } from "../hooks/useVrmAvatarModel";
-import type { VrmLookTarget } from "../hooks/useVrmAvatarAnimation";
+import type { VrmLookTarget } from "../hooks/useVrmPointerLookTarget";
 import type { DigitalHumanStatus } from "../types";
 import { hasVrmMouthExpression } from "../vrm/vrmAvatarCapabilities";
 import { VrmAvatarScene } from "./VrmAvatarScene";
 
 interface DigitalHumanAvatar3DProps {
+  cameraFraming?: "assistant" | "home";
   lookTargetRef?: RefObject<VrmLookTarget | null>;
   mouthOpen: number;
   onLoadError: (error: Error) => void;
@@ -28,6 +29,7 @@ const STATUS_LABELS: Record<DigitalHumanStatus, string> = {
 
 /** VRM 展示组件只负责模型呈现和状态扩展，不处理对话或音频业务。 */
 export function DigitalHumanAvatar3D({
+  cameraFraming,
   lookTargetRef,
   mouthOpen,
   onLoadError,
@@ -90,7 +92,7 @@ export function DigitalHumanAvatar3D({
                   cameraRef={cameraRef}
                   lookTargetRef={lookTargetRef}
                   mouthOpen={mouthOpen}
-                  presentation={presentation}
+                  cameraFraming={cameraFraming ?? presentation}
                   status={status}
                   vrm={vrm}
                 />

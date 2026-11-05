@@ -6,6 +6,7 @@ import { Euler, Quaternion } from "three";
 import type { Object3D } from "three";
 
 import type { DigitalHumanStatus } from "../types";
+import type { VrmLookTarget } from "./useVrmPointerLookTarget";
 
 const BLINK_DURATION_SECONDS = 0.18;
 const BLINK_MIN_INTERVAL_SECONDS = 2.8;
@@ -130,12 +131,6 @@ interface IdleMotionTargets {
   armSway: number;
   shoulderSway: number;
   weightShift: number;
-}
-
-export interface VrmLookTarget {
-  x: number;
-  y: number;
-  updatedAt: number;
 }
 
 const FINGER_POSE_CONFIGS: readonly FingerPoseConfig[] = [
