@@ -51,8 +51,9 @@ async def test_digital_human_runtime_uses_its_own_graph_and_checkpointer() -> No
     assert response.agent == "digital_human"
     assert response.answer == "你好，我是数字人助手。"
     assert response.status == "completed"
-    assert {"input_node", "agent_node", "output_node"}.issubset(runtime.compiled_graph.nodes)
-    assert "tool_node" not in runtime.compiled_graph.nodes
+    assert {"input_node", "agent_node", "tool_node", "output_node"}.issubset(
+        runtime.compiled_graph.nodes
+    )
 
 
 @pytest.mark.anyio
