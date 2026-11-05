@@ -37,8 +37,16 @@ export interface SingleChoiceQuestion {
 
 export interface QuestionContentPart {
   type: "question";
-  questions: SingleChoiceQuestion[];
+  questions: Question[];
 }
+
+export interface TextQuestion {
+  id: string;
+  title: string;
+  type: "Text";
+}
+
+export type Question = SingleChoiceQuestion | TextQuestion;
 
 export interface SubmittedQuestionAnswer {
   question_id: string;

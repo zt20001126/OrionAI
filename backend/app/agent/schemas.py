@@ -83,12 +83,22 @@ class Question(BaseModel):
         return self
 
 
+class TextQuestion(BaseModel):
+    """需要用户自由输入的题目，供题卡交互收集无法枚举的答案。"""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    id: str = Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    title: str = Field(min_length=1, max_length=100, pattern=r"^[^\r\n]+$")
+    type: Literal["Text"] = Field(description="自由输入题。")
+
+
 class QuestionPayload(BaseModel):
     """一次等待交互中的 1–3 道题卡，并提供严格答案校验。"""
 
     model_config = ConfigDict(extra="forbid")
 
-    questions: list[Question] = Field(
+    questions: list[Question | TextQuestion] = Field(
         min_length=1,
         max_length=MAX_QUESTIONS_PER_BATCH,
         description=f"当前题卡批次，数量为 1–{MAX_QUESTIONS_PER_BATCH} 道。",
@@ -112,6 +122,10 @@ class QuestionPayload(BaseModel):
 
         for question in self.questions:
             answer = answers[question.id]
+            if isinstance(question, TextQuestion):
+                if not isinstance(answer, str) or not answer.strip() or len(answer.strip()) > 100:
+                    raise ValueError("自由输入答案须为不超过 100 字的非空文本。")
+                continue
             option_labels = {option.label for option in question.options}
             if not isinstance(answer, str) or answer not in option_labels:
                 raise ValueError("单选题答案必须是该题的一个有效选项标签。")
