@@ -30,13 +30,13 @@ export function QuestionWizard({
   if (!question) return null;
 
   const hasSteps = questions.length > 1;
-  const hasAnswer = Boolean(selectedAnswers[question.id]);
+  const hasAnswer = Boolean(selectedAnswers[question.id]?.trim());
   const isLastQuestion = currentIndex === questions.length - 1;
 
   return (
     <section aria-label={t("问题答题卡")} className="question-card">
       <header className="question-card__header">
-        <strong>{t("需要你的选择")}</strong>
+        <strong>{t("需要你的回答")}</strong>
         {hasSteps && (
           <span>
             {t("第")} {currentIndex + 1} / {questions.length} {t("题")}
@@ -59,7 +59,7 @@ export function QuestionWizard({
 
       <fieldset className="question-card__question" disabled={isSubmitting}>
         <legend>{question.title}</legend>
-        {question.context && (
+        {"context" in question && question.context && (
           <div className="question-card__context-block">
             {question.id === "resume_optimization" && (
               <strong className="question-card__context-title">{t("修改候选预览")}</strong>
@@ -67,7 +67,16 @@ export function QuestionWizard({
             <pre className="question-card__context">{question.context}</pre>
           </div>
         )}
-        {question.options.map((option) => (
+        {question.type === "Text" ? (
+          <input
+            aria-label={question.title}
+            className="form-input"
+            maxLength={100}
+            onChange={(event) => onSelect(question.id, event.target.value)}
+            type="text"
+            value={selectedAnswers[question.id] ?? ""}
+          />
+        ) : question.options.map((option) => (
           <label className="question-card__option" key={option.label}>
             <input
               checked={selectedAnswers[question.id] === option.label}
@@ -101,7 +110,7 @@ export function QuestionWizard({
         {isLastQuestion ? (
           <button
             className="button button--primary"
-            disabled={isSubmitting || !questions.every((item) => selectedAnswers[item.id])}
+            disabled={isSubmitting || !questions.every((item) => selectedAnswers[item.id]?.trim())}
             onClick={onSubmit}
             type="button"
           >

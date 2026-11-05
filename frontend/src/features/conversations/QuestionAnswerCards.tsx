@@ -1,12 +1,12 @@
 import { useId, useState } from "react";
 
 import { PlatformIcon } from "../platform/PlatformIcon";
-import type { SingleChoiceQuestion, SubmittedQuestionAnswer } from "./conversationApi";
+import type { Question, SubmittedQuestionAnswer } from "./conversationApi";
 import { t } from "../../i18n/localeStore";
 import "./question-cards.css";
 
 interface CompletedQuestionCardProps {
-  questions: SingleChoiceQuestion[];
+  questions: Question[];
 }
 
 interface QuestionAnswerCardProps {
@@ -57,7 +57,7 @@ export function CompletedQuestionCard({ questions }: CompletedQuestionCardProps)
                 </span>
                 <div className="completed-question-card__question">
                   <p>{question.title}</p>
-                  {question.context && (
+                  {"context" in question && question.context && (
                     <p className="completed-question-card__context">{question.context}</p>
                   )}
                 </div>

@@ -23,6 +23,8 @@ export function DigitalHumanComposer({
   onToggleRecording,
 }: DigitalHumanComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const restoreFocusRef = useRef(false);
+  const wasDisabledRef = useRef(disabled);
   const isRecording = recorderStatus === "listening";
   const isProcessing = recorderStatus === "starting" || recorderStatus === "transcribing";
   const recordingButtonLabel =
@@ -41,14 +43,24 @@ export function DigitalHumanComposer({
     textarea.style.height = `${Math.min(textarea.scrollHeight, 144)}px`;
   }, [draft]);
 
+  useLayoutEffect(() => {
+    if (wasDisabledRef.current && !disabled && restoreFocusRef.current) {
+      textareaRef.current?.focus();
+      restoreFocusRef.current = false;
+    }
+    wasDisabledRef.current = disabled;
+  }, [disabled]);
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (draft.trim() && !disabled) restoreFocusRef.current = true;
     onSend();
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
+      if (draft.trim() && !disabled) restoreFocusRef.current = true;
       onSend();
     }
   }
