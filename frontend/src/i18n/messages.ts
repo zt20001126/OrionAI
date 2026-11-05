@@ -730,7 +730,7 @@ const catalogs: Record<string, MessageMap> = {
     "观察时间剩余 {seconds} 秒": "Observation time remaining: {seconds} seconds",
     "暂时无法读取个人资料，请检查连接后重试。": "Could not load your profile. Check your connection and try again.",
     "头像仅支持 PNG、JPEG 或 WebP 图片。": "Avatar images must be PNG, JPEG, or WebP.",
-    "头像文件不能为空，且大小不能超过 2 MiB。": "Choose a non-empty avatar image smaller than 2 MiB.",
+    "头像文件不能为空，且大小不能超过 5 MiB。": "Choose a non-empty avatar image smaller than 5 MiB.",
     "个人资料已保存。": "Profile saved.",
     "个人资料保存失败，请稍后重试。": "Could not save your profile. Please try again later.",
     "暂无记录": "No record",

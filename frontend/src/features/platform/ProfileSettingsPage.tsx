@@ -7,7 +7,7 @@ import { getUserProfile, updateUserProfile, type UserProfile } from "./profileAp
 import { t } from "../../i18n/localeStore";
 
 const MAX_NICKNAME_LENGTH = 20;
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_AVATAR_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 interface ProfileSettingsPageProps {
@@ -84,7 +84,7 @@ export function ProfileSettingsPage({
       return;
     }
     if (file.size === 0 || file.size > MAX_AVATAR_BYTES) {
-      setAvatarValidationError(t("头像文件不能为空，且大小不能超过 2 MiB。"));
+      setAvatarValidationError(t("头像文件不能为空，且大小不能超过 5 MiB。"));
       return;
     }
     setSelectedAvatar(file);
