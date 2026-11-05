@@ -26,13 +26,13 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.conversations.dependencies import (
+from app.modules.conversations.dependencies.dependencies import (
     get_conversation_run_coordinator,
     get_optional_idempotency_store,
 )
-from app.modules.conversations.models import Conversation
-from app.modules.conversations.service import ConversationService
-from app.modules.conversations.title import fallback_conversation_title
+from app.modules.conversations.models.models import Conversation
+from app.modules.conversations.service.service import ConversationService
+from app.modules.conversations.service.title import fallback_conversation_title
 from app.modules.membership.dependencies import require_membership_access
 from app.modules.skills.models import Skill, UserSkill
 

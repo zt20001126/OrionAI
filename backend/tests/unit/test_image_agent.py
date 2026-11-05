@@ -20,7 +20,7 @@ from app.modules.agents.image_agent.parameter_policy import extract_image_option
 from app.modules.agents.image_agent.runtime.image_agent import ImageAgent
 from app.modules.agents.image_agent.schemas import ImageRequestAnalysis
 from app.modules.auth.models import User
-from app.modules.conversations.models import Conversation
+from app.modules.conversations.models.models import Conversation
 from app.modules.image_generation.models import TaskResult
 from app.modules.image_generation.providers.result_downloader import ImageResultDownloader
 from app.modules.image_generation.providers.tokenhub_client import (

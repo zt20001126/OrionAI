@@ -9,14 +9,14 @@ from uuid import uuid4
 
 from redis import Redis
 
-from app.modules.conversations.errors import (
+from app.infrastructure.redis.conversation_run_store import ConversationRunStore
+from app.modules.conversations.errors.errors import (
     ConversationConflictError,
     ConversationNotFoundError,
     ConversationUnavailableError,
 )
-from app.modules.conversations.models import Conversation
-from app.modules.conversations.run_store import ConversationRunStore
-from app.modules.conversations.service import ConversationService, PreparedConversationTurn
+from app.modules.conversations.models.models import Conversation
+from app.modules.conversations.service.service import ConversationService, PreparedConversationTurn
 from app.shared.streaming import EventType, StreamEvent
 
 logger = logging.getLogger(__name__)

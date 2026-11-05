@@ -30,22 +30,22 @@ from app.agent.schemas import (
 )
 from app.infrastructure.database.session import SessionLocal
 from app.infrastructure.redis.client import create_redis_client
+from app.infrastructure.redis.conversation_run_store import ConversationRunStore
 from app.infrastructure.redis.idempotency import (
     IdempotencyStore,
     IdempotencyStoreError,
     RedisIdempotencyStore,
 )
 from app.modules.auth.models import User
-from app.modules.conversations import repository
-from app.modules.conversations.errors import (
+from app.modules.conversations.errors.errors import (
     ConversationConflictError,
     ConversationNotFoundError,
     ConversationUnavailableError,
     ConversationValidationError,
 )
-from app.modules.conversations.models import Conversation, Message
-from app.modules.conversations.run_store import ConversationRunStore
-from app.modules.conversations.schemas import (
+from app.modules.conversations.models.models import Conversation, Message
+from app.modules.conversations.repository import repository
+from app.modules.conversations.schemas.schemas import (
     AgentTurnResponse,
     ConversationCreateResponse,
     ConversationListResponse,
@@ -60,7 +60,7 @@ from app.modules.conversations.schemas import (
     SubmittedQuestionAnswer,
     TextContentPart,
 )
-from app.modules.conversations.title import (
+from app.modules.conversations.service.title import (
     ConversationTitleGenerator,
     fallback_conversation_title,
 )

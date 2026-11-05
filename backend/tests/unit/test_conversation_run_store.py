@@ -3,10 +3,10 @@ import json
 
 import pytest
 
-from app.modules.conversations.models import Conversation
-from app.modules.conversations.run_coordinator import ConversationRunCoordinator
-from app.modules.conversations.run_store import ConversationRunStore
-from app.modules.conversations.service import PreparedConversationTurn
+from app.infrastructure.redis.conversation_run_store import ConversationRunStore
+from app.modules.conversations.models.models import Conversation
+from app.modules.conversations.service.run_coordinator import ConversationRunCoordinator
+from app.modules.conversations.service.service import PreparedConversationTurn
 
 
 class MemoryRedis:

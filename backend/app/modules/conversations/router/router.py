@@ -6,12 +6,12 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 
 from app.modules.auth.dependencies import validate_origin
-from app.modules.conversations.dependencies import (
+from app.modules.conversations.dependencies.dependencies import (
     ConversationRunCoordinatorDependency,
     ConversationServiceDependency,
     CurrentUser,
 )
-from app.modules.conversations.schemas import (
+from app.modules.conversations.schemas.schemas import (
     AgentTurnResponse,
     ConversationCreateRequest,
     ConversationCreateResponse,

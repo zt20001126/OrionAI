@@ -12,9 +12,9 @@ from app.infrastructure.redis.client import create_redis_client
 from app.infrastructure.redis.idempotency import IdempotencyStore, RedisIdempotencyStore
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.conversations.run_coordinator import ConversationRunCoordinator
-from app.modules.conversations.service import ConversationService
-from app.modules.conversations.title import ConversationTitleGenerator
+from app.modules.conversations.service.run_coordinator import ConversationRunCoordinator
+from app.modules.conversations.service.service import ConversationService
+from app.modules.conversations.service.title import ConversationTitleGenerator
 
 
 def get_optional_idempotency_store(request: Request) -> Iterator[IdempotencyStore | None]:

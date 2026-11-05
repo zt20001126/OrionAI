@@ -6,7 +6,7 @@ import pytest
 from app.core.application import create_agent_lifespan
 from app.core.config import Settings
 from app.infrastructure.llm.provider import OpenAICompatibleChatModelProvider
-from app.modules.conversations.title import ModelConversationTitleGenerator
+from app.modules.conversations.service.title import ModelConversationTitleGenerator
 
 
 class FakeCheckpointer:

@@ -3,7 +3,7 @@
 from collections.abc import Iterator, Mapping
 
 from app.agent.runtime.protocol import AgentRuntime
-from app.modules.conversations.errors import ConversationUnavailableError
+from app.modules.conversations.errors.errors import ConversationUnavailableError
 
 
 class AgentRegistry(Mapping[str, AgentRuntime]):

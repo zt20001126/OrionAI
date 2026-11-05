@@ -20,8 +20,8 @@ from app.modules.agents.registry import AgentRegistry
 from app.modules.agents.resume_agent.runtime import ResumeAgent
 from app.modules.agents.tourism_insight.runtime import TourismInsightAgent
 from app.modules.auth.errors import AuthError
-from app.modules.conversations.errors import ConversationError
-from app.modules.conversations.title import ModelConversationTitleGenerator
+from app.modules.conversations.errors.errors import ConversationError
+from app.modules.conversations.service.title import ModelConversationTitleGenerator
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
 from app.modules.digital_human.constants import DIGITAL_HUMAN_MAX_AUDIO_BYTES
 from app.modules.digital_human.middleware.upload_limit import (

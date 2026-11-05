@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.infrastructure.database.base import Base
 from app.modules.auth.models import User
-from app.modules.conversations.models import Conversation
+from app.modules.conversations.models.models import Conversation
 from app.modules.digital_human.repository.repository import (
     count_conversations,
     list_conversations,
