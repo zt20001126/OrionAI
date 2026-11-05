@@ -7,7 +7,7 @@ afterEach(() => {
 });
 
 describe("streamConversationMessage", () => {
-  it("sends an optional idempotency key without changing the stream protocol", async () => {
+  it("sends an optional idempotency key when creating a background run", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ detail: "幂等键已用于另一条消息，请重新发送。" }), {
         status: 409,
@@ -27,7 +27,7 @@ describe("streamConversationMessage", () => {
     ).rejects.toThrow("幂等键已用于另一条消息，请重新发送。");
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/conversations/12/messages/stream",
+      "/api/conversations/12/runs/messages",
       expect.objectContaining({
         headers: { "Content-Type": "application/json", "Idempotency-Key": "request-uuid" },
       }),

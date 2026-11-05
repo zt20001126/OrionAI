@@ -161,6 +161,9 @@ def create_agent_lifespan(
                 timeout_seconds=settings.conversation_title_timeout_seconds,
             )
             yield
+            run_coordinator = getattr(application.state, "conversation_run_coordinator", None)
+            if run_coordinator is not None:
+                await run_coordinator.close()
             del application.state.conversation_agent
             del application.state.agent_registry
             del application.state.conversation_title_generator

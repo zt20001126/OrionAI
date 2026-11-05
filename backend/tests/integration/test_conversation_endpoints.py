@@ -26,7 +26,10 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.conversations.dependencies import get_optional_idempotency_store
+from app.modules.conversations.dependencies import (
+    get_conversation_run_coordinator,
+    get_optional_idempotency_store,
+)
 from app.modules.conversations.models import Conversation
 from app.modules.conversations.service import ConversationService
 from app.modules.conversations.title import fallback_conversation_title
@@ -108,6 +111,19 @@ class BlockingTitleGenerator:
     async def generate_title(self, _first_user_message: str) -> str | None:
         self.started.set()
         await asyncio.Event().wait()
+
+
+class FakeConversationRunCoordinator:
+    """为异步任务路由验证请求预检与 run_id 响应，不启动后台协程。"""
+
+    def ensure_available(self, _user_id: int, _conversation_id: int) -> None:
+        return
+
+    def start(self, _service: object, prepared: object) -> str:
+        return f"run-{prepared.message_id}"
+
+    def active(self, _user_id: int, _conversation_id: int) -> None:
+        return None
 
 
 class FakeIdempotencyStore:
@@ -298,6 +314,8 @@ def conversation_client() -> Iterator[
     test_app.dependency_overrides[get_current_user] = override_current_user
     test_app.dependency_overrides[require_membership_access] = override_membership_access
     test_app.dependency_overrides[get_optional_idempotency_store] = override_idempotency_store
+    run_coordinator = FakeConversationRunCoordinator()
+    test_app.dependency_overrides[get_conversation_run_coordinator] = lambda: run_coordinator
     test_app.state.conversation_agent = agent
     test_app.state.agent_registry = {"general_chat": agent, "image_agent": agent}
     test_app.state.conversation_title_generator = title_generator
@@ -315,6 +333,30 @@ def test_conversation_endpoints_require_login() -> None:
         response = client.get("/api/conversations")
 
     assert response.status_code == 401
+
+
+def test_async_message_route_returns_run_id_and_persists_user_message(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, agent, _title_generator, _session_factory = conversation_client
+    conversation_id = client.post("/api/conversations").json()["id"]
+
+    response = client.post(
+        f"/api/conversations/{conversation_id}/runs/messages",
+        json={"message": "后台运行的消息"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["run_id"].startswith("run-")
+    messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
+    assert messages[-1]["content"]["parts"][0]["text"] == "后台运行的消息"
+    assert agent.calls == []
 
 
 def test_conversation_list_returns_user_scoped_total_and_stable_pages(

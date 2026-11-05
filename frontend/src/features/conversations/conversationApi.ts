@@ -81,6 +81,10 @@ export interface AgentTurnResponse {
   message: ConversationMessage;
 }
 
+export interface ConversationRunResponse {
+  run_id: string;
+}
+
 export interface ConversationTextDeltaEvent {
   type: "text_delta";
   content: string;
@@ -114,13 +118,17 @@ async function request<T>(
   path: string,
   body?: object,
   method: "GET" | "POST" = body ? "POST" : "GET",
+  idempotencyKey?: string,
 ): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api/conversations${path}`, {
       method,
       credentials: "include",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: {
+        ...(body ? { "Content-Type": "application/json" } : {}),
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -192,12 +200,11 @@ export function streamConversationMessage(
   signal: AbortSignal,
   idempotencyKey?: string,
 ): Promise<ConversationMessage | null> {
-  return streamConversationTurn(
-    `/${conversationId}/messages/stream`,
-    { message },
+  return streamConversationRun(
+    conversationId,
+    () => startConversationMessageRun(conversationId, message, idempotencyKey),
     onTextDelta,
     signal,
-    idempotencyKey,
   );
 }
 
@@ -214,114 +221,144 @@ export function streamQuestionAnswers(
   onTextDelta: (content: string) => void,
   signal: AbortSignal,
 ): Promise<ConversationMessage | null> {
-  return streamConversationTurn(
-    `/${conversationId}/answers/stream`,
-    { answers },
+  return streamConversationRun(
+    conversationId,
+    () => startQuestionAnswersRun(conversationId, answers),
     onTextDelta,
     signal,
   );
 }
 
-async function streamConversationTurn(
-  path: string,
-  body: object,
+/** 兼容旧调用方，同时将浏览器请求改为独立任务加监听的两阶段流程。 */
+async function streamConversationRun(
+  conversationId: string,
+  start: () => Promise<ConversationRunResponse>,
   onTextDelta: (content: string) => void,
   signal: AbortSignal,
-  idempotencyKey?: string,
 ): Promise<ConversationMessage | null> {
+  const { run_id: runId } = await start();
+  let status: string | null = null;
+  let questionMessage: ConversationMessage | null = null;
+  await listenConversationRun(
+    conversationId,
+    runId,
+    onTextDelta,
+    (message) => {
+      questionMessage = message;
+    },
+    (nextStatus) => {
+      status = nextStatus;
+    },
+    signal,
+  );
+  if (signal.aborted) return null;
+  if (status === "completed") return questionMessage;
+  if (status === "interrupted") {
+    throw new ConversationApiError(t("本次回复已中断，已保留生成内容。"), 0);
+  }
+  throw new ConversationApiError(t("对话连接已结束，但没有收到完整的结束事件。"), 0);
+}
+
+/** 创建后台消息生成任务；输入为会话和消息，输出 Redis 管理的 run_id。 */
+export function startConversationMessageRun(
+  conversationId: string,
+  message: string,
+  idempotencyKey?: string,
+): Promise<ConversationRunResponse> {
+  return request<ConversationRunResponse>(
+    `/${conversationId}/runs/messages`,
+    { message },
+    "POST",
+    idempotencyKey,
+  );
+}
+
+/** 创建题卡答案对应的后台生成任务。 */
+export function startQuestionAnswersRun(
+  conversationId: string,
+  answers: Record<string, string>,
+): Promise<ConversationRunResponse> {
+  return request<ConversationRunResponse>(`/${conversationId}/runs/answers`, { answers });
+}
+
+/** 查询会话活动任务；无活动任务时返回 null。 */
+export function getActiveConversationRun(
+  conversationId: string,
+): Promise<ConversationRunResponse | null> {
+  return request<ConversationRunResponse | null>(`/${conversationId}/runs/active`);
+}
+
+/** 主动停止本轮生成；关闭 listen 的 AbortSignal 不会调用此接口。 */
+export function interruptConversationRun(conversationId: string, runId: string): Promise<void> {
+  return request<void>(`/${conversationId}/runs/${runId}/interrupt`, {}, "POST");
+}
+
+/** 监听 Redis 回放流；重连时服务端会从首个事件回放，不会重启 Agent。 */
+export async function listenConversationRun(
+  conversationId: string,
+  runId: string,
+  onTextDelta: (content: string) => void,
+  onQuestion: (message: ConversationMessage) => void,
+  onStatus: (status: string) => void,
+  signal: AbortSignal,
+): Promise<void> {
   let response: Response;
   try {
-    response = await fetch(`/api/conversations${path}`, {
-      method: "POST",
+    response = await fetch(`/api/conversations/${conversationId}/runs/${runId}/listen`, {
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
-      },
-      body: JSON.stringify(body),
       signal,
     });
   } catch {
-    if (signal.aborted) throw new ConversationApiError(t("本次生成已中断。"), 0);
+    if (signal.aborted) return;
     throw new ConversationApiError(t("暂时无法连接对话服务，请检查后端状态后重试。"), 0);
   }
-
   if (!response.ok) {
     const payload: unknown = await response.json().catch(() => null);
     throw getResponseError(response, payload);
   }
-  if (!response.headers.get("content-type")?.startsWith("text/event-stream") || !response.body) {
+  if (!response.body)
     throw new ConversationApiError(t("对话服务未返回有效的流式响应。"), response.status);
-  }
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
-  let endStatus: string | null = null;
-  let questionMessage: ConversationMessage | null = null;
-
-  function consumeFrame(frame: string): void {
-    const data = frame
-      .replace(/\r\n/g, "\n")
-      .replace(/\r/g, "\n")
-      .split("\n")
-      .filter((line) => line.startsWith("data:"))
-      .map((line) => line.slice(line.startsWith("data: ") ? 6 : 5));
-    if (data.length === 0) return;
-
-    let event: ConversationStreamEnvelope;
-    try {
-      event = JSON.parse(data.join("\n")) as ConversationStreamEnvelope;
-    } catch {
-      throw new ConversationApiError(t("对话服务返回了无法读取的流式数据。"), response.status);
-    }
-
-    if (event.event_type === "message" && event.data && typeof event.data === "object") {
-      const messageData = event.data as Record<string, unknown>;
-      if (messageData.type === "text_delta" && typeof messageData.content === "string") {
-        onTextDelta(messageData.content);
-      } else if (messageData.type === "question" && messageData.message) {
-        questionMessage = messageData.message as ConversationMessage;
-      }
-    } else if (event.event_type === "end" && event.data && typeof event.data === "object") {
-      const endData = event.data as Record<string, unknown>;
-      endStatus = typeof endData.status === "string" ? endData.status : "failed";
-    }
-  }
-
+  const consumeFrame = (frame: string) => {
+    const raw = frame
+      .split(/\r?\n/)
+      .find((line) => line.startsWith("data:"))
+      ?.slice(5)
+      .trim();
+    if (!raw) return;
+    const envelope = JSON.parse(raw) as ConversationStreamEnvelope;
+    if (!envelope.data || typeof envelope.data !== "object") return;
+    const event = envelope.data as Record<string, unknown>;
+    if (envelope.event_type !== "message") return;
+    if (event.type === "text_delta" && typeof event.content === "string")
+      onTextDelta(event.content);
+    if (event.type === "question" && event.message)
+      onQuestion(event.message as ConversationMessage);
+    if (event.type === "run_status" && typeof event.status === "string") onStatus(event.status);
+  };
   try {
     while (true) {
       const { done, value } = await reader.read();
       buffer += decoder.decode(value, { stream: !done });
-
       let delimiter = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
-      while (delimiter && delimiter.index !== undefined) {
+      while (delimiter?.index !== undefined) {
         consumeFrame(buffer.slice(0, delimiter.index));
         buffer = buffer.slice(delimiter.index + delimiter[0].length);
         delimiter = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
       }
-
       if (done) break;
     }
-
     if (buffer.trim()) consumeFrame(buffer);
   } catch (error) {
-    if (signal.aborted) throw new ConversationApiError(t("本次生成已中断。"), 0);
+    if (signal.aborted) return;
     if (error instanceof ConversationApiError) throw error;
     throw new ConversationApiError(t("读取对话流时连接中断，请重新加载会话后再试。"), 0);
   } finally {
     reader.releaseLock();
   }
-
-  if (endStatus !== "completed") {
-    throw new ConversationApiError(
-      endStatus === "failed"
-        ? t("助手生成中断，部分内容尚未保存；请检查会话后再决定是否重试。")
-        : t("对话连接已结束，但没有收到完整的结束事件。"),
-      0,
-    );
-  }
-  return questionMessage;
 }
 
 export async function listAllMessages(conversationId: string): Promise<MessageListResponse> {

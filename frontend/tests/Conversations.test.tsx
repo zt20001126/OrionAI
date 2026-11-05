@@ -113,12 +113,17 @@ function createSseResponse(
   const readChunk = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
     if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
     if (eventIndex >= eventChunks.length) return { done: true, value: undefined };
-    if (events[eventIndex]?.event_type === "end" && endGate && !endGateReleased) {
+    const currentEvent = events[eventIndex];
+    const isTerminalEvent =
+      currentEvent?.event_type === "end" ||
+      (currentEvent?.event_type === "message" &&
+        (currentEvent.data as Record<string, unknown>)?.type === "run_status");
+    if (isTerminalEvent && endGate && !endGateReleased) {
       await waitForGate(endGate);
       endGateReleased = true;
     }
     if (signal?.aborted) throw new DOMException("Request aborted", "AbortError");
-    if (events[eventIndex]?.event_type === "end" && !endActionCompleted) {
+    if (isTerminalEvent && !endActionCompleted) {
       onEnd?.();
       endActionCompleted = true;
       if (deliveryGate) await waitForGate(deliveryGate);
@@ -184,8 +189,11 @@ function createBackend(options?: {
   const messages = new Map<string, ConversationMessage[]>(
     Object.entries(options?.messages ?? {}).map(([id, items]) => [id, [...items]]),
   );
+  const runStreams = new Map<string, (signal?: AbortSignal) => Response>();
+  const activeRuns = new Map<string, string>();
   const calls: Array<{ url: URL; method: string; body: Record<string, unknown> | null }> = [];
   let nextMessageId = 100;
+  let nextRunId = 1;
 
   const fetchMock = vi
     .fn()
@@ -306,9 +314,35 @@ function createBackend(options?: {
         } as Response;
       }
 
-      const isMessageStream = url.pathname.endsWith("/messages/stream");
+      const activeRunRoute = url.pathname.match(/^\/api\/conversations\/([^/]+)\/runs\/active$/);
+      if (activeRunRoute && method === "GET") {
+        const runId = activeRuns.get(activeRunRoute[1]);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => (runId ? { run_id: runId } : null),
+        } as Response;
+      }
+      const listenRoute = url.pathname.match(
+        /^\/api\/conversations\/[^/]+\/runs\/([^/]+)\/listen$/,
+      );
+      if (listenRoute && method === "GET") {
+        return (
+          runStreams.get(listenRoute[1])?.(init?.signal as AbortSignal | undefined) ??
+          ({ ok: false, status: 404, json: async () => ({ detail: "任务不存在" }) } as Response)
+        );
+      }
+      const interruptRoute = url.pathname.match(
+        /^\/api\/conversations\/([^/]+)\/runs\/([^/]+)\/interrupt$/,
+      );
+      if (interruptRoute && method === "POST") {
+        return { ok: true, status: 200, json: async () => ({ status: "interrupted" }) } as Response;
+      }
+
+      const isNewMessageRun = /\/runs\/messages$/.test(url.pathname);
+      const isMessageStream = url.pathname.endsWith("/messages/stream") || isNewMessageRun;
       const messageRoute = url.pathname.match(
-        /^\/api\/conversations\/([^/]+)\/messages(?:\/stream)?$/,
+        /^\/api\/conversations\/([^/]+)\/(?:messages(?:\/stream)?|runs\/messages)$/,
       );
       if (messageRoute && method === "GET" && !isMessageStream) {
         const conversationId = messageRoute[1];
@@ -401,17 +435,29 @@ function createBackend(options?: {
             : ((assistantPart?.type === "text" ? assistantPart.text : "")
                 .match(/.{1,8}/gu)
                 ?.map((content) => ({ type: "text_delta", content })) ?? []);
-          return createSseResponse(
-            [
-              { event_type: "start", data: {} },
-              ...messageEvents.map((data) => ({ event_type: "message" as const, data })),
-              { event_type: "end", data: { status: "completed" } },
-            ],
-            options?.streamEndGate,
-            init?.signal,
-            options?.streamDeliveryGate,
-            isQuestion ? undefined : persistAssistantMessage,
-          );
+          const createRunStream = (signal?: AbortSignal) =>
+            createSseResponse(
+              [
+                { event_type: "start", data: {} },
+                ...messageEvents.map((data) => ({ event_type: "message" as const, data })),
+                { event_type: "message", data: { type: "run_status", status: "completed" } },
+                { event_type: "end", data: { status: "completed" } },
+              ],
+              options?.streamEndGate,
+              signal,
+              options?.streamDeliveryGate,
+              () => {
+                if (!isQuestion) persistAssistantMessage();
+                activeRuns.delete(conversationId);
+              },
+            );
+          if (isNewMessageRun) {
+            const runId = `run-${nextRunId++}`;
+            activeRuns.set(conversationId, runId);
+            runStreams.set(runId, createRunStream);
+            return { ok: true, status: 200, json: async () => ({ run_id: runId }) } as Response;
+          }
+          return createRunStream(init?.signal as AbortSignal | undefined);
         }
 
         persistAssistantMessage();
@@ -427,9 +473,10 @@ function createBackend(options?: {
         } as Response;
       }
 
-      const isAnswersStream = url.pathname.endsWith("/answers/stream");
+      const isNewAnswerRun = /\/runs\/answers$/.test(url.pathname);
+      const isAnswersStream = url.pathname.endsWith("/answers/stream") || isNewAnswerRun;
       const answersRoute = url.pathname.match(
-        /^\/api\/conversations\/([^/]+)\/answers(?:\/stream)?$/,
+        /^\/api\/conversations\/([^/]+)\/(?:answers(?:\/stream)?|runs\/answers)$/,
       );
       if (answersRoute && method === "POST") {
         const conversationId = answersRoute[1];
@@ -474,17 +521,29 @@ function createBackend(options?: {
             answer?.type === "text"
               ? answer.text.match(/.{1,8}/gu)?.map((content) => ({ type: "text_delta", content }))
               : [];
-          return createSseResponse(
-            [
-              { event_type: "start", data: {} },
-              ...(messageEvents ?? []).map((data) => ({ event_type: "message" as const, data })),
-              { event_type: "end", data: { status: "completed" } },
-            ],
-            options?.streamEndGate,
-            init?.signal,
-            options?.streamDeliveryGate,
-            persistAssistantMessage,
-          );
+          const createRunStream = (signal?: AbortSignal) =>
+            createSseResponse(
+              [
+                { event_type: "start", data: {} },
+                ...(messageEvents ?? []).map((data) => ({ event_type: "message" as const, data })),
+                { event_type: "message", data: { type: "run_status", status: "completed" } },
+                { event_type: "end", data: { status: "completed" } },
+              ],
+              options?.streamEndGate,
+              signal,
+              options?.streamDeliveryGate,
+              () => {
+                persistAssistantMessage();
+                activeRuns.delete(conversationId);
+              },
+            );
+          if (isNewAnswerRun) {
+            const runId = `run-${nextRunId++}`;
+            activeRuns.set(conversationId, runId);
+            runStreams.set(runId, createRunStream);
+            return { ok: true, status: 200, json: async () => ({ run_id: runId }) } as Response;
+          }
+          return createRunStream(init?.signal as AbortSignal | undefined);
         }
 
         persistAssistantMessage();
@@ -537,6 +596,33 @@ describe("OrionAI conversations", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("shows an interrupt action while a run is generating", async () => {
+    window.history.replaceState({}, "", "/chat");
+    let releaseEnd!: () => void;
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve;
+    });
+    const backend = createBackend({ streamEndGate: endGate });
+    vi.stubGlobal("fetch", backend.fetchMock);
+    render(<App />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: "发送消息" }), {
+      target: { value: "需要停止的回复" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "发送消息" }));
+    expect(await screen.findByRole("button", { name: "中断回复" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "中断回复" }));
+
+    await waitFor(() => {
+      expect(
+        backend.calls.some(
+          ({ method, url }) => method === "POST" && url.pathname.endsWith("/interrupt"),
+        ),
+      ).toBe(true);
+    });
+    releaseEnd();
+  });
+
   it("shows streamed resume assistant text before the turn ends", async () => {
     window.history.replaceState({}, "", "/resume");
     vi.stubGlobal(
@@ -571,7 +657,7 @@ describe("OrionAI conversations", () => {
     });
   });
 
-  it("marks partial streamed text as incomplete after switching conversations", async () => {
+  it("keeps the active streamed reply visible after switching conversations", async () => {
     const activeConversationId = "9100000000000010";
     const otherConversationId = "9100000000000011";
     const endGate = new Promise<void>(() => undefined);
@@ -620,9 +706,9 @@ describe("OrionAI conversations", () => {
 
     window.history.pushState({}, "", `/chat/${activeConversationId}`);
     fireEvent.popState(window);
-    expect(await screen.findByRole("article", { name: "未完成的助手回答" })).toBeInTheDocument();
-    expect(screen.getByText("回答未完成，刷新后不会保留这部分内容。")).toBeInTheDocument();
-    expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: "助手回答" })).toBeInTheDocument();
+    expect(screen.queryByText("回答未完成，刷新后不会保留这部分内容。")).not.toBeInTheDocument();
+    expect(screen.getByText("助手正在生成…")).toBeInTheDocument();
   });
 
   it("uses the saved answer when disconnect happens before the end event", async () => {
@@ -706,7 +792,7 @@ describe("OrionAI conversations", () => {
     expect(
       backend.calls.some(
         ({ url, method, body }) =>
-          url.pathname === `/api/conversations/${createdConversationId}/messages/stream` &&
+          url.pathname === `/api/conversations/${createdConversationId}/runs/messages` &&
           method === "POST" &&
           body?.message === "你好",
       ),
@@ -822,7 +908,7 @@ describe("OrionAI conversations", () => {
     expect(
       backend.calls.some(
         ({ url, method, body }) =>
-          url.pathname === `/api/conversations/${createdConversationId}/answers/stream` &&
+          url.pathname === `/api/conversations/${createdConversationId}/runs/answers` &&
           method === "POST" &&
           typeof body?.answers === "object" &&
           body.answers !== null &&
@@ -840,7 +926,7 @@ describe("OrionAI conversations", () => {
     let failNextAnswer = true;
     backend.fetchMock.mockImplementation(async (input, init) => {
       const url = new URL(String(input), "http://localhost");
-      if (failNextAnswer && url.pathname.endsWith("/answers/stream") && init?.method === "POST") {
+      if (failNextAnswer && url.pathname.endsWith("/runs/answers") && init?.method === "POST") {
         failNextAnswer = false;
         return {
           ok: false,
@@ -899,7 +985,7 @@ describe("OrionAI conversations", () => {
     expect(screen.getByText("你最看重工作的哪一方面？")).toBeInTheDocument();
     expect(
       backend.calls.some(
-        ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers/stream"),
+        ({ method, url }) => method === "POST" && url.pathname.endsWith("/runs/answers"),
       ),
     ).toBe(false);
 
@@ -923,7 +1009,7 @@ describe("OrionAI conversations", () => {
     expect(screen.queryByRole("button", { name: "提交答案" })).not.toBeInTheDocument();
 
     const answerCall = backend.calls.find(
-      ({ method, url }) => method === "POST" && url.pathname.endsWith("/answers/stream"),
+      ({ method, url }) => method === "POST" && url.pathname.endsWith("/runs/answers"),
     );
     expect(answerCall?.body?.answers).toEqual({
       main_issue: "选择一",
@@ -948,7 +1034,7 @@ describe("OrionAI conversations", () => {
     expect(input).toHaveValue("通过键盘发送");
     expect(
       backend.calls.some(
-        ({ method, url }) => method === "POST" && url.pathname.endsWith("/messages/stream"),
+        ({ method, url }) => method === "POST" && url.pathname.endsWith("/runs/messages"),
       ),
     ).toBe(false);
 
@@ -959,6 +1045,10 @@ describe("OrionAI conversations", () => {
 
   it("follows new messages until the user scrolls up during a reply", async () => {
     const conversationId = "9100000000000003";
+    let releaseMessageResponse!: () => void;
+    const responseGate = new Promise<void>((resolve) => {
+      releaseMessageResponse = resolve;
+    });
     window.history.replaceState({}, "", `/chat/${conversationId}`);
     const backend = createBackend({
       messages: {
@@ -967,19 +1057,7 @@ describe("OrionAI conversations", () => {
           textMessage("205", conversationId, "assistant", "先前的回答"),
         ],
       },
-    });
-    const originalFetch = backend.fetchMock.getMockImplementation();
-    if (!originalFetch) throw new Error("对话接口 mock 未初始化。");
-    let releaseMessageResponse!: () => void;
-    const responseGate = new Promise<void>((resolve) => {
-      releaseMessageResponse = resolve;
-    });
-    backend.fetchMock.mockImplementation(async (input, init) => {
-      const url = new URL(String(input), "http://localhost");
-      if (url.pathname.endsWith("/messages/stream") && init?.method === "POST") {
-        await responseGate;
-      }
-      return originalFetch(input, init);
+      streamEndGate: responseGate,
     });
     vi.stubGlobal("fetch", backend.fetchMock);
     render(<App />);
@@ -1008,12 +1086,14 @@ describe("OrionAI conversations", () => {
 
     messageLog.scrollTop = 350;
     fireEvent.scroll(messageLog);
-    const profileButton = screen.getByRole("button", { name: "更多用户选项" });
+    const profileButton = screen.getByRole("button", { name: "收起导航栏" });
     profileButton.focus();
     fireEvent.click(profileButton);
     releaseMessageResponse();
 
-    expect(await screen.findByText("已回答：继续追问")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("助手正在生成…")).not.toBeInTheDocument();
+    });
     expect(messageLog.scrollTop).toBe(350);
     expect(profileButton).toHaveFocus();
   });
