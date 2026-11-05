@@ -8,7 +8,7 @@ import type { VRM } from "@pixiv/three-vrm";
 
 import "./vrm-preview.css";
 
-const REQUESTED_MODEL_URL = "/models/digital-human.vrm";
+const REQUESTED_MODEL_URL = "/models/orion.vrm";
 
 interface LoadedVrm {
   frameBounds: ModelFrameBounds;
