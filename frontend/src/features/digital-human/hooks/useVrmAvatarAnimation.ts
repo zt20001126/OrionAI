@@ -25,6 +25,8 @@ const IDLE_HEAD_PITCH_FREQUENCY = 0.45;
 const IDLE_HEAD_YAW_FREQUENCY = 0.24;
 const IDLE_HEAD_TILT_FREQUENCY = 0.3;
 const NECK_MOTION_SHARE = 0.24;
+const POINTER_HEAD_PITCH_AMPLITUDE = 0.34;
+const POINTER_HEAD_YAW_AMPLITUDE = 0.62;
 const IDLE_SHOULDER_SWAY_AMPLITUDE = 0.01;
 const IDLE_SHOULDER_SWAY_FREQUENCY = 0.42;
 const IDLE_ARM_SWAY_AMPLITUDE = 0.008;
@@ -338,8 +340,8 @@ export function getPointerLookTargets(
   const y = Math.max(-1, Math.min(1, target.y));
 
   return {
-    pitch: -y * 0.07 * returnBlend,
-    yaw: x * 0.11 * returnBlend,
+    pitch: -y * POINTER_HEAD_PITCH_AMPLITUDE * returnBlend,
+    yaw: x * POINTER_HEAD_YAW_AMPLITUDE * returnBlend,
   };
 }
 

@@ -10,13 +10,13 @@ describe("getPointerLookTargets", () => {
   it("limits pointer head movement and smoothly returns after the pointer stops", () => {
     const target = { x: 3, y: -3, updatedAt: 1000 };
 
-    expect(getPointerLookTargets(target, 1200, true)).toEqual({ pitch: 0.07, yaw: 0.11 });
+    expect(getPointerLookTargets(target, 1200, true)).toEqual({ pitch: 0.34, yaw: 0.62 });
     const returning = getPointerLookTargets(target, 2800, true);
 
     expect(returning.pitch).toBeGreaterThan(0);
-    expect(returning.pitch).toBeLessThan(0.07);
+    expect(returning.pitch).toBeLessThan(0.34);
     expect(returning.yaw).toBeGreaterThan(0);
-    expect(returning.yaw).toBeLessThan(0.11);
+    expect(returning.yaw).toBeLessThan(0.62);
   });
 
   it("disables pointer movement when animation is disabled", () => {
