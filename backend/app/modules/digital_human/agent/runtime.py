@@ -17,6 +17,7 @@ from app.agent.errors import (
     AgentExecutionError,
     AgentInputError,
 )
+from app.agent.nodes.tool import ASK_USER_QUESTIONS_TOOL_NAME
 from app.agent.runtime.protocol import AgentRuntime
 from app.agent.schemas import (
     AgentRequest,
@@ -32,7 +33,6 @@ from app.modules.digital_human.agent.graph import (
     RECURSION_LIMIT,
     create_digital_human_graph,
 )
-from app.modules.digital_human.agent.nodes.tool import ASK_USER_QUESTIONS_TOOL_NAME
 from app.modules.digital_human.agent.prompts.loader import load_digital_human_prompt
 from app.modules.digital_human.agent.state import DigitalHumanState
 

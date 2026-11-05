@@ -11,18 +11,18 @@ from langgraph.graph.state import CompiledStateGraph
 
 from app.agent.config import BaseAgentConfig
 from app.agent.errors import AgentExecutionError
-from app.agent.tools.registry import ToolRegistry
-from app.modules.digital_human.agent.nodes.input import create_input_node
-from app.modules.digital_human.agent.nodes.model import create_agent_node
-from app.modules.digital_human.agent.nodes.output import output_node
-from app.modules.digital_human.agent.nodes.tool import (
+from app.agent.nodes.input import create_input_node
+from app.agent.nodes.model import create_agent_node
+from app.agent.nodes.output import output_node
+from app.agent.nodes.tool import (
     ASK_USER_QUESTIONS_TOOL_NAME,
     _is_question_message,
     create_tool_node,
 )
+from app.agent.tools.builtin.ask_user_questions import ask_user_questions
+from app.agent.tools.registry import ToolRegistry
 from app.modules.digital_human.agent.prompts.loader import load_digital_human_prompt
 from app.modules.digital_human.agent.state import DigitalHumanState
-from app.modules.digital_human.agent.tools.ask_user_questions import ask_user_questions
 
 DIGITAL_HUMAN_AGENT_CODE = "digital_human"
 MAX_INPUT_CHARS = 20_000
@@ -77,7 +77,7 @@ def create_digital_human_graph(
     chat_model: BaseChatModel,
     checkpointer: BaseCheckpointSaver[object] | None = None,
 ) -> CompiledStateGraph[DigitalHumanState, object, object, object]:
-    """用数字人专属身份和四个本地节点编译独立图。"""
+    """用专属身份编排共享节点；输入为模型和检查点，输出为数字人独立图，供 Runtime 调用。"""
 
     config = BaseAgentConfig(
         system_prompt=load_digital_human_prompt(),

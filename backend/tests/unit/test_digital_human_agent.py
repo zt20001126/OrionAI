@@ -72,3 +72,41 @@ async def test_digital_human_runtime_streams_text_and_final_response() -> None:
     assert isinstance(events[-1], AgentStreamResult)
     assert events[-1].response.agent == "digital_human"
     assert events[-1].response.answer == "流式数字人回复"
+
+
+@pytest.mark.anyio
+async def test_digital_human_runtime_uses_shared_question_tool_and_pauses() -> None:
+    """确认数字人图复用题卡工具后，仍向会话调用方返回等待状态。"""
+
+    question_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "ask_user_questions",
+                "args": {
+                    "questions": [
+                        {
+                            "id": "format",
+                            "title": "请选择输出格式",
+                            "type": "SingleChoice",
+                            "options": [
+                                {"label": label, "description": f"采用{label}格式"}
+                                for label in ["短文", "清单", "表格", "邮件"]
+                            ],
+                            "allow_custom_input": False,
+                        }
+                    ]
+                },
+                "id": "call-question-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    runtime = DigitalHumanRuntime(chat_model=ScriptedChatModel([question_call]))
+
+    response = await runtime.ainvoke("请提供格式选项")
+
+    assert response.agent == "digital_human"
+    assert response.status == "waiting"
+    assert response.questions is not None
+    assert response.questions.questions[0].id == "format"
