@@ -82,14 +82,14 @@ def create_digital_human_graph(
 ) -> CompiledStateGraph[DigitalHumanState, object, object, object]:
     """用专属身份编排共享节点；输入为模型和检查点，输出为数字人独立图，供 Runtime 调用。"""
 
+    tool_registry = ToolRegistry(
+        [ask_user_questions, get_current_date, get_current_weather, get_stock_quote]
+    )
     config = BaseAgentConfig(
-        system_prompt=load_digital_human_prompt(),
+        system_prompt=load_digital_human_prompt(tool_registry.names),
         agent=DIGITAL_HUMAN_AGENT_CODE,
         max_input_chars=MAX_INPUT_CHARS,
         recursion_limit=RECURSION_LIMIT,
-    )
-    tool_registry = ToolRegistry(
-        [ask_user_questions, get_current_date, get_current_weather, get_stock_quote]
     )
     graph = StateGraph(DigitalHumanState)
     graph.add_node("input_node", create_input_node(config))

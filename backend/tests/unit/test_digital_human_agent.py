@@ -9,6 +9,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from pydantic import PrivateAttr
 
 from app.agent.schemas import AgentStreamResult, AgentTextDelta
+from app.agent.tools.registry import ToolRegistry
+from app.modules.digital_human.agent import graph
+from app.modules.digital_human.agent.capabilities import build_capabilities_prompt
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
 from app.modules.digital_human.agent.tools import current_date, stock_quote
 
@@ -17,6 +20,7 @@ class ScriptedChatModel(BaseChatModel):
     """为数字人图提供固定回复。"""
 
     _responses: list[AIMessage] = PrivateAttr()
+    _received_messages: list[BaseMessage] = PrivateAttr(default_factory=list)
 
     def __init__(self, responses: list[AIMessage]) -> None:
         super().__init__()
@@ -33,12 +37,47 @@ class ScriptedChatModel(BaseChatModel):
         run_manager: Any = None,
         **kwargs: Any,
     ) -> ChatResult:
-        del messages, stop, run_manager, kwargs
+        self._received_messages = messages
+        del stop, run_manager, kwargs
         return ChatResult(generations=[ChatGeneration(message=self._responses.pop(0))])
 
     def bind_tools(self, tools: Any, **kwargs: Any) -> "ScriptedChatModel":
         del tools, kwargs
         return self
+
+
+def test_capabilities_require_all_registered_tools() -> None:
+    names = frozenset({"get_current_date", "get_current_weather", "get_stock_quote"})
+    prompt = build_capabilities_prompt(names)
+    assert "日常交流" in prompt
+    assert "日期查询" in prompt
+    assert "天气查询" not in prompt
+    assert "A 股行情查询" not in prompt
+
+    complete_prompt = build_capabilities_prompt(names | {"ask_user_questions"})
+    assert "天气查询" in complete_prompt
+    assert "A 股行情查询" in complete_prompt
+    assert "互动提问" in complete_prompt
+
+
+@pytest.mark.anyio
+async def test_graph_injects_only_capabilities_backed_by_registered_tools(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def without_weather(tools: Any) -> ToolRegistry:
+        return ToolRegistry(tool for tool in tools if tool.name != "get_current_weather")
+
+    monkeypatch.setattr(graph, "ToolRegistry", without_weather)
+    model = ScriptedChatModel([AIMessage(content="我可以查询日期。")])
+    runtime = DigitalHumanRuntime(chat_model=model)
+    await runtime.ainvoke("你能做什么？")
+
+    system_prompt = model._received_messages[0].content
+    assert isinstance(system_prompt, str)
+    assert "日期查询" in system_prompt
+    assert "A 股行情查询" in system_prompt
+    assert "天气查询" not in system_prompt
+    assert "get_current_weather" not in system_prompt
 
 
 @pytest.mark.anyio

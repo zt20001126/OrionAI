@@ -10,7 +10,6 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import ValidationError
 
-from app.agent.config import BaseAgentConfig
 from app.agent.errors import (
     AgentConfigurationError,
     AgentError,
@@ -29,11 +28,9 @@ from app.agent.schemas import (
 )
 from app.modules.digital_human.agent.graph import (
     DIGITAL_HUMAN_AGENT_CODE,
-    MAX_INPUT_CHARS,
     RECURSION_LIMIT,
     create_digital_human_graph,
 )
-from app.modules.digital_human.agent.prompts.loader import load_digital_human_prompt
 from app.modules.digital_human.agent.state import DigitalHumanState
 
 logger = logging.getLogger(__name__)
@@ -54,12 +51,6 @@ class DigitalHumanRuntime(AgentRuntime):
                 chat_model=chat_model,
                 checkpointer=checkpointer,
             )
-        )
-        self._config = BaseAgentConfig(
-            system_prompt=load_digital_human_prompt(),
-            agent=DIGITAL_HUMAN_AGENT_CODE,
-            max_input_chars=MAX_INPUT_CHARS,
-            recursion_limit=RECURSION_LIMIT,
         )
 
     @property
@@ -160,7 +151,7 @@ class DigitalHumanRuntime(AgentRuntime):
             )
         if configurable:
             prepared["configurable"] = configurable
-        prepared.setdefault("recursion_limit", self._config.recursion_limit)
+        prepared.setdefault("recursion_limit", RECURSION_LIMIT)
         metadata = dict(prepared.get("metadata") or {})
         metadata.setdefault("agent", DIGITAL_HUMAN_AGENT_CODE)
         prepared["metadata"] = metadata
