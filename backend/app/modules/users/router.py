@@ -37,7 +37,7 @@ def update_my_profile(
     service: UsersServiceDependency,
     avatar: Annotated[
         UploadFile | None,
-        File(description="可选头像图片，支持 PNG、JPEG 或 WebP，最大 2 MiB"),
+        File(description="可选头像图片，支持 PNG、JPEG 或 WebP，最大 5 MiB"),
     ] = None,
 ) -> UserProfileResponse:
     """一次提交当前用户昵称和可选头像文件。"""

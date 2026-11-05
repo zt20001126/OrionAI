@@ -201,7 +201,7 @@ def _validate_avatar(data: bytes, declared_content_type: str) -> tuple[str, str]
     """按文件签名识别头像格式，并验证声明的 MIME 与文件内容一致。"""
 
     if not data or len(data) > MAX_AVATAR_UPLOAD_BYTES:
-        raise InvalidUserProfileError("头像文件不能为空，且大小不能超过 2 MiB。")
+        raise InvalidUserProfileError("头像文件不能为空，且大小不能超过 5 MiB。")
 
     normalized_content_type = declared_content_type.split(";", maxsplit=1)[0].strip().lower()
     if data.startswith(PNG_SIGNATURE):

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -15,13 +16,17 @@ import { PlatformIcon } from "../platform/PlatformIcon";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { ConversationHistory } from "./ConversationHistory";
 import { CompletedQuestionCard, QuestionAnswerCard } from "./QuestionAnswerCards";
+import { QuestionWizard } from "./QuestionWizard";
 import {
   createConversation,
+  getActiveConversationRun,
   getConversationErrorMessage,
+  interruptConversationRun,
+  listenConversationRun,
   listAllMessages,
   listConversations,
-  streamConversationMessage,
-  streamQuestionAnswers,
+  startConversationMessageRun,
+  startQuestionAnswersRun,
   type ConversationMessage,
   type ImageResultContentPart,
   type MessageListResponse,
@@ -85,7 +90,11 @@ function ImageResult({ part }: { part: ImageResultContentPart }) {
         rel="noopener noreferrer"
         target="_blank"
       >
-        <img alt={t("图片助手生成的商品图片")} onError={() => setHasError(true)} src={part.image_url} />
+        <img
+          alt={t("图片助手生成的商品图片")}
+          onError={() => setHasError(true)}
+          src={part.image_url}
+        />
       </a>
     </figure>
   );
@@ -142,125 +151,6 @@ function isLegacySubmittedAnswersMessage(message: ConversationMessage | undefine
   return text.startsWith("用户已提交以下选择：") || text.startsWith("已提交选择：");
 }
 
-interface QuestionWizardProps {
-  currentIndex: number;
-  isSubmitting: boolean;
-  messageId: string;
-  onNext: () => void;
-  onPrevious: () => void;
-  onSelect: (questionId: string, answer: string) => void;
-  onSubmit: () => void;
-  questions: QuestionContentPart["questions"];
-  selectedAnswers: Record<string, string>;
-}
-
-function QuestionWizard({
-  currentIndex,
-  isSubmitting,
-  messageId,
-  onNext,
-  onPrevious,
-  onSelect,
-  onSubmit,
-  questions,
-  selectedAnswers,
-}: QuestionWizardProps) {
-  const question = questions[currentIndex];
-  if (!question) return null;
-
-  const hasSteps = questions.length > 1;
-  const hasAnswer = Boolean(selectedAnswers[question.id]);
-  const isLastQuestion = currentIndex === questions.length - 1;
-
-  return (
-    <section aria-label={t("问题答题卡")} className="question-card">
-      <header className="question-card__header">
-        <strong>{t("需要你的选择")}</strong>
-        {hasSteps && (
-          <span>
-            {t("第")} {currentIndex + 1} / {questions.length} {t("题")}
-          </span>
-        )}
-      </header>
-
-      {hasSteps && (
-        <div
-          aria-label={t("答题进度")}
-          aria-valuemax={questions.length}
-          aria-valuemin={1}
-          aria-valuenow={currentIndex + 1}
-          className="question-card__progress"
-          role="progressbar"
-        >
-          <span style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }} />
-        </div>
-      )}
-
-      <fieldset className="question-card__question" disabled={isSubmitting}>
-        <legend>{question.title}</legend>
-        {question.context && (
-          <div className="question-card__context-block">
-            {question.id === "resume_optimization" && (
-              <strong className="question-card__context-title">{t("修改候选预览")}</strong>
-            )}
-            <pre className="question-card__context">{question.context}</pre>
-          </div>
-        )}
-        {question.options.map((option) => (
-          <label className="question-card__option" key={option.label}>
-            <input
-              checked={selectedAnswers[question.id] === option.label}
-              name={`question-${messageId}-${question.id}`}
-              onChange={() => onSelect(question.id, option.label)}
-              type="radio"
-              value={option.label}
-            />
-            <span>
-              <strong>{option.label}</strong>
-              <small>{option.description}</small>
-            </span>
-          </label>
-        ))}
-      </fieldset>
-
-      <footer className="question-card__footer">
-        {hasSteps && currentIndex > 0 ? (
-          <button
-            className="button button--outline"
-            disabled={isSubmitting}
-            onClick={onPrevious}
-            type="button"
-          >
-            {t("← 上一题")}
-          </button>
-        ) : (
-          <span />
-        )}
-
-        {isLastQuestion ? (
-          <button
-            className="button button--primary"
-            disabled={isSubmitting || !questions.every((item) => selectedAnswers[item.id])}
-            onClick={onSubmit}
-            type="button"
-          >
-            {isSubmitting ? t("正在提交…") : t("提交答案")}
-          </button>
-        ) : (
-          <button
-            className="button button--primary"
-            disabled={isSubmitting || !hasAnswer}
-            onClick={onNext}
-            type="button"
-          >
-            {t("下一题 →")}
-          </button>
-        )}
-      </footer>
-    </section>
-  );
-}
-
 const markdownComponents: Components = {
   a: ({ href, title, children }) =>
     href ? (
@@ -296,11 +186,14 @@ export function ConversationPage({
   });
   const [loadedConversationId, setLoadedConversationId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeRun, setActiveRun] = useState<{ conversationId: string; runId: string } | null>(
+    null,
+  );
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [streamedOutput, setStreamedOutput] = useState<{
     conversationId: string | null;
     text: string;
-    status: "streaming" | "completed" | "failed";
+    status: "streaming" | "completed" | "interrupted" | "failed";
   } | null>(null);
   const [errorState, setErrorState] = useState<{
     conversationId: string | null;
@@ -309,7 +202,6 @@ export function ConversationPage({
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [showEmbeddedHistory, setShowEmbeddedHistory] = useState(false);
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
-  const skipNextRouteLoad = useRef<string | null>(null);
   const activeStreamControllerRef = useRef<AbortController | null>(null);
   const messageLogRef = useRef<HTMLDivElement>(null);
   const composerInputRef = useRef<HTMLTextAreaElement>(null);
@@ -332,6 +224,17 @@ export function ConversationPage({
       : null;
   const displayedImageResultIds = new Set<string>();
 
+  const refreshMessages = useCallback(
+    async (activeConversationId: string): Promise<MessageListResponse> => {
+      const history = await listAllMessages(activeConversationId);
+      setMessages(history.items);
+      setSkillCode(history.skill_code);
+      setLoadedConversationId(activeConversationId);
+      return history;
+    },
+    [],
+  );
+
   useEffect(() => {
     return () => activeStreamControllerRef.current?.abort();
   }, [conversationId]);
@@ -339,13 +242,7 @@ export function ConversationPage({
   useEffect(() => {
     if (!conversationId) return;
 
-    if (skipNextRouteLoad.current === conversationId) {
-      skipNextRouteLoad.current = null;
-      return;
-    }
-
     let isActive = true;
-    setSkillCode(embedded ? "resume_assistant" : "general_chat");
     void listAllMessages(conversationId)
       .then((history) => {
         if (isActive) {
@@ -369,7 +266,83 @@ export function ConversationPage({
     return () => {
       isActive = false;
     };
-  }, [conversationId, embedded]);
+  }, [conversationId]);
+
+  const followRun = useCallback(
+    async (targetConversationId: string, runId: string, signal: AbortSignal) => {
+      setActiveRun({ conversationId: targetConversationId, runId });
+      await listenConversationRun(
+        targetConversationId,
+        runId,
+        (content) =>
+          setStreamedOutput((current) => ({
+            conversationId: targetConversationId,
+            text: (current?.conversationId === targetConversationId ? current.text : "") + content,
+            status: "streaming",
+          })),
+        (questionMessage) =>
+          setMessages((current) =>
+            current.some((message) => message.id === questionMessage.id)
+              ? current
+              : [...current, questionMessage],
+          ),
+        (status) => {
+          if (status === "completed" || status === "interrupted") {
+            setIsSubmitting(false);
+            setActiveRun((current) => (current?.runId === runId ? null : current));
+            setStreamedOutput((current) =>
+              current?.conversationId === targetConversationId ? { ...current, status } : current,
+            );
+            void refreshMessages(targetConversationId).then(() => {
+              setStreamedOutput((current) =>
+                current?.conversationId === targetConversationId ? null : current,
+              );
+              setHistoryRefreshKey((current) => current + 1);
+            });
+          } else if (status === "failed") {
+            setIsSubmitting(false);
+            setActiveRun((current) => (current?.runId === runId ? null : current));
+            setStreamedOutput((current) =>
+              current?.conversationId === targetConversationId
+                ? { ...current, status: "failed" }
+                : current,
+            );
+          }
+        },
+        signal,
+      );
+    },
+    [refreshMessages],
+  );
+
+  useEffect(() => {
+    if (!conversationId) return;
+    let isCurrent = true;
+    void getActiveConversationRun(conversationId)
+      .then((active) => {
+        if (!isCurrent || !active) return;
+        const controller = new AbortController();
+        activeStreamControllerRef.current = controller;
+        setStreamedOutput({ conversationId, text: "", status: "streaming" });
+        setIsSubmitting(true);
+        void followRun(conversationId, active.run_id, controller.signal)
+          .catch((error: unknown) => {
+            if (!controller.signal.aborted) showToast("error", getConversationErrorMessage(error));
+          })
+          .finally(() => {
+            if (activeStreamControllerRef.current === controller) {
+              activeStreamControllerRef.current = null;
+              setIsSubmitting(false);
+            }
+          });
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) showToast("error", getConversationErrorMessage(error));
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [conversationId, followRun, showToast]);
 
   useLayoutEffect(() => {
     if ((embedded && !panelOpen) || showEmbeddedHistory) return;
@@ -435,16 +408,8 @@ export function ConversationPage({
     pendingQuestion !== null &&
     pendingQuestion.part.questions.every((question) => Boolean(selectedAnswers[question.id]));
 
-  async function refreshMessages(activeConversationId: string): Promise<MessageListResponse> {
-    const history = await listAllMessages(activeConversationId);
-    setMessages(history.items);
-    setSkillCode(history.skill_code);
-    setLoadedConversationId(activeConversationId);
-    return history;
-  }
-
   async function handleCreateConversation() {
-    if (isSubmitting || isCreatingConversation) return;
+    if (isCreatingConversation) return;
     setIsCreatingConversation(true);
     setErrorState(null);
     try {
@@ -476,58 +441,12 @@ export function ConversationPage({
     }
   }
 
-  async function reconcileAbortedStream(
-    targetConversationId: string | null,
-    previousMessageId: string | null,
-    submittedUserText: string,
-  ): Promise<void> {
-    if (!targetConversationId) {
-      setStreamedOutput((current) =>
-        current?.conversationId === null ? { ...current, status: "failed" } : current,
-      );
-      return;
-    }
-
-    let refreshedMessages: ConversationMessage[];
-    try {
-      refreshedMessages = (await listAllMessages(targetConversationId)).items;
-    } catch {
-      setStreamedOutput((current) =>
-        current?.conversationId === targetConversationId
-          ? { ...current, status: "failed" }
-          : current,
-      );
-      return;
-    }
-
-    const previousMessageIndex = previousMessageId
-      ? refreshedMessages.findIndex((message) => message.id === previousMessageId)
-      : -1;
-    const turnMessages = refreshedMessages.slice(previousMessageIndex + 1);
-    let submittedUserIndex = -1;
-    turnMessages.forEach((message, index) => {
-      if (message.role === "user" && messageText(message) === submittedUserText) {
-        submittedUserIndex = index;
-      }
-    });
-    const hasPersistedAssistant =
-      submittedUserIndex >= 0 &&
-      turnMessages.slice(submittedUserIndex + 1).some((message) => message.role === "assistant");
-
-    setStreamedOutput((current) => {
-      if (current?.conversationId !== targetConversationId) return current;
-      return hasPersistedAssistant ? null : { ...current, status: "failed" };
-    });
-    if (hasPersistedAssistant) setHistoryRefreshKey((current) => current + 1);
-  }
-
   async function handleSend(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const text = draft.trim();
     if (!text || isSubmitting || isLoading || pendingQuestion) return;
 
     const submitter = (event?.nativeEvent as SubmitEvent | undefined)?.submitter;
-    const previousMessageId = visibleMessages.at(-1)?.id ?? null;
     shouldRestoreComposerFocusRef.current =
       document.activeElement === composerInputRef.current ||
       document.activeElement === composerSendButtonRef.current ||
@@ -557,46 +476,18 @@ export function ConversationPage({
       }
 
       const requestConversationId = activeConversationId;
-      const questionMessage = await streamConversationMessage(
-        requestConversationId,
-        text,
-        (content) => {
-          setStreamedOutput((current) => ({
-            conversationId: requestConversationId,
-            text: (current?.conversationId === requestConversationId ? current.text : "") + content,
-            status: "streaming",
-          }));
-        },
-        controller.signal,
-      );
-      streamCompleted = true;
-      setStreamedOutput((current) =>
-        current?.conversationId === requestConversationId
-          ? { ...current, status: "completed" }
-          : current,
-      );
-      if (questionMessage) {
-        setMessages((current) =>
-          current.some((message) => message.id === questionMessage.id)
-            ? current
-            : [...current, questionMessage],
-        );
+      const run = await startConversationMessageRun(requestConversationId, text);
+      setActiveRun({ conversationId: requestConversationId, runId: run.run_id });
+      if (createdThisTurn) {
+        if (embedded) onConversationIdChange?.(requestConversationId);
+        else onNavigate(`${platformPaths.chat}/${requestConversationId}`);
       }
-      await refreshMessages(activeConversationId);
+      await followRun(requestConversationId, run.run_id, controller.signal);
+      streamCompleted = true;
       if (embedded) void refreshConversationTitle(activeConversationId);
       setDraft("");
-      setStreamedOutput(null);
-      setHistoryRefreshKey((current) => current + 1);
-      if (createdThisTurn) {
-        skipNextRouteLoad.current = activeConversationId;
-        if (embedded) onConversationIdChange?.(activeConversationId);
-        else onNavigate(`${platformPaths.chat}/${activeConversationId}`);
-      }
     } catch (requestError) {
-      if (controller.signal.aborted) {
-        await reconcileAbortedStream(activeConversationId, previousMessageId, text);
-        return;
-      }
+      if (controller.signal.aborted) return;
       setStreamedOutput((current) =>
         current ? { ...current, status: streamCompleted ? "completed" : "failed" } : current,
       );
@@ -609,7 +500,6 @@ export function ConversationPage({
         }
         setHistoryRefreshKey((current) => current + 1);
         if (createdThisTurn) {
-          skipNextRouteLoad.current = activeConversationId;
           if (embedded) onConversationIdChange?.(activeConversationId);
           else onNavigate(`${platformPaths.chat}/${activeConversationId}`);
         }
@@ -634,10 +524,6 @@ export function ConversationPage({
           selectedAnswers[question.id] === "确认采用并保存",
       );
 
-    const previousMessageId = visibleMessages.at(-1)?.id ?? null;
-    const submittedUserText = `用户已提交以下选择：\n${pendingQuestion.part.questions
-      .map((question) => `- ${question.title}：${selectedAnswers[question.id]}`)
-      .join("\n")}`;
     const controller = new AbortController();
     activeStreamControllerRef.current = controller;
     setIsSubmitting(true);
@@ -645,40 +531,19 @@ export function ConversationPage({
     setErrorState(null);
     let streamCompleted = false;
     try {
-      const questionMessage = await streamQuestionAnswers(
-        conversationId,
-        selectedAnswers,
-        (content) => {
-          setStreamedOutput((current) => ({
-            conversationId,
-            text: (current?.conversationId === conversationId ? current.text : "") + content,
-            status: "streaming",
-          }));
-        },
-        controller.signal,
-      );
+      const run = await startQuestionAnswersRun(conversationId, selectedAnswers);
+      setActiveRun({ conversationId, runId: run.run_id });
+      await followRun(conversationId, run.run_id, controller.signal);
       streamCompleted = true;
-      setStreamedOutput((current) =>
-        current?.conversationId === conversationId ? { ...current, status: "completed" } : current,
-      );
-      if (questionMessage) {
-        setMessages((current) =>
-          current.some((message) => message.id === questionMessage.id)
-            ? current
-            : [...current, questionMessage],
-        );
-      }
-      const updatedHistory = await refreshMessages(conversationId);
+      const updatedHistory = await listAllMessages(conversationId);
       setAnswerSelection({ conversationId, answers: {} });
       setQuestionStep({ messageId: null, index: 0 });
-      setStreamedOutput(null);
       setHistoryRefreshKey((current) => current + 1);
       if (confirmsResumeSave && resumeSaveSucceeded(updatedHistory)) {
         await onResumeSaved?.();
       }
     } catch (requestError) {
       if (controller.signal.aborted) {
-        await reconcileAbortedStream(conversationId, previousMessageId, submittedUserText);
         return;
       }
       setStreamedOutput((current) =>
@@ -710,6 +575,15 @@ export function ConversationPage({
 
     event.preventDefault();
     void handleSend();
+  }
+
+  async function handleInterrupt() {
+    if (!activeRun || activeRun.conversationId !== conversationId) return;
+    try {
+      await interruptConversationRun(activeRun.conversationId, activeRun.runId);
+    } catch (requestError) {
+      showToast("error", getConversationErrorMessage(requestError));
+    }
   }
 
   function handleMessagesScroll() {
@@ -749,7 +623,6 @@ export function ConversationPage({
         <aside aria-label={t("历史会话导航")} className="conversation-page__history">
           <button
             className="button button--outline conversation-page__new"
-            disabled={isSubmitting}
             onClick={() => onNavigate(platformPaths.chat)}
             type="button"
           >
@@ -757,7 +630,6 @@ export function ConversationPage({
             {t("新建对话")}
           </button>
           <ConversationHistory
-            disabled={isSubmitting}
             key={historyRefreshKey}
             onSelect={(id) => onNavigate(`${platformPaths.chat}/${id}`)}
             selectedId={conversationId}
@@ -781,7 +653,7 @@ export function ConversationPage({
               <button
                 aria-pressed={showEmbeddedHistory}
                 className="resume-chat-icon-button"
-                disabled={isSubmitting || isCreatingConversation}
+                disabled={isCreatingConversation}
                 onClick={() => setShowEmbeddedHistory((current) => !current)}
                 type="button"
               >
@@ -790,7 +662,7 @@ export function ConversationPage({
               </button>
               <button
                 className="resume-chat-icon-button"
-                disabled={isSubmitting || isCreatingConversation}
+                disabled={isCreatingConversation}
                 onClick={() => void handleCreateConversation()}
                 type="button"
               >
@@ -812,7 +684,6 @@ export function ConversationPage({
         {embedded && showEmbeddedHistory ? (
           <div className="conversation-panel__history">
             <ConversationHistory
-              disabled={isSubmitting}
               key={`resume-history-${historyRefreshKey}`}
               onSelect={handleSelectEmbeddedConversation}
               selectedId={conversationId}
@@ -1003,7 +874,9 @@ export function ConversationPage({
               {currentStreamedOutput?.text && (
                 <article
                   aria-label={
-                    currentStreamedOutput.status === "failed" ? t("未完成的助手回答") : t("助手回答")
+                    currentStreamedOutput.status === "failed"
+                      ? t("未完成的助手回答")
+                      : t("助手回答")
                   }
                   className={`conversation-message conversation-message--assistant${
                     currentStreamedOutput.status === "streaming"
@@ -1040,7 +913,7 @@ export function ConversationPage({
               <textarea
                 id="conversation-message-input"
                 ref={composerInputRef}
-                disabled={isSubmitting || isLoading || Boolean(pendingQuestion)}
+                disabled={isLoading || Boolean(pendingQuestion)}
                 maxLength={20_000}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
@@ -1054,14 +927,30 @@ export function ConversationPage({
               <div className="conversation-composer__footer">
                 {error && <span>{t("检查消息状态后再决定是否重试。")}</span>}
                 <button
-                  aria-label={t("发送消息")}
+                  aria-label={isSubmitting ? t("中断回复") : t("发送消息")}
                   className="button button--primary conversation-composer__send"
-                  disabled={!draft.trim() || isSubmitting || isLoading || Boolean(pendingQuestion)}
+                  disabled={
+                    isSubmitting
+                      ? !activeRun
+                      : !draft.trim() || isLoading || Boolean(pendingQuestion)
+                  }
+                  onClick={
+                    isSubmitting
+                      ? (event) => {
+                          event.preventDefault();
+                          void handleInterrupt();
+                        }
+                      : undefined
+                  }
                   ref={composerSendButtonRef}
-                  type="submit"
+                  type={isSubmitting ? "button" : "submit"}
                 >
-                  <PlatformIcon name="arrow" size={16} />
-                  {t("发送")}
+                  {isSubmitting ? (
+                    <PlatformIcon name="close" size={16} />
+                  ) : (
+                    <PlatformIcon name="arrow" size={16} />
+                  )}
+                  {isSubmitting ? t("中断") : t("发送")}
                 </button>
               </div>
             </form>

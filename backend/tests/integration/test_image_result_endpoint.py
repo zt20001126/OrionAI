@@ -18,7 +18,7 @@ from app.infrastructure.database.session import get_db_session
 from app.infrastructure.storage.object_storage import StoredObject
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.conversations.models import Conversation
+from app.modules.conversations.models.models import Conversation
 from app.modules.image_generation.dependencies import (
     get_image_task_result_service,
 )

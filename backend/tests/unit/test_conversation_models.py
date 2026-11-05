@@ -8,7 +8,7 @@ from sqlalchemy.schema import CreateIndex, CreateTable, Table
 
 from app.infrastructure.database.base import Base
 from app.modules.auth.models import User
-from app.modules.conversations.models import Conversation, Message
+from app.modules.conversations.models.models import Conversation, Message
 from app.modules.skills.models import Skill
 
 

@@ -6,8 +6,13 @@ import {
   createConversation,
   listAllMessages,
   streamConversationMessage,
+  streamQuestionAnswers,
 } from "../conversations/conversationApi";
-import type { ConversationMessage, MessageListResponse } from "../conversations/conversationApi";
+import type {
+  ConversationMessage,
+  MessageListResponse,
+  QuestionContentPart,
+} from "../conversations/conversationApi";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { DigitalHumanAvatarHost } from "./components/DigitalHumanAvatarHost";
 import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractionHint";
@@ -43,6 +48,26 @@ function getAssistantText(history: MessageListResponse): string {
   return finalAssistant ? messageText(finalAssistant) : "";
 }
 
+function getPendingQuestion(
+  messages: ConversationMessage[],
+): { messageId: string; part: QuestionContentPart } | null {
+  const latestMessage = messages.at(-1);
+  if (latestMessage?.role !== "assistant") return null;
+  const questionPart = latestMessage.content.parts.find(
+    (part): part is QuestionContentPart => part.type === "question",
+  );
+  return questionPart ? { messageId: latestMessage.id, part: questionPart } : null;
+}
+
+function formatQuestionAnswers(
+  questionPart: QuestionContentPart,
+  answers: Record<string, string>,
+): string {
+  return `用户已提交以下选择：\n${questionPart.questions
+    .map((question) => `- ${question.title}：${answers[question.id]}`)
+    .join("\n")}`;
+}
+
 function prepareSpeechText(text: string): string {
   return text
     .replace(/```[\w-]*\s*\n?/g, " ")
@@ -68,6 +93,16 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   } | null>(null);
   const [draft, setDraft] = useState("");
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [answerSelection, setAnswerSelection] = useState<{
+    conversationId: string;
+    messageId: string;
+    answers: Record<string, string>;
+  } | null>(null);
+  const [questionStep, setQuestionStep] = useState<{
+    conversationId: string | null;
+    messageId: string | null;
+    index: number;
+  }>({ conversationId: null, messageId: null, index: 0 });
   const [streamedAssistantText, setStreamedAssistantText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
@@ -78,8 +113,28 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   const preserveRequestForConversationRef = useRef<string | null>(null);
   const idempotencyRef = useRef<{ key: string; text: string } | null>(null);
   const assistantStreamRef = useRef("");
-  const messages =
-    conversationId && loadedMessages?.conversationId === conversationId ? loadedMessages.items : [];
+  const messages = useMemo(
+    () =>
+      conversationId && loadedMessages?.conversationId === conversationId
+        ? loadedMessages.items
+        : [],
+    [conversationId, loadedMessages],
+  );
+  const pendingQuestion = useMemo(() => getPendingQuestion(messages), [messages]);
+  const selectedAnswers =
+    answerSelection?.conversationId === conversationId &&
+    answerSelection.messageId === pendingQuestion?.messageId
+      ? answerSelection.answers
+      : {};
+  const currentQuestionIndex =
+    pendingQuestion &&
+    questionStep.conversationId === conversationId &&
+    questionStep.messageId === pendingQuestion.messageId
+      ? Math.min(questionStep.index, pendingQuestion.part.questions.length - 1)
+      : 0;
+  const canSubmitAnswers =
+    pendingQuestion !== null &&
+    pendingQuestion.part.questions.every((question) => Boolean(selectedAnswers[question.id]));
   const isMessagesLoading = Boolean(
     conversationId && loadedMessages?.conversationId !== conversationId,
   );
@@ -175,9 +230,46 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     return response;
   }
 
+  async function speakAssistantAnswer(
+    answer: string,
+    targetConversationId: string,
+    signal: AbortSignal,
+  ) {
+    if (!answer || activeConversationRef.current !== targetConversationId) return;
+    setIsSynthesizing(true);
+    try {
+      const audioBlob = await synthesizeSpeech(prepareSpeechText(answer), signal);
+      if (activeConversationRef.current !== targetConversationId) return;
+      try {
+        await playAudio(audioBlob);
+      } catch {
+        if (activeConversationRef.current === targetConversationId) {
+          showToast("error", t("语音播放失败，文字回复已保留。"));
+        }
+      }
+    } catch (speechError) {
+      if (activeConversationRef.current === targetConversationId && !signal.aborted) {
+        showToast(
+          "error",
+          `${errorMessage(speechError, t("语音合成失败。"))} ${t("文字回复已保留。")}`,
+        );
+      }
+    } finally {
+      setIsSynthesizing(false);
+    }
+  }
+
   async function handleSend() {
     const message = draft.trim();
-    if (!message || submitLockRef.current || isSubmitting || recorder.status !== "idle") return;
+    if (
+      !message ||
+      submitLockRef.current ||
+      isSubmitting ||
+      pendingQuestion ||
+      recorder.status !== "idle"
+    ) {
+      return;
+    }
     submitLockRef.current = true;
     setIsSubmitting(true);
     setPendingMessage(message);
@@ -212,32 +304,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setPendingMessage(null);
       idempotencyRef.current = null;
       const answer = getAssistantText(persistedHistory);
-      if (answer) {
-        setIsSynthesizing(true);
-        try {
-          const audioBlob = await synthesizeSpeech(prepareSpeechText(answer), controller.signal);
-          if (activeConversationRef.current !== activeConversationId) return;
-          try {
-            await playAudio(audioBlob);
-          } catch {
-            if (activeConversationRef.current === activeConversationId) {
-              showToast("error", t("语音播放失败，文字回复已保留。"));
-            }
-          }
-        } catch (speechError) {
-          if (
-            activeConversationRef.current === activeConversationId &&
-            !controller.signal.aborted
-          ) {
-            showToast(
-              "error",
-              `${errorMessage(speechError, t("语音合成失败。"))} ${t("文字回复已保留。")}`,
-            );
-          }
-        } finally {
-          setIsSynthesizing(false);
-        }
-      }
+      await speakAssistantAnswer(answer, activeConversationId, controller.signal);
     } catch (sendError) {
       if (!controller.signal.aborted) {
         showToast("error", errorMessage(sendError, t("发送消息失败，请稍后重试。")));
@@ -248,6 +315,66 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     } finally {
       submitLockRef.current = false;
       requestRef.current = null;
+      setIsSubmitting(false);
+      setPendingMessage(null);
+      setStreamedAssistantText("");
+      assistantStreamRef.current = "";
+    }
+  }
+
+  async function handleQuestionAnswerSubmit() {
+    if (
+      !conversationId ||
+      !pendingQuestion ||
+      !canSubmitAnswers ||
+      submitLockRef.current ||
+      isSubmitting
+    ) {
+      return;
+    }
+
+    const targetConversationId = conversationId;
+    const answers = selectedAnswers;
+    const submittedText = formatQuestionAnswers(pendingQuestion.part, answers);
+    submitLockRef.current = true;
+    setIsSubmitting(true);
+    setPendingMessage(submittedText);
+    setStreamedAssistantText("");
+    assistantStreamRef.current = "";
+    const controller = new AbortController();
+    requestRef.current = controller;
+
+    try {
+      await streamQuestionAnswers(
+        targetConversationId,
+        answers,
+        (delta) => {
+          assistantStreamRef.current += delta;
+          setStreamedAssistantText(assistantStreamRef.current);
+        },
+        controller.signal,
+      );
+      const persistedHistory = await refreshMessages(targetConversationId);
+      if (activeConversationRef.current !== targetConversationId) return;
+      setAnswerSelection(null);
+      setQuestionStep({ conversationId: null, messageId: null, index: 0 });
+      setPendingMessage(null);
+      setStreamedAssistantText("");
+      assistantStreamRef.current = "";
+      setIsSubmitting(false);
+      await speakAssistantAnswer(
+        getAssistantText(persistedHistory),
+        targetConversationId,
+        controller.signal,
+      );
+    } catch (submitError) {
+      if (!controller.signal.aborted) {
+        showToast("error", errorMessage(submitError, t("提交答案失败，请稍后重试。")));
+        void refreshMessages(targetConversationId).catch(() => undefined);
+      }
+    } finally {
+      submitLockRef.current = false;
+      if (requestRef.current === controller) requestRef.current = null;
       setIsSubmitting(false);
       setPendingMessage(null);
       setStreamedAssistantText("");
@@ -281,13 +408,49 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
 
         <section aria-label={t("数字人对话")} className="digital-human-chat">
           <DigitalHumanConversation
+            currentQuestionIndex={currentQuestionIndex}
+            isSubmitting={isSubmitting}
             isLoading={isMessagesLoading}
             messages={messages}
+            onQuestionAnswerSelect={(questionId, answer) => {
+              if (!conversationId || !pendingQuestion) return;
+              setAnswerSelection((current) => {
+                const currentAnswers =
+                  current?.conversationId === conversationId &&
+                  current.messageId === pendingQuestion.messageId
+                    ? current.answers
+                    : {};
+                return {
+                  conversationId,
+                  messageId: pendingQuestion.messageId,
+                  answers: { ...currentAnswers, [questionId]: answer },
+                };
+              });
+            }}
+            onQuestionNext={() => {
+              if (!conversationId || !pendingQuestion) return;
+              setQuestionStep({
+                conversationId,
+                messageId: pendingQuestion.messageId,
+                index: currentQuestionIndex + 1,
+              });
+            }}
+            onQuestionPrevious={() => {
+              if (!conversationId || !pendingQuestion) return;
+              setQuestionStep({
+                conversationId,
+                messageId: pendingQuestion.messageId,
+                index: currentQuestionIndex - 1,
+              });
+            }}
+            onQuestionSubmit={() => void handleQuestionAnswerSubmit()}
             pendingMessage={pendingMessage}
+            pendingQuestionMessageId={pendingQuestion?.messageId ?? null}
+            selectedAnswers={selectedAnswers}
             streamedAssistantText={streamedAssistantText}
           />
           <DigitalHumanComposer
-            disabled={isBusy}
+            disabled={isBusy || pendingQuestion !== null}
             draft={draft}
             recorderStatus={recorder.status}
             onDraftChange={setDraft}

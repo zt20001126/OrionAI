@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from app.api.health import router as health_router
 from app.modules.auth.router import router as auth_router
-from app.modules.conversations.router import router as conversations_router
+from app.modules.conversations.router.router import router as conversations_router
 from app.modules.digital_human.router.router import router as digital_human_router
 from app.modules.feedback.router import router as feedback_router
 from app.modules.image_generation.router import router as image_result_router

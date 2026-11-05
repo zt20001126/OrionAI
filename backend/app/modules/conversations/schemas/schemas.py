@@ -160,6 +160,12 @@ class AgentTurnResponse(BaseModel):
     message: MessageResponse = Field(description="本轮新生成的助手消息。")
 
 
+class ConversationRunResponse(BaseModel):
+    """异步对话任务创建响应，返回可供监听与中断使用的标识。"""
+
+    run_id: str = Field(description="本轮生成任务的唯一标识，状态保存在 Redis。")
+
+
 class ConversationTextDeltaEvent(BaseModel):
     """流式回答中的一个文本增量。"""
 

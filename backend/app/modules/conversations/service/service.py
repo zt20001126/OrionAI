@@ -28,17 +28,24 @@ from app.agent.schemas import (
     AgentTextDelta,
     QuestionPayload,
 )
-from app.infrastructure.redis.idempotency import IdempotencyStore, IdempotencyStoreError
+from app.infrastructure.database.session import SessionLocal
+from app.infrastructure.redis.client import create_redis_client
+from app.infrastructure.redis.conversation_run_store import ConversationRunStore
+from app.infrastructure.redis.idempotency import (
+    IdempotencyStore,
+    IdempotencyStoreError,
+    RedisIdempotencyStore,
+)
 from app.modules.auth.models import User
-from app.modules.conversations import repository
-from app.modules.conversations.errors import (
+from app.modules.conversations.errors.errors import (
     ConversationConflictError,
     ConversationNotFoundError,
     ConversationUnavailableError,
     ConversationValidationError,
 )
-from app.modules.conversations.models import Conversation, Message
-from app.modules.conversations.schemas import (
+from app.modules.conversations.models.models import Conversation, Message
+from app.modules.conversations.repository import repository
+from app.modules.conversations.schemas.schemas import (
     AgentTurnResponse,
     ConversationCreateResponse,
     ConversationListResponse,
@@ -53,7 +60,7 @@ from app.modules.conversations.schemas import (
     SubmittedQuestionAnswer,
     TextContentPart,
 )
-from app.modules.conversations.title import (
+from app.modules.conversations.service.title import (
     ConversationTitleGenerator,
     fallback_conversation_title,
 )
@@ -391,6 +398,74 @@ class ConversationService:
                 event_type=EventType.MESSAGE,
                 data=payload.model_dump(mode="json"),
             )
+
+    async def execute_background_run(
+        self,
+        prepared: PreparedConversationTurn,
+        run_store: ConversationRunStore,
+        run_id: str,
+    ) -> None:
+        """使用独立数据库 Session 执行任务并将 SSE 事件写入 Redis。"""
+        redis_client = create_redis_client()
+        session = SessionLocal()
+        idempotency_store = (
+            RedisIdempotencyStore(redis_client) if prepared.idempotency_key else None
+        )
+        try:
+            conversation = repository.get_conversation(
+                session, prepared.user_id, prepared.conversation.id
+            )
+            if conversation is None:
+                raise ConversationNotFoundError()
+            worker = ConversationService(
+                session=session,
+                agent=self._agents.get(conversation.skill_code),
+                agent_registry=self._agents,
+                title_generator=self._title_generator,
+                idempotency_store=idempotency_store,
+            )
+            worker_prepared = replace(prepared, conversation=conversation)
+            partial_text: list[str] = []
+            try:
+                async for event in worker.stream_turn(worker_prepared):
+                    payload = (
+                        event.data
+                        if isinstance(event.data, dict)
+                        else event.data.model_dump(mode="json")
+                    )
+                    if payload.get("type") == "text_delta":
+                        partial_text.append(str(payload["content"]))
+                    await anyio.to_thread.run_sync(run_store.append, run_id, payload)
+            except asyncio.CancelledError:
+                if partial_text:
+                    await anyio.to_thread.run_sync(
+                        worker._save_partial_response, worker_prepared, "".join(partial_text)
+                    )
+                raise
+        finally:
+            session.close()
+            redis_client.close()
+
+    def _save_partial_response(self, prepared: PreparedConversationTurn, text: str) -> None:
+        """保存用户主动中断前已生成的文本，避免刷新或离开页面后丢失。"""
+        if not text.strip():
+            return
+        try:
+            repository.create_message(
+                self._session,
+                conversation_id=prepared.conversation.id,
+                role="assistant",
+                content={"parts": [{"type": "text", "text": text}]},
+            )
+            conversation = repository.get_conversation(
+                self._session, prepared.user_id, prepared.conversation.id
+            )
+            if conversation is not None:
+                repository.update_conversation_timestamp(conversation, datetime.now(UTC))
+            self._session.commit()
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise ConversationUnavailableError from None
 
     def _prepare_message_turn(
         self,

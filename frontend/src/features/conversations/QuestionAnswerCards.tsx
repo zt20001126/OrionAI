@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { PlatformIcon } from "../platform/PlatformIcon";
 import type { SingleChoiceQuestion, SubmittedQuestionAnswer } from "./conversationApi";
 import { t } from "../../i18n/localeStore";
+import "./question-cards.css";
 
 interface CompletedQuestionCardProps {
   questions: SingleChoiceQuestion[];
@@ -35,7 +36,9 @@ export function CompletedQuestionCard({ questions }: CompletedQuestionCardProps)
         </span>
         <span className="completed-question-card__heading">
           <strong>{t("本轮答题已完成")}</strong>
-          <span>{t("共")} {questions.length} {t("题")}</span>
+          <span>
+            {t("共")} {questions.length} {t("题")}
+          </span>
         </span>
         <PlatformIcon name="chevron" size={18} />
       </button>
@@ -90,7 +93,9 @@ export function QuestionAnswerCard({ items }: QuestionAnswerCardProps) {
         </span>
         <span className="completed-question-card__heading">
           <strong>{t("我的回答已提交")}</strong>
-          <span>{t("共")} {items.length} {t("题")}</span>
+          <span>
+            {t("共")} {items.length} {t("题")}
+          </span>
         </span>
         <PlatformIcon name="chevron" size={18} />
       </button>

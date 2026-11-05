@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.orm import Session
 
-from app.modules.conversations.models import Conversation, Message
+from app.modules.conversations.models.models import Conversation, Message
 
 
 def create_conversation(

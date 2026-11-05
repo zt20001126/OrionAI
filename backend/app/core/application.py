@@ -20,8 +20,8 @@ from app.modules.agents.registry import AgentRegistry
 from app.modules.agents.resume_agent.runtime import ResumeAgent
 from app.modules.agents.tourism_insight.runtime import TourismInsightAgent
 from app.modules.auth.errors import AuthError
-from app.modules.conversations.errors import ConversationError
-from app.modules.conversations.title import ModelConversationTitleGenerator
+from app.modules.conversations.errors.errors import ConversationError
+from app.modules.conversations.service.title import ModelConversationTitleGenerator
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
 from app.modules.digital_human.constants import DIGITAL_HUMAN_MAX_AUDIO_BYTES
 from app.modules.digital_human.middleware.upload_limit import (
@@ -161,6 +161,9 @@ def create_agent_lifespan(
                 timeout_seconds=settings.conversation_title_timeout_seconds,
             )
             yield
+            run_coordinator = getattr(application.state, "conversation_run_coordinator", None)
+            if run_coordinator is not None:
+                await run_coordinator.close()
             del application.state.conversation_agent
             del application.state.agent_registry
             del application.state.conversation_title_generator

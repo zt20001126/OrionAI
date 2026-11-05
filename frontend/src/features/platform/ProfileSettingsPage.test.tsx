@@ -111,7 +111,7 @@ describe("ProfileSettingsPage", () => {
       target: { files: [oversizedAvatar] },
     });
 
-    expect(screen.getByRole("alert")).toHaveTextContent("不能超过 2 MiB");
+    expect(screen.getByRole("alert")).toHaveTextContent("不能超过 5 MiB");
     expect(updateUserProfile).not.toHaveBeenCalled();
   });
 

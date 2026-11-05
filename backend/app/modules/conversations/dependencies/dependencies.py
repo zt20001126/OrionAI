@@ -12,8 +12,9 @@ from app.infrastructure.redis.client import create_redis_client
 from app.infrastructure.redis.idempotency import IdempotencyStore, RedisIdempotencyStore
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.conversations.service import ConversationService
-from app.modules.conversations.title import ConversationTitleGenerator
+from app.modules.conversations.service.run_coordinator import ConversationRunCoordinator
+from app.modules.conversations.service.service import ConversationService
+from app.modules.conversations.service.title import ConversationTitleGenerator
 
 
 def get_optional_idempotency_store(request: Request) -> Iterator[IdempotencyStore | None]:
@@ -55,8 +56,21 @@ def get_conversation_service(
     )
 
 
+async def get_conversation_run_coordinator(request: Request) -> ConversationRunCoordinator:
+    """为应用复用 Redis 任务协调器，确保同一进程内可取消正在执行的协程。"""
+    coordinator = getattr(request.app.state, "conversation_run_coordinator", None)
+    if coordinator is None:
+        coordinator = ConversationRunCoordinator(create_redis_client())
+        request.app.state.conversation_run_coordinator = coordinator
+    return coordinator
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
 ConversationServiceDependency = Annotated[
     ConversationService,
     Depends(get_conversation_service),
+]
+ConversationRunCoordinatorDependency = Annotated[
+    ConversationRunCoordinator,
+    Depends(get_conversation_run_coordinator),
 ]

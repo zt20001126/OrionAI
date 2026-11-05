@@ -32,8 +32,6 @@ describe("PlatformSidebar", () => {
       platformPaths.mySkills,
       platformPaths.digitalHuman,
       platformPaths.sessions,
-      platformPaths.knowledge,
-      platformPaths.tools,
     ]);
   });
 

@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from app.core.config import Settings
-from app.modules.conversations.title import (
+from app.modules.conversations.service.title import (
     MAX_CONVERSATION_TITLE_LENGTH,
     MAX_CONVERSATION_TITLE_SOURCE_LENGTH,
     ModelConversationTitleGenerator,

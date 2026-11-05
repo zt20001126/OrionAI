@@ -3,7 +3,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.modules.conversations.models import Conversation
+from app.modules.conversations.models.models import Conversation
 
 DIGITAL_HUMAN_SKILL_CODE = "digital_human"
 

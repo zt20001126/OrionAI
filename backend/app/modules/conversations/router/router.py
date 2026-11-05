@@ -6,12 +6,17 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import StreamingResponse
 
 from app.modules.auth.dependencies import validate_origin
-from app.modules.conversations.dependencies import ConversationServiceDependency, CurrentUser
-from app.modules.conversations.schemas import (
+from app.modules.conversations.dependencies.dependencies import (
+    ConversationRunCoordinatorDependency,
+    ConversationServiceDependency,
+    CurrentUser,
+)
+from app.modules.conversations.schemas.schemas import (
     AgentTurnResponse,
     ConversationCreateRequest,
     ConversationCreateResponse,
     ConversationListResponse,
+    ConversationRunResponse,
     MessageCreateRequest,
     MessageListResponse,
     QuestionAnswersRequest,
@@ -26,6 +31,89 @@ IdempotencyKey = Annotated[
     str | None,
     Header(alias="Idempotency-Key", max_length=64, description="可选的单轮消息防重 UUID。"),
 ]
+
+
+@router.post(
+    "/{conversation_id}/runs/messages",
+    response_model=ConversationRunResponse,
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
+)
+async def start_message_run(
+    conversation_id: int,
+    payload: MessageCreateRequest,
+    user: CurrentUser,
+    service: ConversationServiceDependency,
+    coordinator: ConversationRunCoordinatorDependency,
+    idempotency_key: IdempotencyKey = None,
+) -> ConversationRunResponse:
+    """保存用户消息并启动独立于监听连接的 Agent 生成任务。"""
+    coordinator.ensure_available(user.id, conversation_id)
+    prepared = service.prepare_message_stream(
+        user, conversation_id, payload.message, idempotency_key=idempotency_key
+    )
+    return ConversationRunResponse(run_id=coordinator.start(service, prepared))
+
+
+@router.post(
+    "/{conversation_id}/runs/answers",
+    response_model=ConversationRunResponse,
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
+)
+async def start_answer_run(
+    conversation_id: int,
+    payload: QuestionAnswersRequest,
+    user: CurrentUser,
+    service: ConversationServiceDependency,
+    coordinator: ConversationRunCoordinatorDependency,
+) -> ConversationRunResponse:
+    """保存题卡答案并启动可重连的 Agent 恢复任务。"""
+    coordinator.ensure_available(user.id, conversation_id)
+    prepared = service.prepare_answer_stream(user, conversation_id, payload)
+    return ConversationRunResponse(run_id=coordinator.start(service, prepared))
+
+
+@router.get(
+    "/{conversation_id}/runs/active",
+    response_model=ConversationRunResponse | None,
+    dependencies=[Depends(require_membership_access)],
+)
+def get_active_run(
+    conversation_id: int,
+    user: CurrentUser,
+    coordinator: ConversationRunCoordinatorDependency,
+) -> ConversationRunResponse | None:
+    """查询当前用户会话中的活动任务，供页面重新进入时恢复监听。"""
+    run_id = coordinator.active(user.id, conversation_id)
+    return ConversationRunResponse(run_id=run_id) if run_id else None
+
+
+@router.get(
+    "/{conversation_id}/runs/{run_id}/listen",
+    dependencies=[Depends(require_membership_access)],
+)
+def listen_run(
+    conversation_id: int,
+    run_id: str,
+    user: CurrentUser,
+    coordinator: ConversationRunCoordinatorDependency,
+) -> StreamingResponse:
+    """监听并回放任务事件；客户端断开只关闭监听。"""
+    return create_sse_response(coordinator.listen(run_id, user.id, conversation_id))
+
+
+@router.post(
+    "/{conversation_id}/runs/{run_id}/interrupt",
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
+)
+def interrupt_run(
+    conversation_id: int,
+    run_id: str,
+    user: CurrentUser,
+    coordinator: ConversationRunCoordinatorDependency,
+) -> dict[str, str]:
+    """停止本轮 Agent 生成并保留已输出内容。"""
+    coordinator.interrupt(run_id, user.id, conversation_id)
+    return {"status": "interrupted"}
 
 
 @router.post(

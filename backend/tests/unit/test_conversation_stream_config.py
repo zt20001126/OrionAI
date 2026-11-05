@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from app.modules.conversations.service import ConversationService
+from app.modules.conversations.service.service import ConversationService
 
 
 def test_tourism_insight_stream_receives_user_context() -> None:
