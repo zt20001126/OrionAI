@@ -36,6 +36,13 @@ function getText(message: ConversationMessage): string {
     .join("\n");
 }
 
+/** 判断持久化历史是否已包含当前临时用户消息，避免刷新交界时重复显示；调用方：数字人消息列表。 */
+function hasPersistedPendingMessage(messages: ConversationMessage[], pendingMessage: string): boolean {
+  return messages.some(
+    (message) => message.role === "user" && getText(message).trim() === pendingMessage.trim(),
+  );
+}
+
 function getQuestionPart(message: ConversationMessage): QuestionContentPart | null {
   return (
     message.content.parts.find((part): part is QuestionContentPart => part.type === "question") ??
@@ -68,6 +75,8 @@ export function DigitalHumanConversation({
   isLoading,
 }: DigitalHumanConversationProps) {
   const messageListRef = useRef<HTMLDivElement>(null);
+  const showPendingMessage =
+    pendingMessage !== null && !hasPersistedPendingMessage(messages, pendingMessage);
 
   useLayoutEffect(() => {
     const messageList = messageListRef.current;
@@ -130,7 +139,7 @@ export function DigitalHumanConversation({
           </article>
         );
       })}
-      {pendingMessage && (
+      {showPendingMessage && pendingMessage && (
         <article
           aria-label={t("正在发送的消息")}
           className="digital-human-message digital-human-message--user digital-human-message--pending"
