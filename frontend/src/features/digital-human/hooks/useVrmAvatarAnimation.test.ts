@@ -4,6 +4,7 @@ import {
   getVrmAvatarGestureDuration,
   getVrmAvatarGestureTargets,
   getIdleMotionTargets,
+  getIdleArmPoseOffsets,
   getPointerLookTargets,
   getStatusMotionTargets,
 } from "./useVrmAvatarAnimation";
@@ -73,16 +74,30 @@ describe("getStatusMotionTargets", () => {
     const motion = getIdleMotionTargets(1, 0.02, true);
 
     expect(Math.abs(motion.armSway)).toBeLessThanOrEqual(0.008);
+    expect(Math.abs(motion.rightArmSway)).toBeLessThanOrEqual(0.008);
+    expect(motion.armSway).not.toBeCloseTo(motion.rightArmSway, 3);
     expect(Math.abs(motion.shoulderSway)).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(motion.shoulderBreathing)).toBeLessThanOrEqual(0.012);
     expect(motion.weightShift).toBe(0.02);
   });
 
   it("disables idle motion targets when reduced motion is requested", () => {
     expect(getIdleMotionTargets(1, 0.02, false)).toEqual({
       armSway: 0,
+      rightArmSway: 0,
+      shoulderBreathing: 0,
       shoulderSway: 0,
       weightShift: 0,
     });
+  });
+
+  it("bends both normalized elbows in the model's arm plane with a slight asymmetry", () => {
+    const pose = getIdleArmPoseOffsets();
+
+    expect(pose.leftElbow).toEqual({ x: 0, y: 0, z: 0.18 });
+    expect(pose.rightElbow).toEqual({ x: 0, y: 0, z: -0.21 });
+    expect(pose.leftWrist).toEqual({ x: 0, y: 0, z: 0.045 });
+    expect(pose.rightWrist).toEqual({ x: 0, y: 0, z: -0.06 });
   });
 });
 
@@ -96,6 +111,8 @@ describe("VRM avatar click gestures", () => {
     expect(getVrmAvatarGestureDuration("wave")).toBe(2);
     expect(getVrmAvatarGestureTargets({ kind: "wave", elapsed: 0.4, direction: 1 })).toMatchObject({
       armBlend: 1,
+      leftArmBlend: 0,
+      rightArmBlend: 1,
       rightUpperArmRaise: expect.any(Number),
     });
     expect(
@@ -128,7 +145,9 @@ describe("VRM avatar click gestures", () => {
     expect(getVrmAvatarGestureDuration("happy")).toBe(2);
     expect(happy.expressionWeight).toBeGreaterThan(0.9);
     expect(happy.headPitch).toBeGreaterThan(0.18);
+    expect(happy.leftArmBlend).toBe(1);
     expect(happy.leftUpperArmRaise).toBeLessThan(0);
+    expect(happy.rightArmBlend).toBe(1);
     expect(happy.rightUpperArmRaise).toBeGreaterThan(0);
   });
 });

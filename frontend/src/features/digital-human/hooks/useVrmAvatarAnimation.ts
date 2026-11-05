@@ -14,8 +14,11 @@ const BLINK_INTERVAL_VARIANCE_SECONDS = 2.6;
 const BLINK_BLEND_SPEED = 32;
 const ARM_RELAX_ANGLE = 1.25;
 const SHOULDER_RELAX_SHARE = 0.12;
-const ELBOW_FLEX_ANGLE = 0.12;
-const WRIST_FLEX_ANGLE = 0.045;
+// Orion 的 normalized 肘骨绕局部 Z 轴才会在正面形成屈肘；Y 轴主要让前臂转向深度方向。
+const LEFT_ELBOW_FLEX_ANGLE = 0.18;
+const RIGHT_ELBOW_FLEX_ANGLE = 0.21;
+const LEFT_WRIST_FLEX_ANGLE = 0.045;
+const RIGHT_WRIST_FLEX_ANGLE = 0.06;
 const POSE_BLEND_SPEED = 4;
 const CHEST_BREATHING_AMPLITUDE = 0.022;
 const CHEST_BREATHING_FREQUENCY = 0.9;
@@ -30,9 +33,11 @@ const POINTER_HEAD_PITCH_AMPLITUDE = 0.34;
 const POINTER_HEAD_YAW_AMPLITUDE = 0.62;
 const IDLE_SHOULDER_SWAY_AMPLITUDE = 0.01;
 const IDLE_SHOULDER_SWAY_FREQUENCY = 0.42;
+const IDLE_SHOULDER_BREATHING_AMPLITUDE = 0.012;
 const IDLE_ARM_SWAY_AMPLITUDE = 0.008;
 const IDLE_ARM_SWAY_FREQUENCY = 0.32;
 const IDLE_ARM_SWAY_PHASE = 0.7;
+const IDLE_RIGHT_ARM_SWAY_PHASE = 2.5;
 const WEIGHT_SHIFT_MAX_ANGLE = 0.022;
 const WEIGHT_SHIFT_START_MIN_SECONDS = 5;
 const WEIGHT_SHIFT_START_MAX_SECONDS = 9;
@@ -133,16 +138,20 @@ interface BreathingRig {
   elapsed: number;
   smoothedArmRelaxAngle: number;
   smoothedArmSway: number;
+  smoothedRightArmSway: number;
   smoothedBreathing: number;
-  smoothedElbowFlex: number;
+  smoothedLeftElbowFlex: number;
+  smoothedRightElbowFlex: number;
   smoothedFingerCurl: number;
   smoothedHeadPitch: number;
   smoothedHeadTilt: number;
   smoothedHeadYaw: number;
   smoothedShoulderSway: number;
+  smoothedShoulderBreathing: number;
   smoothedSpeakingGesture: number;
   smoothedWeightShift: number;
-  smoothedWristFlex: number;
+  smoothedLeftWristFlex: number;
+  smoothedRightWristFlex: number;
   weightShift: WeightShiftState;
   scratchBlendedQuaternion: Quaternion;
   scratchEuler: Euler;
@@ -160,9 +169,25 @@ interface StatusMotionTargets {
 
 interface IdleMotionTargets {
   armSway: number;
+  rightArmSway: number;
+  shoulderBreathing: number;
   shoulderSway: number;
   weightShift: number;
 }
+
+export interface IdleArmPoseOffsets {
+  leftElbow: { x: number; y: number; z: number };
+  leftWrist: { x: number; y: number; z: number };
+  rightElbow: { x: number; y: number; z: number };
+  rightWrist: { x: number; y: number; z: number };
+}
+
+const IDLE_ARM_POSE_OFFSETS: IdleArmPoseOffsets = {
+  leftElbow: { x: 0, y: 0, z: LEFT_ELBOW_FLEX_ANGLE },
+  leftWrist: { x: 0, y: 0, z: LEFT_WRIST_FLEX_ANGLE },
+  rightElbow: { x: 0, y: 0, z: -RIGHT_ELBOW_FLEX_ANGLE },
+  rightWrist: { x: 0, y: 0, z: -RIGHT_WRIST_FLEX_ANGLE },
+};
 
 export type VrmAvatarGesture = "wave" | "headTilt" | "happy";
 
@@ -182,8 +207,10 @@ export interface VrmAvatarGestureTargets {
   headPitch: number;
   headTilt: number;
   headYaw: number;
+  leftArmBlend: number;
   leftShoulderRaise: number;
   leftUpperArmRaise: number;
+  rightArmBlend: number;
   rightElbowBend: number;
   rightElbowWave: number;
   rightHandWave: number;
@@ -200,8 +227,10 @@ const NEUTRAL_GESTURE_TARGETS: VrmAvatarGestureTargets = {
   headPitch: 0,
   headTilt: 0,
   headYaw: 0,
+  leftArmBlend: 0,
   leftShoulderRaise: 0,
   leftUpperArmRaise: 0,
+  rightArmBlend: 0,
   rightElbowBend: 0,
   rightElbowWave: 0,
   rightHandWave: 0,
@@ -388,28 +417,36 @@ export function useVrmAvatarAnimation(
 
     rig.smoothedArmRelaxAngle += (ARM_RELAX_ANGLE - rig.smoothedArmRelaxAngle) * blend;
     rig.smoothedArmSway += (idleTargets.armSway - rig.smoothedArmSway) * blend;
+    rig.smoothedRightArmSway += (idleTargets.rightArmSway - rig.smoothedRightArmSway) * blend;
     rig.smoothedBreathing += (breathingTarget - rig.smoothedBreathing) * blend;
-    rig.smoothedElbowFlex += (ELBOW_FLEX_ANGLE - rig.smoothedElbowFlex) * blend;
+    const idleArmPose = getIdleArmPoseOffsets();
+    rig.smoothedLeftElbowFlex += (idleArmPose.leftElbow.z - rig.smoothedLeftElbowFlex) * blend;
+    rig.smoothedRightElbowFlex += (idleArmPose.rightElbow.z - rig.smoothedRightElbowFlex) * blend;
     rig.smoothedFingerCurl += (1 - rig.smoothedFingerCurl) * blend;
     rig.smoothedHeadPitch += (statusTargets.headPitch - rig.smoothedHeadPitch) * blend;
     rig.smoothedHeadTilt += (statusTargets.headTilt - rig.smoothedHeadTilt) * blend;
     rig.smoothedHeadYaw += (statusTargets.headYaw - rig.smoothedHeadYaw) * blend;
     rig.smoothedShoulderSway += (idleTargets.shoulderSway - rig.smoothedShoulderSway) * blend;
+    rig.smoothedShoulderBreathing +=
+      (idleTargets.shoulderBreathing - rig.smoothedShoulderBreathing) * blend;
     rig.smoothedSpeakingGesture +=
       (statusTargets.speakingGesture - rig.smoothedSpeakingGesture) * blend;
     rig.smoothedWeightShift += (idleTargets.weightShift - rig.smoothedWeightShift) * blend;
-    rig.smoothedWristFlex += (WRIST_FLEX_ANGLE - rig.smoothedWristFlex) * blend;
+    rig.smoothedLeftWristFlex += (idleArmPose.leftWrist.z - rig.smoothedLeftWristFlex) * blend;
+    rig.smoothedRightWristFlex += (idleArmPose.rightWrist.z - rig.smoothedRightWristFlex) * blend;
 
     const shoulderRelax = rig.smoothedArmRelaxAngle * SHOULDER_RELAX_SHARE;
     const upperArmRelax = rig.smoothedArmRelaxAngle * (1 - SHOULDER_RELAX_SHARE);
     const leftShoulderSway = rig.smoothedShoulderSway;
     const armBlend = gestureTargets.armBlend;
+    const leftArmBlend = gestureTargets.leftArmBlend;
+    const rightArmBlend = gestureTargets.rightArmBlend;
     const headBlend = gestureTargets.headBlend;
     const remainingHeadMotion = 1 - headBlend;
     const ambientHeadPitch = rig.smoothedHeadPitch * remainingHeadMotion;
     const ambientHeadYaw = rig.smoothedHeadYaw * remainingHeadMotion;
     const ambientHeadTilt = rig.smoothedHeadTilt * remainingHeadMotion;
-    const speakingGesture = rig.smoothedSpeakingGesture * (1 - armBlend);
+    const speakingGesture = rig.smoothedSpeakingGesture * (1 - rightArmBlend);
 
     applyBoneRotation(rig.hips, 0, 0, rig.smoothedWeightShift, rig);
     applyMixedBoneRotation(
@@ -471,28 +508,33 @@ export function useVrmAvatarAnimation(
       rig.leftShoulder,
       0,
       0,
-      shoulderRelax + leftShoulderSway,
+      shoulderRelax + leftShoulderSway - rig.smoothedShoulderBreathing,
       0,
       0,
       clampGestureAngle(
-        shoulderRelax + leftShoulderSway + gestureTargets.leftShoulderRaise,
+        shoulderRelax +
+          leftShoulderSway -
+          rig.smoothedShoulderBreathing +
+          gestureTargets.leftShoulderRaise,
         MAX_GESTURE_ARM_ANGLE,
       ),
-      armBlend,
+      leftArmBlend,
       rig,
     );
     applyMixedBoneRotation(
       rig.rightShoulder,
       0,
       0,
-      -(shoulderRelax + leftShoulderSway),
+      -(shoulderRelax + leftShoulderSway) + rig.smoothedShoulderBreathing,
       0,
       0,
       clampGestureAngle(
-        -(shoulderRelax + leftShoulderSway) + gestureTargets.rightShoulderRaise,
+        -(shoulderRelax + leftShoulderSway) +
+          rig.smoothedShoulderBreathing +
+          gestureTargets.rightShoulderRaise,
         MAX_GESTURE_ARM_ANGLE,
       ),
-      armBlend,
+      rightArmBlend,
       rig,
     );
     applyMixedBoneRotation(
@@ -506,58 +548,73 @@ export function useVrmAvatarAnimation(
         upperArmRelax + rig.smoothedArmSway + gestureTargets.leftUpperArmRaise,
         MAX_GESTURE_ARM_ANGLE,
       ),
-      armBlend,
+      leftArmBlend,
       rig,
     );
     applyMixedBoneRotation(
       rig.rightUpperArm,
       0,
       0,
-      -(upperArmRelax + rig.smoothedArmSway) + speakingGesture,
+      -(upperArmRelax + rig.smoothedRightArmSway) + speakingGesture,
       0,
       0,
       clampGestureAngle(
-        -(upperArmRelax + rig.smoothedArmSway) +
+        -(upperArmRelax + rig.smoothedRightArmSway) +
           speakingGesture +
           gestureTargets.rightUpperArmRaise,
         MAX_GESTURE_ARM_ANGLE,
       ),
-      armBlend,
+      rightArmBlend,
       rig,
     );
-    applyBoneRotation(rig.leftLowerArm, 0, rig.smoothedElbowFlex, 0, rig);
+    applyBoneRotation(
+      rig.leftLowerArm,
+      idleArmPose.leftElbow.x,
+      idleArmPose.leftElbow.y,
+      rig.smoothedLeftElbowFlex,
+      rig,
+    );
     applyMixedBoneRotation(
       rig.rightLowerArm,
       0,
-      -rig.smoothedElbowFlex,
       0,
-      0,
-      -rig.smoothedElbowFlex,
-      clampGestureAngle(
-        gestureTargets.rightElbowBend + gestureTargets.rightElbowWave,
-        MAX_GESTURE_FOREARM_ANGLE,
-      ),
-      armBlend,
+      rig.smoothedRightElbowFlex,
+      idleArmPose.rightElbow.x,
+      idleArmPose.rightElbow.y,
+      rig.smoothedRightElbowFlex +
+        clampGestureAngle(
+          gestureTargets.rightElbowBend + gestureTargets.rightElbowWave,
+          MAX_GESTURE_FOREARM_ANGLE,
+        ),
+      rightArmBlend,
       rig,
     );
-    applyBoneRotation(rig.leftHand, 0, rig.smoothedWristFlex, 0, rig);
+    applyBoneRotation(
+      rig.leftHand,
+      idleArmPose.leftWrist.x,
+      idleArmPose.leftWrist.y,
+      rig.smoothedLeftWristFlex,
+      rig,
+    );
     applyMixedBoneRotation(
       rig.rightHand,
       0,
-      -rig.smoothedWristFlex,
       0,
-      0,
-      -rig.smoothedWristFlex,
-      clampGestureAngle(gestureTargets.rightHandWave, MAX_GESTURE_HEAD_TILT),
-      armBlend,
+      rig.smoothedRightWristFlex,
+      idleArmPose.rightWrist.x,
+      idleArmPose.rightWrist.y,
+      rig.smoothedRightWristFlex +
+        clampGestureAngle(gestureTargets.rightHandWave, MAX_GESTURE_HEAD_TILT),
+      rightArmBlend,
       rig,
     );
 
     for (const finger of rig.fingers) {
+      const fingerArmBlend = finger.side === 1 ? leftArmBlend : rightArmBlend;
       applyBoneRotation(
         finger.bone,
         0,
-        finger.side * finger.bendAngle * rig.smoothedFingerCurl * (1 - armBlend * 0.82),
+        finger.side * finger.bendAngle * rig.smoothedFingerCurl * (1 - fingerArmBlend * 0.82),
         0,
         rig,
       );
@@ -636,14 +693,25 @@ export function getIdleMotionTargets(
   weightShift: number,
   motionEnabled: boolean,
 ): IdleMotionTargets {
-  if (!motionEnabled) return { armSway: 0, shoulderSway: 0, weightShift: 0 };
+  if (!motionEnabled) {
+    return { armSway: 0, rightArmSway: 0, shoulderBreathing: 0, shoulderSway: 0, weightShift: 0 };
+  }
 
   return {
     armSway:
       Math.sin(elapsed * IDLE_ARM_SWAY_FREQUENCY + IDLE_ARM_SWAY_PHASE) * IDLE_ARM_SWAY_AMPLITUDE,
+    rightArmSway:
+      Math.sin(elapsed * IDLE_ARM_SWAY_FREQUENCY + IDLE_RIGHT_ARM_SWAY_PHASE) *
+      IDLE_ARM_SWAY_AMPLITUDE,
+    shoulderBreathing:
+      Math.sin(elapsed * CHEST_BREATHING_FREQUENCY) * IDLE_SHOULDER_BREATHING_AMPLITUDE,
     shoulderSway: Math.sin(elapsed * IDLE_SHOULDER_SWAY_FREQUENCY) * IDLE_SHOULDER_SWAY_AMPLITUDE,
     weightShift,
   };
+}
+
+export function getIdleArmPoseOffsets(): IdleArmPoseOffsets {
+  return IDLE_ARM_POSE_OFFSETS;
 }
 
 export function getVrmAvatarGestureDuration(gesture: VrmAvatarGesture): number {
@@ -673,6 +741,8 @@ export function getVrmAvatarGestureTargets(state: VrmAvatarGestureState): VrmAva
         ...NEUTRAL_GESTURE_TARGETS,
         armBlend: raise,
         chestRoll: -0.035,
+        // 挥手只接管右臂，左臂继续保持待机姿态。
+        rightArmBlend: raise,
         rightElbowWave: 0.2 + swing * WAVE_ELBOW_SWING_ANGLE,
         rightHandWave: swing * WAVE_HAND_SWING_ANGLE,
         rightShoulderRaise: WAVE_SHOULDER_RAISE_ANGLE,
@@ -717,8 +787,10 @@ export function getVrmAvatarGestureTargets(state: VrmAvatarGestureState): VrmAva
         expressionWeight: blend * HAPPY_EXPRESSION_WEIGHT,
         headBlend: blend,
         headPitch: nod,
+        leftArmBlend: blend,
         leftShoulderRaise: -0.12,
         leftUpperArmRaise: -HAPPY_ARM_RAISE_ANGLE,
+        rightArmBlend: blend,
         rightElbowBend: HAPPY_ELBOW_BEND_ANGLE,
         rightShoulderRaise: 0.12,
         rightUpperArmRaise: HAPPY_ARM_RAISE_ANGLE,
@@ -763,16 +835,20 @@ function createBreathingRig(vrm: VRM): BreathingRig {
     elapsed: 0,
     smoothedArmRelaxAngle: 0,
     smoothedArmSway: 0,
+    smoothedRightArmSway: 0,
     smoothedBreathing: 0,
-    smoothedElbowFlex: 0,
+    smoothedLeftElbowFlex: 0,
+    smoothedRightElbowFlex: 0,
     smoothedFingerCurl: 0,
     smoothedHeadPitch: 0,
     smoothedHeadTilt: 0,
     smoothedHeadYaw: 0,
     smoothedShoulderSway: 0,
+    smoothedShoulderBreathing: 0,
     smoothedSpeakingGesture: 0,
     smoothedWeightShift: 0,
-    smoothedWristFlex: 0,
+    smoothedLeftWristFlex: 0,
+    smoothedRightWristFlex: 0,
     weightShift: createWeightShiftState(),
     scratchBlendedQuaternion: new Quaternion(),
     scratchEuler: new Euler(0, 0, 0, "XYZ"),
