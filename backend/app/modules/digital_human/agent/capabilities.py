@@ -35,6 +35,14 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "当地时间和数据作答，不编造天气或把北京时间当作所在地时间。",
     ),
     DigitalHumanCapability(
+        "新闻查询",
+        "查询中文新闻头条和关键词资讯",
+        frozenset({"get_news"}),
+        "查询新闻时调用 get_news；用户问今天时设置 today_only。"
+        "根据工具返回的标题、来源、北京时间和原文链接回答，不编造新闻或声称实时；"
+        "无结果时说明接口返回的新闻中没有符合条件的结果，新闻数据可能延迟。",
+    ),
+    DigitalHumanCapability(
         "发送邮件",
         "使用项目邮箱向指定收件人发送邮件",
         frozenset({"prepare_email"}),

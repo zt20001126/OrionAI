@@ -28,6 +28,7 @@ from app.modules.digital_human.agent.prompts.loader import load_digital_human_pr
 from app.modules.digital_human.agent.state import DigitalHumanState
 from app.modules.digital_human.agent.tools.current_date import get_current_date
 from app.modules.digital_human.agent.tools.email import prepare_email
+from app.modules.digital_human.agent.tools.news import get_news
 from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
 from app.modules.digital_human.agent.tools.weather import get_current_weather
 
@@ -90,7 +91,14 @@ def create_digital_human_graph(
     """用专属身份编排共享节点；输入为模型和检查点，输出为数字人独立图，供 Runtime 调用。"""
 
     tool_registry = ToolRegistry(
-        [ask_user_questions, get_current_date, get_current_weather, get_stock_quote, prepare_email]
+        [
+            ask_user_questions,
+            get_current_date,
+            get_current_weather,
+            get_stock_quote,
+            prepare_email,
+            get_news,
+        ]
     )
     config = BaseAgentConfig(
         system_prompt=load_digital_human_prompt(tool_registry.names),
