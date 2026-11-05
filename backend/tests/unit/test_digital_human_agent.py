@@ -34,6 +34,10 @@ class ScriptedChatModel(BaseChatModel):
         del messages, stop, run_manager, kwargs
         return ChatResult(generations=[ChatGeneration(message=self._responses.pop(0))])
 
+    def bind_tools(self, tools: Any, **kwargs: Any) -> "ScriptedChatModel":
+        del tools, kwargs
+        return self
+
 
 @pytest.mark.anyio
 async def test_digital_human_runtime_uses_its_own_graph_and_checkpointer() -> None:

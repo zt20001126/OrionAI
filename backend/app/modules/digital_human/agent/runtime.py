@@ -4,7 +4,7 @@ import logging
 from collections.abc import AsyncIterator, Mapping
 from typing import Any
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -24,6 +24,7 @@ from app.agent.schemas import (
     AgentStreamEvent,
     AgentStreamResult,
     AgentTextDelta,
+    QuestionPayload,
 )
 from app.modules.digital_human.agent.graph import (
     DIGITAL_HUMAN_AGENT_CODE,
@@ -31,6 +32,7 @@ from app.modules.digital_human.agent.graph import (
     RECURSION_LIMIT,
     create_digital_human_graph,
 )
+from app.modules.digital_human.agent.nodes.tool import ASK_USER_QUESTIONS_TOOL_NAME
 from app.modules.digital_human.agent.prompts.loader import load_digital_human_prompt
 from app.modules.digital_human.agent.state import DigitalHumanState
 
@@ -166,6 +168,27 @@ class DigitalHumanRuntime(AgentRuntime):
 
     @staticmethod
     def _response_from_result(result: Mapping[str, Any]) -> AgentResponse:
+        messages = result.get("messages", [])
+        last_message = messages[-1] if messages else None
+        if (
+            isinstance(last_message, ToolMessage)
+            and last_message.name == ASK_USER_QUESTIONS_TOOL_NAME
+        ):
+            try:
+                if not isinstance(last_message.content, str):
+                    raise ValueError("题卡工具结果必须为 JSON 文本。")
+                questions = QuestionPayload.model_validate_json(last_message.content)
+            except (ValidationError, ValueError):
+                raise AgentExecutionError(
+                    "数字人生成的题卡格式无效。",
+                    code="invalid_question_tool_result",
+                ) from None
+            return AgentResponse(
+                agent=DIGITAL_HUMAN_AGENT_CODE,
+                status="waiting",
+                questions=questions,
+            )
+
         answer = result.get("answer")
         if not isinstance(answer, str) or not answer.strip():
             raise AgentExecutionError("数字人智能体没有生成有效回答。", code="missing_agent_answer")
