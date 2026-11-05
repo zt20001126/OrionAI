@@ -153,8 +153,6 @@ export const navigationItems = [
   { path: platformPaths.mySkills, label: "我的技能", icon: "agents" },
   { path: platformPaths.digitalHuman, label: "我的数字人", icon: "assistant" },
   { path: platformPaths.sessions, label: "会话记录", icon: "sessions" },
-  { path: platformPaths.knowledge, label: "知识库", icon: "knowledge" },
-  { path: platformPaths.tools, label: "工具管理", icon: "tools" },
 ] as const;
 
 export const skillCategories = ["全部", "智能体", "工具"] as const;
