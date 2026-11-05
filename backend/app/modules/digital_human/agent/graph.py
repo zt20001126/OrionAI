@@ -24,6 +24,7 @@ from app.agent.tools.registry import ToolRegistry
 from app.modules.digital_human.agent.prompts.loader import load_digital_human_prompt
 from app.modules.digital_human.agent.state import DigitalHumanState
 from app.modules.digital_human.agent.tools.current_date import get_current_date
+from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
 from app.modules.digital_human.agent.tools.weather import get_current_weather
 
 DIGITAL_HUMAN_AGENT_CODE = "digital_human"
@@ -87,7 +88,9 @@ def create_digital_human_graph(
         max_input_chars=MAX_INPUT_CHARS,
         recursion_limit=RECURSION_LIMIT,
     )
-    tool_registry = ToolRegistry([ask_user_questions, get_current_date, get_current_weather])
+    tool_registry = ToolRegistry(
+        [ask_user_questions, get_current_date, get_current_weather, get_stock_quote]
+    )
     graph = StateGraph(DigitalHumanState)
     graph.add_node("input_node", create_input_node(config))
     graph.add_node(

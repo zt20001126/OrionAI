@@ -10,7 +10,7 @@ from pydantic import PrivateAttr
 
 from app.agent.schemas import AgentStreamResult, AgentTextDelta
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
-from app.modules.digital_human.agent.tools import current_date
+from app.modules.digital_human.agent.tools import current_date, stock_quote
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -141,5 +141,43 @@ async def test_digital_human_calls_date_tool_and_returns_answer() -> None:
     assert response.answer == "这是当前北京时间日期。"
     assert any(
         message.type == "tool" and "北京时间：" in message.content
+        for message in state.values["messages"]
+    )
+
+
+@pytest.mark.anyio
+async def test_stock_question_continues_to_registered_tool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question_call = AIMessage(content="", tool_calls=[{
+        "name": "ask_user_questions",
+        "args": {"questions": [{"id": "stock", "title": "请输入股票名称或代码", "type": "Text"}]},
+        "id": "stock-question", "type": "tool_call",
+    }])
+    stock_call = AIMessage(content="", tool_calls=[{
+        "name": "get_stock_quote", "args": {"stock": "600519"},
+        "id": "stock-quote", "type": "tool_call",
+    }])
+    monkeypatch.setattr(
+        stock_quote, "_fetch_stock_quote",
+        lambda stock: {"status": "ok", "code": stock, "price": 100},
+    )
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel(
+            [question_call, stock_call, AIMessage(content="价格为100元。")]
+        ),
+        checkpointer=MemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "stock-test"}}
+    question = await runtime.ainvoke("帮我查询股票", runnable_config=config)
+    assert question.status == "waiting"
+    assert question.questions is not None
+    assert question.questions.questions[0].type == "Text"
+
+    response = await runtime.ainvoke("股票：600519", runnable_config=config)
+    state = await runtime.compiled_graph.aget_state(config)
+    assert response.answer == "价格为100元。"
+    assert any(
+        message.type == "tool" and message.name == "get_stock_quote" and "600519" in message.content
         for message in state.values["messages"]
     )
