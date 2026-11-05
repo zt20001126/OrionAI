@@ -43,7 +43,7 @@ include = ["app*"]
 "app.modules.agents.image_agent.prompts" = ["templates/*.md"]
 "app.modules.agents.resume_agent.prompts" = ["system.md"]
 "app.modules.agents.tourism_insight.prompts" = ["*.md"]
-"app.modules.digital_human.agent.prompts" = ["system.md"]
+"app.modules.digital_human.agent.prompts" = ["system.md", "agent.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
