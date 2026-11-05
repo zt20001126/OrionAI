@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -9,6 +10,7 @@ from pydantic import PrivateAttr
 
 from app.agent.schemas import AgentStreamResult, AgentTextDelta
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
+from app.modules.digital_human.agent.tools import current_date
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -110,3 +112,34 @@ async def test_digital_human_runtime_uses_shared_question_tool_and_pauses() -> N
     assert response.status == "waiting"
     assert response.questions is not None
     assert response.questions.questions[0].id == "format"
+
+
+def test_current_date_uses_beijing_date_across_midnight(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz: Any = None) -> datetime:
+            return datetime(2026, 11, 4, 16, 30, tzinfo=UTC).astimezone(tz)
+
+    monkeypatch.setattr(current_date, "datetime", FixedDatetime)
+    assert current_date.get_current_date.invoke({}) == "北京时间：2026-11-05，星期四"
+
+
+@pytest.mark.anyio
+async def test_digital_human_calls_date_tool_and_returns_answer() -> None:
+    date_call = AIMessage(
+        content="",
+        tool_calls=[{"name": "get_current_date", "args": {}, "id": "date-1", "type": "tool_call"}],
+    )
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel([date_call, AIMessage(content="这是当前北京时间日期。")]),
+        checkpointer=MemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "date-test"}}
+    response = await runtime.ainvoke("今天几号？", runnable_config=config)
+    state = await runtime.compiled_graph.aget_state(config)
+
+    assert response.answer == "这是当前北京时间日期。"
+    assert any(
+        message.type == "tool" and "北京时间：" in message.content
+        for message in state.values["messages"]
+    )
