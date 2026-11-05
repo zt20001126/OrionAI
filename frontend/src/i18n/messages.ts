@@ -139,6 +139,7 @@ const catalogs: Record<string, MessageMap> = {
     "记忆训练": "Memory training",
     "对话助手": "Conversation assistant",
     "数字人助手": "AI avatar assistant",
+    "你好，今天想聊些什么？": "Hi, what would you like to talk about today?",
     "智能优化简历": "Optimize your resume with AI",
     "管理日常提醒": "Manage everyday reminders",
     "观察与记忆练习": "Observation and memory exercises",

@@ -15,7 +15,9 @@
   overflow: hidden;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
-  background: var(--color-surface);
+  background:
+    radial-gradient(ellipse at 78% 22%, var(--color-secondary-glow), transparent 45%),
+    linear-gradient(135deg, var(--color-brand-soft), var(--color-agent-icon));
 }
 
 .digital-human-stage {
@@ -24,10 +26,7 @@
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-right: 1px solid var(--color-border);
-  background:
-    radial-gradient(ellipse at 78% 22%, var(--color-secondary-glow), transparent 45%),
-    linear-gradient(135deg, var(--color-brand-soft), var(--color-agent-icon));
+  background: transparent;
   isolation: isolate;
 }
 
@@ -153,7 +152,7 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-surface);
+  background: transparent;
 }
 
 .digital-human-messages {
@@ -165,6 +164,7 @@
   align-items: stretch;
   gap: var(--space-4);
   overflow-y: auto;
+  background: transparent;
   padding: clamp(var(--space-4), 3vw, var(--space-8));
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -174,15 +174,32 @@
   width: fit-content;
   max-width: min(88%, 720px);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid var(--color-border);
+  border: 1px solid color-mix(in srgb, var(--color-surface) 72%, transparent);
   border-radius: var(--radius-card);
-  background: var(--color-surface-muted);
+  background: color-mix(in srgb, var(--color-surface) 84%, transparent);
+  backdrop-filter: blur(8px);
+}
+
+.digital-human-message--assistant {
+  align-self: flex-start;
 }
 
 .digital-human-message--user {
   align-self: flex-end;
-  border-color: var(--color-brand-line);
-  background: var(--color-brand-soft);
+  border-color: color-mix(in srgb, var(--color-brand-line) 78%, transparent);
+  background: color-mix(in srgb, var(--color-brand-soft) 86%, transparent);
+}
+
+.digital-human-messages--empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.digital-human-empty-state {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+  text-align: center;
 }
 
 .digital-human-markdown {
@@ -244,7 +261,8 @@
   padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-panel);
-  background: var(--color-surface);
+  background: color-mix(in srgb, var(--color-surface) 86%, transparent);
+  backdrop-filter: blur(12px);
   transition:
     border-color var(--motion-fast),
     box-shadow var(--motion-fast);
@@ -322,8 +340,7 @@
   }
 
   .digital-human-stage {
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border);
+    border: 0;
   }
 
   .digital-human-avatar {
