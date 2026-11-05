@@ -25,6 +25,7 @@ export function DigitalHumanAvatarHost({
   return (
     <DigitalHumanAvatar3D
       cameraFraming="home"
+      enableClickInteraction
       lookTargetRef={lookTargetRef}
       mouthOpen={mouthOpen}
       onLoadError={onLoadError}

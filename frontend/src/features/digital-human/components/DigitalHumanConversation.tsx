@@ -30,8 +30,6 @@ export function DigitalHumanConversation({
   isLoading,
 }: DigitalHumanConversationProps) {
   const messageListRef = useRef<HTMLDivElement>(null);
-  const isEmpty =
-    !isLoading && messages.length === 0 && !pendingMessage && !streamedAssistantText;
 
   useLayoutEffect(() => {
     const messageList = messageListRef.current;
@@ -41,12 +39,11 @@ export function DigitalHumanConversation({
   return (
     <div
       aria-label={t("对话消息")}
-      className={`digital-human-messages${isEmpty ? " digital-human-messages--empty" : ""}`}
+      className="digital-human-messages"
       role="log"
       aria-live="polite"
       ref={messageListRef}
     >
-      {isEmpty && <p className="digital-human-empty-state">{t("你好，今天想聊些什么？")}</p>}
       {messages.map((message) => {
         const text = getText(message);
         if (!text) return null;

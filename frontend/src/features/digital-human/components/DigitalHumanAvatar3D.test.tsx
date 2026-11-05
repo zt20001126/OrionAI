@@ -1,16 +1,38 @@
 import { cleanup, render, screen } from "@testing-library/react";
+import { Children, isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { VRM } from "@pixiv/three-vrm";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
 
 import { useVrmAvatarModel } from "../hooks/useVrmAvatarModel";
 import { DigitalHumanAvatar3D } from "./DigitalHumanAvatar3D";
 
-const canvasMockState = vi.hoisted(() => ({ throws: false }));
+const canvasMockState = vi.hoisted(() => ({
+  clickInteractionValues: [] as boolean[],
+  throws: false,
+}));
 
 vi.mock("@react-three/fiber", () => ({
-  Canvas: ({ fallback }: { fallback?: ReactNode }) => {
+  Canvas: ({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) => {
     if (canvasMockState.throws) throw new Error("Error creating WebGL context");
+
+    const inspectChildren = (node: ReactNode) => {
+      Children.forEach(node, (child) => {
+        if (!isValidElement(child)) return;
+        const element = child as ReactElement<{
+          children?: ReactNode;
+          enableClickInteraction?: boolean;
+        }>;
+        if (typeof child.type === "function" && child.type.name === "VrmAvatarScene") {
+          canvasMockState.clickInteractionValues.push(
+            element.props.enableClickInteraction ?? false,
+          );
+        }
+        inspectChildren(element.props.children);
+      });
+    };
+
+    inspectChildren(children);
     return <div data-testid="avatar-canvas">{fallback}</div>;
   },
 }));
@@ -27,6 +49,7 @@ afterEach(() => cleanup());
 
 beforeEach(() => {
   canvasMockState.throws = false;
+  canvasMockState.clickInteractionValues = [];
   vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm: null });
 });
 
@@ -84,6 +107,36 @@ describe("DigitalHumanAvatar3D", () => {
     expect(screen.getByTestId("avatar-canvas")).toBeInTheDocument();
     expect(document.querySelector(".digital-human-avatar--home")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("keeps click interactions disabled by default and supports an explicit opt in", () => {
+    const vrm = {
+      meta: { author: "OrionAI", metaVersion: "1", title: "Orion" },
+    } as unknown as VRM;
+    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm });
+
+    const homeRender = render(
+      <DigitalHumanAvatar3D
+        mouthOpen={0}
+        onLoadError={vi.fn()}
+        presentation="home"
+        status="idle"
+      />,
+    );
+    expect(canvasMockState.clickInteractionValues).toEqual([false]);
+
+    homeRender.unmount();
+    render(
+      <DigitalHumanAvatar3D
+        enableClickInteraction
+        mouthOpen={0}
+        onLoadError={vi.fn()}
+        presentation="home"
+        status="idle"
+      />,
+    );
+
+    expect(canvasMockState.clickInteractionValues).toEqual([false, true]);
   });
 
   it("reports model load failures through the provided error handler", () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getVrmAvatarGestureDuration,
+  getVrmAvatarGestureTargets,
   getIdleMotionTargets,
   getPointerLookTargets,
   getStatusMotionTargets,
@@ -81,5 +83,52 @@ describe("getStatusMotionTargets", () => {
       shoulderSway: 0,
       weightShift: 0,
     });
+  });
+});
+
+describe("VRM avatar click gestures", () => {
+  it("raises the waving arm and produces three full forearm swings", () => {
+    const waveSamples = [0.5, 0.7, 0.9, 1.1, 1.3, 1.5].map(
+      (elapsed) =>
+        getVrmAvatarGestureTargets({ kind: "wave", elapsed, direction: 1 }).rightElbowWave,
+    );
+
+    expect(getVrmAvatarGestureDuration("wave")).toBe(2);
+    expect(getVrmAvatarGestureTargets({ kind: "wave", elapsed: 0.4, direction: 1 })).toMatchObject({
+      armBlend: 1,
+      rightUpperArmRaise: expect.any(Number),
+    });
+    expect(
+      getVrmAvatarGestureTargets({ kind: "wave", elapsed: 0.4, direction: 1 }).rightUpperArmRaise,
+    ).toBeGreaterThan(2.3);
+    expect(waveSamples[0]).toBeGreaterThan(0.55);
+    expect(waveSamples[1]).toBeLessThan(-0.25);
+    expect(waveSamples[2]).toBeGreaterThan(0.55);
+    expect(waveSamples[3]).toBeLessThan(-0.25);
+    expect(waveSamples[4]).toBeGreaterThan(0.55);
+    expect(waveSamples[5]).toBeLessThan(-0.25);
+    expect(getVrmAvatarGestureTargets({ kind: "wave", elapsed: 2, direction: 1 }).armBlend).toBe(0);
+  });
+
+  it("holds a 20 to 25 degree head tilt before smoothly releasing it", () => {
+    const tilt = getVrmAvatarGestureTargets({ kind: "headTilt", elapsed: 0.8, direction: -1 });
+
+    expect(getVrmAvatarGestureDuration("headTilt")).toBe(1.8);
+    expect(tilt.headBlend).toBe(1);
+    expect((Math.abs(tilt.headTilt) * 180) / Math.PI).toBeGreaterThanOrEqual(20);
+    expect((Math.abs(tilt.headTilt) * 180) / Math.PI).toBeLessThanOrEqual(25);
+    expect(
+      getVrmAvatarGestureTargets({ kind: "headTilt", elapsed: 1.8, direction: -1 }).headBlend,
+    ).toBe(0);
+  });
+
+  it("combines a happy expression with two nods and raised arms", () => {
+    const happy = getVrmAvatarGestureTargets({ kind: "happy", elapsed: 0.4125, direction: 1 });
+
+    expect(getVrmAvatarGestureDuration("happy")).toBe(2);
+    expect(happy.expressionWeight).toBeGreaterThan(0.9);
+    expect(happy.headPitch).toBeGreaterThan(0.18);
+    expect(happy.leftUpperArmRaise).toBeLessThan(0);
+    expect(happy.rightUpperArmRaise).toBeGreaterThan(0);
   });
 });

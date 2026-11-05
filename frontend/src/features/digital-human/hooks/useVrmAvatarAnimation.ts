@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { VRMExpressionPresetName, type VRM, type VRMHumanBoneName } from "@pixiv/three-vrm";
 import { useFrame } from "@react-three/fiber";
@@ -53,6 +53,34 @@ const SPEAKING_HEAD_TILT_AMPLITUDE = 0.09;
 const SPEAKING_HEAD_TILT_FREQUENCY = 0.9;
 const SPEAKING_ARM_GESTURE_AMPLITUDE = 0.6;
 const SPEAKING_ARM_GESTURE_FREQUENCY = 2.2;
+const WAVE_DURATION_SECONDS = 2;
+const WAVE_RAISE_SECONDS = 0.4;
+const WAVE_SWING_SECONDS = 1.2;
+const WAVE_CYCLES = 3;
+const WAVE_RAISE_ANGLE = 2.42;
+const WAVE_SHOULDER_RAISE_ANGLE = 0.16;
+const WAVE_ELBOW_SWING_ANGLE = 0.48;
+const WAVE_HAND_SWING_ANGLE = 0.3;
+const HEAD_TILT_DURATION_SECONDS = 1.8;
+const HEAD_TILT_ENTRY_SECONDS = 0.22;
+const HEAD_TILT_HOLD_SECONDS = 0.98;
+const HEAD_TILT_RELEASE_SECONDS = 0.6;
+const HEAD_TILT_ANGLE = 0.4;
+const HAPPY_DURATION_SECONDS = 2;
+const HAPPY_BLEND_SECONDS = 0.22;
+const HAPPY_RELEASE_SECONDS = 0.35;
+const HAPPY_NOD_START_SECONDS = 0.25;
+const HAPPY_NOD_DURATION_SECONDS = 1.3;
+const HAPPY_NOD_CYCLES = 2;
+const HAPPY_NOD_AMPLITUDE = 0.22;
+const HAPPY_ARM_RAISE_ANGLE = 1.18;
+const HAPPY_ELBOW_BEND_ANGLE = 0.16;
+const HAPPY_BODY_SWAY_ANGLE = 0.05;
+const HAPPY_EXPRESSION_WEIGHT = 0.92;
+const GESTURE_EXPRESSION_BLEND_SPEED = 14;
+const MAX_GESTURE_ARM_ANGLE = 2.55;
+const MAX_GESTURE_FOREARM_ANGLE = 0.82;
+const MAX_GESTURE_HEAD_TILT = 0.48;
 const MOUTH_EXPRESSIONS = [VRMExpressionPresetName.Aa, VRMExpressionPresetName.Oh];
 const FINGER_SEGMENT_CURL_FACTORS = [1, 0.72, 0.52] as const;
 const THUMB_SEGMENT_CURL_FACTORS = [0.65, 1, 0.68] as const;
@@ -116,7 +144,10 @@ interface BreathingRig {
   smoothedWeightShift: number;
   smoothedWristFlex: number;
   weightShift: WeightShiftState;
+  scratchBlendedQuaternion: Quaternion;
   scratchEuler: Euler;
+  scratchGestureEuler: Euler;
+  scratchGestureQuaternion: Quaternion;
   scratchQuaternion: Quaternion;
 }
 
@@ -132,6 +163,52 @@ interface IdleMotionTargets {
   shoulderSway: number;
   weightShift: number;
 }
+
+export type VrmAvatarGesture = "wave" | "headTilt" | "happy";
+
+export type VrmAvatarGesturePlayer = (gesture: VrmAvatarGesture) => boolean;
+
+export interface VrmAvatarGestureState {
+  direction: 1 | -1;
+  elapsed: number;
+  kind: VrmAvatarGesture;
+}
+
+export interface VrmAvatarGestureTargets {
+  armBlend: number;
+  chestRoll: number;
+  expressionWeight: number;
+  headBlend: number;
+  headPitch: number;
+  headTilt: number;
+  headYaw: number;
+  leftShoulderRaise: number;
+  leftUpperArmRaise: number;
+  rightElbowBend: number;
+  rightElbowWave: number;
+  rightHandWave: number;
+  rightShoulderRaise: number;
+  rightUpperArmRaise: number;
+  spineRoll: number;
+}
+
+const NEUTRAL_GESTURE_TARGETS: VrmAvatarGestureTargets = {
+  armBlend: 0,
+  chestRoll: 0,
+  expressionWeight: 0,
+  headBlend: 0,
+  headPitch: 0,
+  headTilt: 0,
+  headYaw: 0,
+  leftShoulderRaise: 0,
+  leftUpperArmRaise: 0,
+  rightElbowBend: 0,
+  rightElbowWave: 0,
+  rightHandWave: 0,
+  rightShoulderRaise: 0,
+  rightUpperArmRaise: 0,
+  spineRoll: 0,
+};
 
 const FINGER_POSE_CONFIGS: readonly FingerPoseConfig[] = [
   {
@@ -172,12 +249,24 @@ export function useVrmAvatarAnimation(
   mouthOpen: number,
   status: DigitalHumanStatus,
   lookTargetRef?: RefObject<VrmLookTarget | null>,
-): void {
+): VrmAvatarGesturePlayer {
   const blinkState = useRef<BlinkState>({ elapsed: 0, waiting: randomBlinkInterval() });
   const smoothedBlink = useRef(0);
   const prefersReducedMotion = useRef(false);
   const breathingRig = useRef<BreathingRig | null>(null);
   const smoothedMouth = useRef(0);
+  const smoothedGestureExpression = useRef(0);
+  const gestureState = useRef<VrmAvatarGestureState | null>(null);
+  const nextHeadTiltDirection = useRef<1 | -1>(1);
+
+  const playGesture = useCallback<VrmAvatarGesturePlayer>((kind) => {
+    if (gestureState.current) return false;
+
+    const direction = kind === "headTilt" ? nextHeadTiltDirection.current : 1;
+    if (kind === "headTilt") nextHeadTiltDirection.current *= -1;
+    gestureState.current = { direction, elapsed: 0, kind };
+    return true;
+  }, []);
 
   useEffect(() => {
     const rig = createBreathingRig(vrm);
@@ -208,11 +297,27 @@ export function useVrmAvatarAnimation(
       for (const expression of MOUTH_EXPRESSIONS) {
         if (manager?.getExpression(expression)) manager.setValue(expression, 0);
       }
+      for (const expression of [VRMExpressionPresetName.Happy, VRMExpressionPresetName.Relaxed]) {
+        if (manager?.getExpression(expression)) manager.setValue(expression, 0);
+      }
     },
     [vrm],
   );
 
   useFrame((_, delta) => {
+    const activeGesture = gestureState.current;
+    let gestureTargets = NEUTRAL_GESTURE_TARGETS;
+    if (activeGesture) {
+      activeGesture.elapsed = Math.min(
+        getVrmAvatarGestureDuration(activeGesture.kind),
+        activeGesture.elapsed + delta,
+      );
+      gestureTargets = getVrmAvatarGestureTargets(activeGesture);
+      if (activeGesture.elapsed >= getVrmAvatarGestureDuration(activeGesture.kind)) {
+        gestureState.current = null;
+      }
+    }
+
     const manager = vrm.expressionManager;
     const motionEnabled = !prefersReducedMotion.current;
     const blinkAmount = nextBlinkAmount(blinkState.current, delta);
@@ -228,6 +333,28 @@ export function useVrmAvatarAnimation(
     const targetMouth = status === "speaking" ? Math.min(1, Math.max(0, mouthOpen)) : 0;
     smoothedMouth.current += (targetMouth - smoothedMouth.current) * Math.min(1, delta * 14);
     if (mouthExpression) manager?.setValue(mouthExpression, smoothedMouth.current);
+
+    const expressionTarget = gestureTargets.expressionWeight;
+    const expressionBlend = 1 - Math.exp(-GESTURE_EXPRESSION_BLEND_SPEED * delta);
+    smoothedGestureExpression.current +=
+      (expressionTarget - smoothedGestureExpression.current) * expressionBlend;
+    const happyExpression = manager?.getExpression(VRMExpressionPresetName.Happy)
+      ? VRMExpressionPresetName.Happy
+      : manager?.getExpression(VRMExpressionPresetName.Relaxed)
+        ? VRMExpressionPresetName.Relaxed
+        : null;
+    if (manager?.getExpression(VRMExpressionPresetName.Happy)) {
+      manager.setValue(
+        VRMExpressionPresetName.Happy,
+        happyExpression === VRMExpressionPresetName.Happy ? smoothedGestureExpression.current : 0,
+      );
+    }
+    if (manager?.getExpression(VRMExpressionPresetName.Relaxed)) {
+      manager.setValue(
+        VRMExpressionPresetName.Relaxed,
+        happyExpression === VRMExpressionPresetName.Relaxed ? smoothedGestureExpression.current : 0,
+      );
+    }
 
     const rig = breathingRig.current;
     if (!rig) {
@@ -276,43 +403,161 @@ export function useVrmAvatarAnimation(
     const shoulderRelax = rig.smoothedArmRelaxAngle * SHOULDER_RELAX_SHARE;
     const upperArmRelax = rig.smoothedArmRelaxAngle * (1 - SHOULDER_RELAX_SHARE);
     const leftShoulderSway = rig.smoothedShoulderSway;
+    const armBlend = gestureTargets.armBlend;
+    const headBlend = gestureTargets.headBlend;
+    const remainingHeadMotion = 1 - headBlend;
+    const ambientHeadPitch = rig.smoothedHeadPitch * remainingHeadMotion;
+    const ambientHeadYaw = rig.smoothedHeadYaw * remainingHeadMotion;
+    const ambientHeadTilt = rig.smoothedHeadTilt * remainingHeadMotion;
+    const speakingGesture = rig.smoothedSpeakingGesture * (1 - armBlend);
+
     applyBoneRotation(rig.hips, 0, 0, rig.smoothedWeightShift, rig);
-    applyBoneRotation(rig.spine, 0, 0, -rig.smoothedWeightShift * SPINE_COUNTER_SHIFT_SHARE, rig);
-    applyBoneRotation(rig.chest, rig.smoothedBreathing, 0, 0, rig);
-    applyBoneRotation(
+    applyMixedBoneRotation(
+      rig.spine,
+      0,
+      0,
+      -rig.smoothedWeightShift * SPINE_COUNTER_SHIFT_SHARE,
+      0,
+      0,
+      clampGestureAngle(
+        -rig.smoothedWeightShift * SPINE_COUNTER_SHIFT_SHARE + gestureTargets.spineRoll,
+        MAX_GESTURE_HEAD_TILT,
+      ),
+      armBlend,
+      rig,
+    );
+    applyMixedBoneRotation(
+      rig.chest,
+      rig.smoothedBreathing,
+      0,
+      0,
+      rig.smoothedBreathing,
+      0,
+      clampGestureAngle(gestureTargets.chestRoll, MAX_GESTURE_HEAD_TILT),
+      armBlend,
+      rig,
+    );
+    applyMixedBoneRotation(
       rig.neck,
-      rig.smoothedHeadPitch * NECK_MOTION_SHARE,
-      rig.smoothedHeadYaw * NECK_MOTION_SHARE,
-      rig.smoothedHeadTilt * NECK_MOTION_SHARE,
+      ambientHeadPitch * NECK_MOTION_SHARE,
+      ambientHeadYaw * NECK_MOTION_SHARE,
+      ambientHeadTilt * NECK_MOTION_SHARE,
+      ambientHeadPitch * NECK_MOTION_SHARE + gestureTargets.headPitch * NECK_MOTION_SHARE,
+      ambientHeadYaw * NECK_MOTION_SHARE + gestureTargets.headYaw * NECK_MOTION_SHARE,
+      clampGestureAngle(
+        ambientHeadTilt * NECK_MOTION_SHARE + gestureTargets.headTilt * NECK_MOTION_SHARE,
+        MAX_GESTURE_HEAD_TILT,
+      ),
+      headBlend,
       rig,
     );
-    applyBoneRotation(
+    applyMixedBoneRotation(
       rig.head,
-      rig.smoothedHeadPitch * (1 - NECK_MOTION_SHARE),
-      rig.smoothedHeadYaw * (1 - NECK_MOTION_SHARE),
-      rig.smoothedHeadTilt * (1 - NECK_MOTION_SHARE),
+      ambientHeadPitch * (1 - NECK_MOTION_SHARE),
+      ambientHeadYaw * (1 - NECK_MOTION_SHARE),
+      ambientHeadTilt * (1 - NECK_MOTION_SHARE),
+      ambientHeadPitch * (1 - NECK_MOTION_SHARE) +
+        gestureTargets.headPitch * (1 - NECK_MOTION_SHARE),
+      ambientHeadYaw * (1 - NECK_MOTION_SHARE) + gestureTargets.headYaw * (1 - NECK_MOTION_SHARE),
+      clampGestureAngle(
+        ambientHeadTilt * (1 - NECK_MOTION_SHARE) +
+          gestureTargets.headTilt * (1 - NECK_MOTION_SHARE),
+        MAX_GESTURE_HEAD_TILT,
+      ),
+      headBlend,
       rig,
     );
-    applyBoneRotation(rig.leftShoulder, 0, 0, shoulderRelax + leftShoulderSway, rig);
-    applyBoneRotation(rig.rightShoulder, 0, 0, -(shoulderRelax + leftShoulderSway), rig);
-    applyBoneRotation(rig.leftUpperArm, 0, 0, upperArmRelax + rig.smoothedArmSway, rig);
-    applyBoneRotation(
+    applyMixedBoneRotation(
+      rig.leftShoulder,
+      0,
+      0,
+      shoulderRelax + leftShoulderSway,
+      0,
+      0,
+      clampGestureAngle(
+        shoulderRelax + leftShoulderSway + gestureTargets.leftShoulderRaise,
+        MAX_GESTURE_ARM_ANGLE,
+      ),
+      armBlend,
+      rig,
+    );
+    applyMixedBoneRotation(
+      rig.rightShoulder,
+      0,
+      0,
+      -(shoulderRelax + leftShoulderSway),
+      0,
+      0,
+      clampGestureAngle(
+        -(shoulderRelax + leftShoulderSway) + gestureTargets.rightShoulderRaise,
+        MAX_GESTURE_ARM_ANGLE,
+      ),
+      armBlend,
+      rig,
+    );
+    applyMixedBoneRotation(
+      rig.leftUpperArm,
+      0,
+      0,
+      upperArmRelax + rig.smoothedArmSway,
+      0,
+      0,
+      clampGestureAngle(
+        upperArmRelax + rig.smoothedArmSway + gestureTargets.leftUpperArmRaise,
+        MAX_GESTURE_ARM_ANGLE,
+      ),
+      armBlend,
+      rig,
+    );
+    applyMixedBoneRotation(
       rig.rightUpperArm,
       0,
       0,
-      -(upperArmRelax + rig.smoothedArmSway) + rig.smoothedSpeakingGesture,
+      -(upperArmRelax + rig.smoothedArmSway) + speakingGesture,
+      0,
+      0,
+      clampGestureAngle(
+        -(upperArmRelax + rig.smoothedArmSway) +
+          speakingGesture +
+          gestureTargets.rightUpperArmRaise,
+        MAX_GESTURE_ARM_ANGLE,
+      ),
+      armBlend,
       rig,
     );
     applyBoneRotation(rig.leftLowerArm, 0, rig.smoothedElbowFlex, 0, rig);
-    applyBoneRotation(rig.rightLowerArm, 0, -rig.smoothedElbowFlex, 0, rig);
+    applyMixedBoneRotation(
+      rig.rightLowerArm,
+      0,
+      -rig.smoothedElbowFlex,
+      0,
+      0,
+      -rig.smoothedElbowFlex,
+      clampGestureAngle(
+        gestureTargets.rightElbowBend + gestureTargets.rightElbowWave,
+        MAX_GESTURE_FOREARM_ANGLE,
+      ),
+      armBlend,
+      rig,
+    );
     applyBoneRotation(rig.leftHand, 0, rig.smoothedWristFlex, 0, rig);
-    applyBoneRotation(rig.rightHand, 0, -rig.smoothedWristFlex, 0, rig);
+    applyMixedBoneRotation(
+      rig.rightHand,
+      0,
+      -rig.smoothedWristFlex,
+      0,
+      0,
+      -rig.smoothedWristFlex,
+      clampGestureAngle(gestureTargets.rightHandWave, MAX_GESTURE_HEAD_TILT),
+      armBlend,
+      rig,
+    );
 
     for (const finger of rig.fingers) {
       applyBoneRotation(
         finger.bone,
         0,
-        finger.side * finger.bendAngle * rig.smoothedFingerCurl,
+        finger.side * finger.bendAngle * rig.smoothedFingerCurl * (1 - armBlend * 0.82),
         0,
         rig,
       );
@@ -320,6 +565,8 @@ export function useVrmAvatarAnimation(
 
     vrm.update(delta);
   });
+
+  return playGesture;
 }
 
 export function getPointerLookTargets(
@@ -399,6 +646,88 @@ export function getIdleMotionTargets(
   };
 }
 
+export function getVrmAvatarGestureDuration(gesture: VrmAvatarGesture): number {
+  switch (gesture) {
+    case "wave":
+      return WAVE_DURATION_SECONDS;
+    case "headTilt":
+      return HEAD_TILT_DURATION_SECONDS;
+    case "happy":
+      return HAPPY_DURATION_SECONDS;
+  }
+}
+
+export function getVrmAvatarGestureTargets(state: VrmAvatarGestureState): VrmAvatarGestureTargets {
+  const elapsed = Math.min(getVrmAvatarGestureDuration(state.kind), Math.max(0, state.elapsed));
+
+  switch (state.kind) {
+    case "wave": {
+      const raise = Math.min(
+        smoothStep(elapsed / WAVE_RAISE_SECONDS),
+        1 - smoothStep((elapsed - WAVE_RAISE_SECONDS - WAVE_SWING_SECONDS) / WAVE_RAISE_SECONDS),
+      );
+      const swingProgress = clampProgress((elapsed - WAVE_RAISE_SECONDS) / WAVE_SWING_SECONDS);
+      const swing = Math.sin(swingProgress * Math.PI * 2 * WAVE_CYCLES);
+
+      return {
+        ...NEUTRAL_GESTURE_TARGETS,
+        armBlend: raise,
+        chestRoll: -0.035,
+        rightElbowWave: 0.2 + swing * WAVE_ELBOW_SWING_ANGLE,
+        rightHandWave: swing * WAVE_HAND_SWING_ANGLE,
+        rightShoulderRaise: WAVE_SHOULDER_RAISE_ANGLE,
+        rightUpperArmRaise: WAVE_RAISE_ANGLE,
+        spineRoll: -0.035,
+      };
+    }
+    case "headTilt": {
+      const enter = smoothStep(elapsed / HEAD_TILT_ENTRY_SECONDS);
+      const releaseStart = HEAD_TILT_ENTRY_SECONDS + HEAD_TILT_HOLD_SECONDS;
+      const release = 1 - smoothStep((elapsed - releaseStart) / HEAD_TILT_RELEASE_SECONDS);
+      const headBlend = enter * release;
+
+      return {
+        ...NEUTRAL_GESTURE_TARGETS,
+        expressionWeight: headBlend * 0.22,
+        headBlend,
+        headTilt: state.direction * HEAD_TILT_ANGLE,
+      };
+    }
+    case "happy": {
+      const blend =
+        smoothStep(elapsed / HAPPY_BLEND_SECONDS) *
+        (1 -
+          smoothStep(
+            (elapsed - HAPPY_DURATION_SECONDS + HAPPY_RELEASE_SECONDS) / HAPPY_RELEASE_SECONDS,
+          ));
+      const nodProgress = clampProgress(
+        (elapsed - HAPPY_NOD_START_SECONDS) / HAPPY_NOD_DURATION_SECONDS,
+      );
+      const swayProgress = clampProgress(
+        (elapsed - HAPPY_NOD_START_SECONDS) / HAPPY_NOD_DURATION_SECONDS,
+      );
+      const nod = Math.sin(nodProgress * Math.PI * 2 * HAPPY_NOD_CYCLES) * HAPPY_NOD_AMPLITUDE;
+      const bodySway =
+        Math.sin(swayProgress * Math.PI * 2 * HAPPY_NOD_CYCLES) * HAPPY_BODY_SWAY_ANGLE;
+
+      return {
+        ...NEUTRAL_GESTURE_TARGETS,
+        armBlend: blend,
+        chestRoll: bodySway * 0.65,
+        expressionWeight: blend * HAPPY_EXPRESSION_WEIGHT,
+        headBlend: blend,
+        headPitch: nod,
+        leftShoulderRaise: -0.12,
+        leftUpperArmRaise: -HAPPY_ARM_RAISE_ANGLE,
+        rightElbowBend: HAPPY_ELBOW_BEND_ANGLE,
+        rightShoulderRaise: 0.12,
+        rightUpperArmRaise: HAPPY_ARM_RAISE_ANGLE,
+        spineRoll: bodySway,
+      };
+    }
+  }
+}
+
 function createBreathingRig(vrm: VRM): BreathingRig {
   const fingers: FingerPose[] = [];
   for (const config of FINGER_POSE_CONFIGS) {
@@ -445,7 +774,10 @@ function createBreathingRig(vrm: VRM): BreathingRig {
     smoothedWeightShift: 0,
     smoothedWristFlex: 0,
     weightShift: createWeightShiftState(),
+    scratchBlendedQuaternion: new Quaternion(),
     scratchEuler: new Euler(0, 0, 0, "XYZ"),
+    scratchGestureEuler: new Euler(0, 0, 0, "XYZ"),
+    scratchGestureQuaternion: new Quaternion(),
     scratchQuaternion: new Quaternion(),
   };
 }
@@ -466,6 +798,33 @@ function applyBoneRotation(
   rig.scratchEuler.set(x, y, z, "XYZ");
   rig.scratchQuaternion.setFromEuler(rig.scratchEuler);
   bone.node.quaternion.copy(bone.baseRotation).multiply(rig.scratchQuaternion);
+}
+
+function applyMixedBoneRotation(
+  bone: PoseBone | null,
+  ambientX: number,
+  ambientY: number,
+  ambientZ: number,
+  gestureX: number,
+  gestureY: number,
+  gestureZ: number,
+  gestureBlend: number,
+  rig: BreathingRig,
+): void {
+  if (!bone) return;
+
+  rig.scratchEuler.set(ambientX, ambientY, ambientZ, "XYZ");
+  rig.scratchQuaternion.setFromEuler(rig.scratchEuler);
+  rig.scratchGestureEuler.set(gestureX, gestureY, gestureZ, "XYZ");
+  rig.scratchGestureQuaternion.setFromEuler(rig.scratchGestureEuler);
+  rig.scratchBlendedQuaternion
+    .copy(rig.scratchQuaternion)
+    .slerp(rig.scratchGestureQuaternion, clampProgress(gestureBlend));
+  bone.node.quaternion.copy(bone.baseRotation).multiply(rig.scratchBlendedQuaternion);
+}
+
+function clampGestureAngle(value: number, maximumAngle: number): number {
+  return Math.max(-maximumAngle, Math.min(maximumAngle, value));
 }
 
 function restoreBreathingRig(rig: BreathingRig): void {
@@ -562,6 +921,10 @@ function randomBetween(minimum: number, maximum: number): number {
 }
 
 function smoothStep(value: number): number {
-  const clamped = Math.min(1, Math.max(0, value));
+  const clamped = clampProgress(value);
   return clamped * clamped * (3 - 2 * clamped);
+}
+
+function clampProgress(value: number): number {
+  return Math.min(1, Math.max(0, value));
 }

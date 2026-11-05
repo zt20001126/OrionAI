@@ -13,6 +13,7 @@ import { VrmAvatarScene } from "./VrmAvatarScene";
 
 interface DigitalHumanAvatar3DProps {
   cameraFraming?: "assistant" | "home";
+  enableClickInteraction?: boolean;
   lookTargetRef?: RefObject<VrmLookTarget | null>;
   mouthOpen: number;
   onLoadError: (error: Error) => void;
@@ -30,6 +31,7 @@ const STATUS_LABELS: Record<DigitalHumanStatus, string> = {
 /** VRM 展示组件只负责模型呈现和状态扩展，不处理对话或音频业务。 */
 export function DigitalHumanAvatar3D({
   cameraFraming,
+  enableClickInteraction = false,
   lookTargetRef,
   mouthOpen,
   onLoadError,
@@ -93,6 +95,7 @@ export function DigitalHumanAvatar3D({
                   lookTargetRef={lookTargetRef}
                   mouthOpen={mouthOpen}
                   cameraFraming={cameraFraming ?? presentation}
+                  enableClickInteraction={enableClickInteraction}
                   status={status}
                   vrm={vrm}
                 />

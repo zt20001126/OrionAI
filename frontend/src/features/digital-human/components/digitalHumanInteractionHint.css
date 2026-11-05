@@ -1,0 +1,193 @@
+.digital-human-interaction-hint {
+  --hint-title: #6961c9;
+  --hint-copy: #64678e;
+
+  position: absolute;
+  z-index: 3;
+  top: clamp(28px, 8%, 78px);
+  right: clamp(12px, 3%, 28px);
+  width: min(300px, 42%);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 24px;
+  color: var(--hint-copy);
+  background: rgb(255 255 255 / 45%);
+  box-shadow:
+    0 8px 32px rgb(112 108 200 / 12%),
+    0 0 24px rgb(143 136 235 / 8%);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+  animation: digital-human-interaction-hint 3s ease-out both;
+}
+
+.digital-human-interaction-hint::before {
+  position: absolute;
+  top: 38px;
+  left: -8px;
+  width: 15px;
+  height: 15px;
+  border-bottom: 1px solid rgb(255 255 255 / 65%);
+  border-left: 1px solid rgb(255 255 255 / 65%);
+  background: rgb(255 255 255 / 45%);
+  content: "";
+  transform: rotate(45deg);
+}
+
+.digital-human-interaction-hint__title {
+  position: relative;
+  margin: 0 0 var(--space-2);
+  color: var(--hint-title);
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+  text-align: center;
+}
+
+.digital-human-interaction-hint__list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.digital-human-interaction-hint__item {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.digital-human-interaction-hint__item + .digital-human-interaction-hint__item {
+  border-top: 1px solid rgb(129 126 190 / 13%);
+}
+
+.digital-human-interaction-hint__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  color: #756cd2;
+  background: rgb(255 255 255 / 46%);
+  place-items: center;
+}
+
+.digital-human-interaction-hint__icon svg {
+  width: 34px;
+  height: 34px;
+}
+
+.digital-human-interaction-hint__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  line-height: var(--line-height-normal);
+}
+
+.digital-human-interaction-hint__copy strong {
+  color: #514b94;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.digital-human-interaction-hint__copy > span {
+  color: var(--hint-copy);
+  font-size: var(--font-size-xs);
+}
+
+@keyframes digital-human-interaction-hint {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 15px, 0) scale(0.96);
+  }
+
+  16.667% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  38% {
+    opacity: 1;
+    transform: translate3d(0, -5px, 0) scale(1);
+  }
+
+  58% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  76.667% {
+    opacity: 1;
+    transform: translate3d(0, -4px, 0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -24px, 0) scale(0.98);
+  }
+}
+
+@media (max-width: 800px) {
+  .digital-human-interaction-hint {
+    top: 24px;
+    right: 8px;
+    width: min(248px, 42%);
+    padding: var(--space-2) 10px;
+    border-radius: 20px;
+  }
+
+  .digital-human-interaction-hint::before {
+    top: 22px;
+  }
+
+  .digital-human-interaction-hint__title {
+    margin-bottom: 2px;
+    font-size: var(--font-size-xs);
+  }
+
+  .digital-human-interaction-hint__item {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 6px;
+    padding: 3px 0;
+  }
+
+  .digital-human-interaction-hint__icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .digital-human-interaction-hint__icon svg {
+    width: 25px;
+    height: 25px;
+  }
+
+  .digital-human-interaction-hint__copy {
+    gap: 0;
+    line-height: var(--line-height-tight);
+  }
+
+  .digital-human-interaction-hint__copy strong {
+    font-size: 11px;
+  }
+
+  .digital-human-interaction-hint__copy > span {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .digital-human-interaction-hint {
+    width: min(224px, 45%);
+    padding: var(--space-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .digital-human-interaction-hint {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

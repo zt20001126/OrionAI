@@ -6,12 +6,14 @@ import { Box3, Vector3 } from "three";
 import type { PerspectiveCamera } from "three";
 
 import { useVrmAvatarAnimation } from "../hooks/useVrmAvatarAnimation";
+import { useVrmAvatarClickInteraction } from "../hooks/useVrmAvatarClickInteraction";
 import type { VrmLookTarget } from "../hooks/useVrmPointerLookTarget";
 import type { DigitalHumanStatus } from "../types";
 
 interface VrmAvatarSceneProps {
   cameraRef: RefObject<PerspectiveCamera | null>;
   cameraFraming?: "assistant" | "home";
+  enableClickInteraction?: boolean;
   lookTargetRef?: RefObject<VrmLookTarget | null>;
   mouthOpen: number;
   status: DigitalHumanStatus;
@@ -22,13 +24,21 @@ interface VrmAvatarSceneProps {
 export function VrmAvatarScene({
   cameraRef,
   cameraFraming = "assistant",
+  enableClickInteraction = false,
   lookTargetRef,
   mouthOpen,
   status,
   vrm,
 }: VrmAvatarSceneProps) {
-  const size = useThree((state) => state.size);
-  useVrmAvatarAnimation(vrm, mouthOpen, status, lookTargetRef);
+  const { camera, gl, size } = useThree();
+  const playGesture = useVrmAvatarAnimation(vrm, mouthOpen, status, lookTargetRef);
+  useVrmAvatarClickInteraction({
+    camera,
+    enabled: enableClickInteraction,
+    renderer: gl,
+    playGesture,
+    vrm,
+  });
 
   useLayoutEffect(() => {
     const camera = cameraRef.current;

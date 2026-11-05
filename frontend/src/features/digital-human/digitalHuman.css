@@ -221,18 +221,6 @@
   box-shadow: none;
 }
 
-.digital-human-messages--empty {
-  align-items: center;
-  justify-content: center;
-}
-
-.digital-human-empty-state {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-lg);
-  text-align: center;
-}
-
 .digital-human-markdown {
   overflow-wrap: anywhere;
   line-height: var(--line-height-relaxed);
