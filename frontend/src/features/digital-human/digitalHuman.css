@@ -1,29 +1,29 @@
 .digital-human-page {
-  --digital-human-ai-message-background: #ffffff;
-  --digital-human-ai-message-border: #e5e5f4;
-  --digital-human-ai-message-text: #30384b;
-  --digital-human-user-message-background: #dce9ff;
-  --digital-human-user-message-border: #c4d8ff;
-  --digital-human-user-message-text: #284d85;
-  --digital-human-composer-background: rgb(255 255 255 / 92%);
-  --digital-human-composer-border: #cbd5ef;
-  --digital-human-composer-text: #30384b;
-  --digital-human-composer-placeholder: #8995ad;
-  --digital-human-composer-focus-border: #8daaff;
-  --digital-human-composer-focus-shadow: rgb(100 141 255 / 12%);
-  --digital-human-voice-background: #f0f5ff;
-  --digital-human-voice-border: #d8e3f8;
-  --digital-human-voice-text: #617bae;
-  --digital-human-voice-hover-background: #e4edff;
-  --digital-human-voice-hover-border: #bbd0ff;
-  --digital-human-voice-hover-text: #4268c7;
+  --digital-human-ai-message-background: rgb(245 242 255 / 48%);
+  --digital-human-ai-message-border: rgb(255 255 255 / 68%);
+  --digital-human-ai-message-text: #253052;
+  --digital-human-user-message-background: linear-gradient(135deg, rgb(193 231 255 / 88%), rgb(192 204 255 / 78%));
+  --digital-human-user-message-border: rgb(255 255 255 / 76%);
+  --digital-human-user-message-text: #253052;
+  --digital-human-composer-background: rgb(142 137 222 / 24%);
+  --digital-human-composer-border: rgb(255 255 255 / 78%);
+  --digital-human-composer-text: #253052;
+  --digital-human-composer-placeholder: #696b91;
+  --digital-human-composer-focus-border: #9589e8;
+  --digital-human-composer-focus-shadow: rgb(100 91 180 / 16%);
+  --digital-human-voice-background: rgb(225 220 255 / 58%);
+  --digital-human-voice-border: rgb(255 255 255 / 68%);
+  --digital-human-voice-text: #514d91;
+  --digital-human-voice-hover-background: rgb(210 202 255 / 78%);
+  --digital-human-voice-hover-border: rgb(255 255 255 / 86%);
+  --digital-human-voice-hover-text: #403b80;
   --digital-human-voice-recording-background: #ffe9ed;
   --digital-human-voice-recording-border: #ffc3ce;
   --digital-human-voice-recording-text: #e65b75;
-  --digital-human-send-start: #648dff;
-  --digital-human-send-end: #8a7cf5;
-  --digital-human-send-hover-start: #587ded;
-  --digital-human-send-hover-end: #7c6fe6;
+  --digital-human-send-start: #a5b4fc;
+  --digital-human-send-end: #6366f1;
+  --digital-human-send-hover-start: #b3c0ff;
+  --digital-human-send-hover-end: #7779f5;
   --digital-human-send-disabled-background: #e9edf5;
   --digital-human-send-disabled-text: #9aa8be;
   width: 100%;
@@ -40,11 +40,22 @@
   min-height: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
-  background:
-    radial-gradient(ellipse at 78% 22%, var(--color-secondary-glow), transparent 45%),
-    linear-gradient(135deg, var(--color-brand-soft), var(--color-agent-icon));
+  border: 0;
+  border-radius: 0;
+  background: radial-gradient(ellipse at 52% 38%, rgb(177 164 255 / 48%), transparent 65%), linear-gradient(120deg, #dbe7ff 0%, #d9d4ff 48%, #c5d9ff 100%);
+  isolation: isolate;
+}
+
+.digital-human-layout::after {
+  position: absolute;
+  z-index: -1;
+  right: -5%;
+  bottom: -2%;
+  left: -5%;
+  height: 30%;
+  pointer-events: none;
+  content: "";
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 260' preserveAspectRatio='none'%3E%3Cpath d='M0 110 C220 20 330 240 560 150 S900 190 1120 120 1400 40 1600 10' fill='none' stroke='%23fff' stroke-opacity='.32' stroke-width='2'/%3E%3Cpath d='M0 180 C240 85 380 250 650 170 S1030 240 1260 150 1450 90 1600 75 L1600 260 L0 260Z' fill='%23dce6ff' fill-opacity='.22'/%3E%3C/svg%3E") center bottom / 100% 100% no-repeat;
 }
 
 .digital-human-stage {
@@ -205,7 +216,9 @@
   border-radius: 16px;
   color: var(--digital-human-ai-message-text);
   background: var(--digital-human-ai-message-background);
-  box-shadow: 0 2px 8px rgb(48 56 75 / 6%);
+  box-shadow: 0 6px 24px rgb(104 93 175 / 10%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .digital-human-message--assistant {
@@ -218,7 +231,7 @@
   border-color: var(--digital-human-user-message-border);
   color: var(--digital-human-user-message-text);
   background: var(--digital-human-user-message-background);
-  box-shadow: none;
+  box-shadow: 0 4px 16px rgb(104 120 190 / 10%);
 }
 
 .digital-human-message--question {
@@ -299,6 +312,7 @@
   border: 1px solid var(--digital-human-composer-border);
   border-radius: 16px;
   background: var(--digital-human-composer-background);
+  box-shadow: 0 8px 28px rgb(100 91 180 / 12%);
   backdrop-filter: blur(12px);
   transition:
     border-color 180ms ease-out,
