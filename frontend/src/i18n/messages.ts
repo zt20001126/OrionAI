@@ -180,6 +180,7 @@ const catalogs: Record<string, MessageMap> = {
     "主导航": "Main navigation",
     "技能市场": "Skill marketplace",
     "我的技能": "My skills",
+    "我的数字人": "My Digital Human",
     "会话记录": "Conversations",
     "知识库": "Knowledge base",
     "工具管理": "Tools",
