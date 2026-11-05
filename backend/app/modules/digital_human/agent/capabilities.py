@@ -35,6 +35,14 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "当地时间和数据作答，不编造天气或把北京时间当作所在地时间。",
     ),
     DigitalHumanCapability(
+        "发送邮件",
+        "使用项目邮箱向指定收件人发送邮件",
+        frozenset({"prepare_email"}),
+        "用户要求发邮件时，收集收件地址、主题和正文，用户自己的邮箱可写入正文；"
+        "调用 prepare_email 生成确认题卡，必须单独调用，不得声称已发送。"
+        "用户确认后的发送结果由系统提供，只依据该结果回复，不把 SMTP 接受称为送达。",
+    ),
+    DigitalHumanCapability(
         "A 股行情查询",
         "根据股票名称或代码查询 A 股行情",
         frozenset({"get_stock_quote", "ask_user_questions"}),

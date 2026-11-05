@@ -3,11 +3,13 @@
 from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.constants import END, START
 from langgraph.graph import StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from pydantic import ValidationError
 
 from app.agent.config import BaseAgentConfig
 from app.agent.errors import AgentExecutionError
@@ -19,11 +21,13 @@ from app.agent.nodes.tool import (
     _is_question_message,
     create_tool_node,
 )
+from app.agent.schemas import QuestionPayload
 from app.agent.tools.builtin.ask_user_questions import ask_user_questions
 from app.agent.tools.registry import ToolRegistry
 from app.modules.digital_human.agent.prompts.loader import load_digital_human_prompt
 from app.modules.digital_human.agent.state import DigitalHumanState
 from app.modules.digital_human.agent.tools.current_date import get_current_date
+from app.modules.digital_human.agent.tools.email import prepare_email
 from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
 from app.modules.digital_human.agent.tools.weather import get_current_weather
 
@@ -57,7 +61,10 @@ def _route_after_agent(
     if unknown_names:
         raise AgentExecutionError("模型请求了未注册工具。", code="unregistered_tool_call")
     if (
-        any(call.get("name") == ASK_USER_QUESTIONS_TOOL_NAME for call in tool_calls)
+        any(
+            call.get("name") in {ASK_USER_QUESTIONS_TOOL_NAME, "prepare_email"}
+            for call in tool_calls
+        )
         and len(tool_calls) != 1
     ):
         raise AgentExecutionError(
@@ -83,7 +90,7 @@ def create_digital_human_graph(
     """用专属身份编排共享节点；输入为模型和检查点，输出为数字人独立图，供 Runtime 调用。"""
 
     tool_registry = ToolRegistry(
-        [ask_user_questions, get_current_date, get_current_weather, get_stock_quote]
+        [ask_user_questions, get_current_date, get_current_weather, get_stock_quote, prepare_email]
     )
     config = BaseAgentConfig(
         system_prompt=load_digital_human_prompt(tool_registry.names),
@@ -101,7 +108,24 @@ def create_digital_human_graph(
             tool_registry=tool_registry,
         ),
     )
-    graph.add_node("tool_node", create_tool_node(tool_registry))
+    execute_tools = create_tool_node(tool_registry)
+
+    async def execute_digital_human_tools(
+        state: DigitalHumanState, config: RunnableConfig
+    ) -> dict[str, object]:
+        """执行数字人工具，将有效邮件草稿转换为等待用户确认的题卡。"""
+        result = await execute_tools(state, config)
+        messages = result.get("messages", [])
+        for index, message in enumerate(messages):
+            if isinstance(message, ToolMessage) and message.name == "prepare_email":
+                try:
+                    QuestionPayload.model_validate_json(message.content)
+                except (ValidationError, ValueError, TypeError):
+                    continue
+                messages[index] = message.model_copy(update={"name": ASK_USER_QUESTIONS_TOOL_NAME})
+        return result
+
+    graph.add_node("tool_node", execute_digital_human_tools)
     graph.add_node("output_node", output_node)
     graph.add_edge(START, "input_node")
     graph.add_edge("input_node", "agent_node")

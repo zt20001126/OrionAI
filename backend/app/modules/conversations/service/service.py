@@ -28,7 +28,9 @@ from app.agent.schemas import (
     AgentTextDelta,
     QuestionPayload,
 )
+from app.core.config import get_settings
 from app.infrastructure.database.session import SessionLocal
+from app.infrastructure.email.email_sender import EmailDeliveryError, send_email
 from app.infrastructure.redis.client import create_redis_client
 from app.infrastructure.redis.conversation_run_store import ConversationRunStore
 from app.infrastructure.redis.idempotency import (
@@ -63,6 +65,11 @@ from app.modules.conversations.schemas.schemas import (
 from app.modules.conversations.service.title import (
     ConversationTitleGenerator,
     fallback_conversation_title,
+)
+from app.modules.digital_human.agent.tools.email import (
+    CONFIRM_SEND,
+    EMAIL_QUESTION_PREFIX,
+    draft_key,
 )
 from app.modules.image_generation.constants import IMAGE_RESULT_URL_PREFIX
 from app.modules.skills import repository as skills_repository
@@ -718,6 +725,12 @@ class ConversationService:
             raise ConversationValidationError(str(error)) from None
 
         answer_text = self._format_answer(question_payload, request)
+        if conversation.skill_code == "digital_human" and len(question_payload.questions) == 1:
+            question = question_payload.questions[0]
+            if question.id.startswith(EMAIL_QUESTION_PREFIX):
+                answer_text += "\n" + self._process_email_confirmation(
+                    user.id, conversation.id, question, request.answers[question.id]
+                )
         question_answers = QuestionAnswersContentPart(
             type="question_answers",
             items=[
@@ -742,6 +755,47 @@ class ConversationService:
             should_generate_title=False,
             resume_answers=request.answers,
         )
+
+    @staticmethod
+    def _process_email_confirmation(
+        user_id: int, conversation_id: int, question: object, answer: str
+    ) -> str:
+        """原子领取已确认草稿并发送；输入题卡和用户选择，输出明确的发送结果。"""
+        from app.agent.schemas import Question
+
+        if not isinstance(question, Question):
+            raise ConversationValidationError("邮件确认题卡无效。")
+        client = create_redis_client()
+        try:
+            key = draft_key(user_id, conversation_id, question.id)
+            # 先对比用户实际看到的内容，再原子领取，避免并发重复发送。
+            raw = client.get(key)
+            if raw is None:
+                return "邮件草稿已失效或已处理，请重新准备邮件。"
+            saved = json.loads(raw)
+            if (
+                saved["preview"] != question.context
+                or saved["sender"] != get_settings().smtp_from_email
+            ):
+                raise ConversationValidationError("邮件确认内容不匹配，请重新准备邮件。")
+            claimed = client.getdel(key)
+            if claimed is None:
+                return "邮件草稿已处理，请勿重复发送。"
+        finally:
+            client.close()
+        if answer != CONFIRM_SEND:
+            return "用户取消了邮件发送，邮件未发送。"
+        draft = json.loads(claimed)["draft"]
+        try:
+            send_email(
+                get_settings(),
+                recipient=draft["recipient"],
+                subject=draft["subject"],
+                text_body=draft["body"],
+            )
+        except EmailDeliveryError:
+            return "邮件发送未确认成功；请告知用户结果可能不确定，不要自动重试。"
+        return "SMTP 服务器已接受邮件；这不表示邮件已送达。"
 
     async def _finish_stream_title(
         self,
@@ -815,7 +869,7 @@ class ConversationService:
             raise ConversationUnavailableError
         thread_id = build_conversation_thread_id(user_id, conversation_id, skill_code)
         configurable: dict[str, object] = {"thread_id": thread_id}
-        if skill_code in {"image_agent", "resume_assistant", "tourism_insight"}:
+        if skill_code in {"image_agent", "resume_assistant", "tourism_insight", "digital_human"}:
             configurable.update(
                 {
                     "user_id": user_id,
@@ -860,7 +914,12 @@ class ConversationService:
         configurable: dict[str, object] = {
             "thread_id": thread_id,
         }
-        if conversation.skill_code in {"image_agent", "resume_assistant", "tourism_insight"}:
+        if conversation.skill_code in {
+            "image_agent",
+            "resume_assistant",
+            "tourism_insight",
+            "digital_human",
+        }:
             configurable.update(
                 {
                     "user_id": user_id,
@@ -1168,6 +1227,7 @@ class ConversationService:
             "image_agent",
             "resume_assistant",
             "tourism_insight",
+            "digital_human",
         }:
             configurable.update(
                 {
