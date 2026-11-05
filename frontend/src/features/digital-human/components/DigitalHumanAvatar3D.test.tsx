@@ -66,6 +66,26 @@ describe("DigitalHumanAvatar3D", () => {
     expect(screen.getByText("当前模型不包含嘴型表情，语音口型同步不可用。")).toBeInTheDocument();
   });
 
+  it("renders a silent home presentation without assistant status text", () => {
+    const vrm = {
+      meta: { author: "OrionAI", metaVersion: "1", title: "Orion" },
+    } as unknown as VRM;
+    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm });
+
+    render(
+      <DigitalHumanAvatar3D
+        mouthOpen={0}
+        onLoadError={vi.fn()}
+        presentation="home"
+        status="idle"
+      />,
+    );
+
+    expect(screen.getByTestId("avatar-canvas")).toBeInTheDocument();
+    expect(document.querySelector(".digital-human-avatar--home")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("reports model load failures through the provided error handler", () => {
     const error = new Error("model fetch failed");
     const onLoadError = vi.fn();

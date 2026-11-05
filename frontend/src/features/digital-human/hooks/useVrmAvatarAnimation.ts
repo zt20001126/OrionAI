@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import { VRMExpressionPresetName, type VRM, type VRMHumanBoneName } from "@pixiv/three-vrm";
 import { useFrame } from "@react-three/fiber";
 import { Euler, Quaternion } from "three";
@@ -129,6 +130,12 @@ interface IdleMotionTargets {
   weightShift: number;
 }
 
+export interface VrmLookTarget {
+  x: number;
+  y: number;
+  updatedAt: number;
+}
+
 const FINGER_POSE_CONFIGS: readonly FingerPoseConfig[] = [
   {
     leftBones: ["leftThumbMetacarpal", "leftThumbProximal", "leftThumbDistal"],
@@ -167,6 +174,7 @@ export function useVrmAvatarAnimation(
   vrm: VRM,
   mouthOpen: number,
   status: DigitalHumanStatus,
+  lookTargetRef?: RefObject<VrmLookTarget | null>,
 ): void {
   const blinkState = useRef<BlinkState>({ elapsed: 0, waiting: randomBlinkInterval() });
   const smoothedBlink = useRef(0);
@@ -242,6 +250,13 @@ export function useVrmAvatarAnimation(
       motionEnabled && status === "idle",
     );
     const statusTargets = getStatusMotionTargets(status, rig.elapsed, motionEnabled);
+    const pointerLook = getPointerLookTargets(
+      lookTargetRef?.current ?? null,
+      performance.now(),
+      motionEnabled && status === "idle",
+    );
+    statusTargets.headPitch += pointerLook.pitch;
+    statusTargets.headYaw += pointerLook.yaw;
     const breathingTarget = motionEnabled
       ? Math.sin(rig.elapsed * CHEST_BREATHING_FREQUENCY) * CHEST_BREATHING_AMPLITUDE
       : 0;
@@ -308,6 +323,24 @@ export function useVrmAvatarAnimation(
 
     vrm.update(delta);
   });
+}
+
+export function getPointerLookTargets(
+  target: VrmLookTarget | null,
+  nowMs: number,
+  motionEnabled: boolean,
+): { pitch: number; yaw: number } {
+  if (!target || !motionEnabled) return { pitch: 0, yaw: 0 };
+
+  const idleDurationMs = Math.max(0, nowMs - target.updatedAt - 800);
+  const returnBlend = Math.exp(-idleDurationMs / 900);
+  const x = Math.max(-1, Math.min(1, target.x));
+  const y = Math.max(-1, Math.min(1, target.y));
+
+  return {
+    pitch: -y * 0.07 * returnBlend,
+    yaw: x * 0.11 * returnBlend,
+  };
 }
 
 export function getStatusMotionTargets(

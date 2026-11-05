@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { getIdleMotionTargets, getStatusMotionTargets } from "./useVrmAvatarAnimation";
+import {
+  getIdleMotionTargets,
+  getPointerLookTargets,
+  getStatusMotionTargets,
+} from "./useVrmAvatarAnimation";
+
+describe("getPointerLookTargets", () => {
+  it("limits pointer head movement and smoothly returns after the pointer stops", () => {
+    const target = { x: 3, y: -3, updatedAt: 1000 };
+
+    expect(getPointerLookTargets(target, 1200, true)).toEqual({ pitch: 0.07, yaw: 0.11 });
+    const returning = getPointerLookTargets(target, 2800, true);
+
+    expect(returning.pitch).toBeGreaterThan(0);
+    expect(returning.pitch).toBeLessThan(0.07);
+    expect(returning.yaw).toBeGreaterThan(0);
+    expect(returning.yaw).toBeLessThan(0.11);
+  });
+
+  it("disables pointer movement when animation is disabled", () => {
+    expect(getPointerLookTargets({ x: 1, y: 1, updatedAt: 0 }, 0, false)).toEqual({
+      pitch: 0,
+      yaw: 0,
+    });
+  });
+});
 
 describe("getStatusMotionTargets", () => {
   it("adds a visible nod while listening", () => {
