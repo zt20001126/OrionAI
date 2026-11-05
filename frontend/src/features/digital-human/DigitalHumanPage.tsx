@@ -287,7 +287,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
           <DigitalHumanComposer
             disabled={isBusy}
             draft={draft}
-            isRecording={recorder.status === "listening"}
+            recorderStatus={recorder.status}
             onDraftChange={setDraft}
             onSend={() => void handleSend()}
             onToggleRecording={toggleRecording}

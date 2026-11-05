@@ -2,11 +2,12 @@ import { useLayoutEffect, useRef, type FormEvent, type KeyboardEvent } from "rea
 
 import { PlatformIcon } from "../../platform/PlatformIcon";
 import { t } from "../../../i18n/localeStore";
+import type { RecorderStatus } from "../hooks/useMicrophoneRecorder";
 
 interface DigitalHumanComposerProps {
   draft: string;
   disabled: boolean;
-  isRecording: boolean;
+  recorderStatus: RecorderStatus;
   onDraftChange: (value: string) => void;
   onSend: () => void;
   onToggleRecording: () => void;
@@ -16,12 +17,22 @@ interface DigitalHumanComposerProps {
 export function DigitalHumanComposer({
   draft,
   disabled,
-  isRecording,
+  recorderStatus,
   onDraftChange,
   onSend,
   onToggleRecording,
 }: DigitalHumanComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isRecording = recorderStatus === "listening";
+  const isProcessing = recorderStatus === "starting" || recorderStatus === "transcribing";
+  const recordingButtonLabel =
+    recorderStatus === "starting"
+      ? t("正在准备录音…")
+      : recorderStatus === "transcribing"
+        ? t("正在识别语音…")
+        : isRecording
+          ? t("停止录音")
+          : t("开始录音");
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -60,22 +71,29 @@ export function DigitalHumanComposer({
       />
       <div className="digital-human-composer__actions">
         <button
-          aria-label={isRecording ? t("停止录音") : t("开始录音")}
+          aria-label={recordingButtonLabel}
+          aria-busy={isProcessing}
+          title={recordingButtonLabel}
           aria-pressed={isRecording}
-          className="button button--outline digital-human-composer__button"
+          className={`button button--outline digital-human-composer__button digital-human-composer__button--voice${isRecording ? " is-recording" : ""}${isProcessing ? " is-processing" : ""}`}
           disabled={disabled && !isRecording}
           onClick={onToggleRecording}
           type="button"
         >
-          <PlatformIcon name={isRecording ? "close" : "microphone"} size={16} />
+          {isProcessing ? (
+            <span aria-hidden="true" className="digital-human-composer__spinner" />
+          ) : (
+            <PlatformIcon name={isRecording ? "close" : "microphone"} size={18} />
+          )}
         </button>
         <button
           aria-label={t("发送")}
-          className="button button--primary digital-human-composer__button"
+          title={t("发送")}
+          className="button button--primary digital-human-composer__button digital-human-composer__button--send"
           disabled={!draft.trim() || disabled}
           type="submit"
         >
-          <PlatformIcon name="arrow" size={16} />
+          <PlatformIcon name="arrow" size={18} />
         </button>
       </div>
     </form>

@@ -140,6 +140,8 @@ const catalogs: Record<string, MessageMap> = {
     "对话助手": "Conversation assistant",
     "数字人助手": "AI avatar assistant",
     "你好，今天想聊些什么？": "Hi, what would you like to talk about today?",
+    "正在识别语音…": "Recognizing speech…",
+    "正在准备录音…": "Preparing to record…",
     "智能优化简历": "Optimize your resume with AI",
     "管理日常提醒": "Manage everyday reminders",
     "观察与记忆练习": "Observation and memory exercises",
