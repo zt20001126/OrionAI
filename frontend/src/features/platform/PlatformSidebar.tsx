@@ -3,7 +3,12 @@ import { MembershipEntry } from "../membership/MembershipEntry";
 import { NotificationBell } from "../notifications/NotificationBell";
 import { ProfileMenu } from "./ProfileMenu";
 import { PlatformIcon } from "./PlatformIcon";
-import { navigationItems, platformPaths, type PlatformRoute } from "./platformData";
+import {
+  isDigitalHumanPath,
+  navigationItems,
+  platformPaths,
+  type PlatformRoute,
+} from "./platformData";
 import { t } from "../../i18n/localeStore";
 
 interface PlatformSidebarProps {
@@ -33,7 +38,9 @@ export function PlatformSidebar({
 }: PlatformSidebarProps) {
   const activePath = pathname.startsWith(`${platformPaths.chat}`)
     ? platformPaths.mySkills
-    : pathname;
+    : isDigitalHumanPath(pathname)
+      ? platformPaths.digitalHuman
+      : pathname;
 
   return (
     <aside

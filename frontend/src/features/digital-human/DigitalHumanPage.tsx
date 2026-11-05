@@ -10,6 +10,7 @@ import {
 import type { ConversationMessage, MessageListResponse } from "../conversations/conversationApi";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { DigitalHumanAvatarHost } from "./components/DigitalHumanAvatarHost";
+import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractionHint";
 import { DigitalHumanComposer } from "./components/DigitalHumanComposer";
 import { DigitalHumanConversation } from "./components/DigitalHumanConversation";
 import { DigitalHumanApiError, synthesizeSpeech } from "./digitalHumanApi";
@@ -275,6 +276,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
             onLoadError={onAvatarLoadError}
             status={avatarStatus}
           />
+          <DigitalHumanInteractionHint />
         </section>
 
         <section aria-label={t("数字人对话")} className="digital-human-chat">
@@ -287,7 +289,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
           <DigitalHumanComposer
             disabled={isBusy}
             draft={draft}
-            isRecording={recorder.status === "listening"}
+            recorderStatus={recorder.status}
             onDraftChange={setDraft}
             onSend={() => void handleSend()}
             onToggleRecording={toggleRecording}

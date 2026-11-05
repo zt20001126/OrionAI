@@ -1,18 +1,23 @@
-import { Component, Suspense, useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import { Component, Suspense, useEffect, useRef, useState } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Canvas } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import type { PerspectiveCamera as ThreePerspectiveCamera } from "three";
 
 import { t } from "../../../i18n/localeStore";
 import { useVrmAvatarModel } from "../hooks/useVrmAvatarModel";
+import type { VrmLookTarget } from "../hooks/useVrmPointerLookTarget";
 import type { DigitalHumanStatus } from "../types";
 import { hasVrmMouthExpression } from "../vrm/vrmAvatarCapabilities";
 import { VrmAvatarScene } from "./VrmAvatarScene";
 
 interface DigitalHumanAvatar3DProps {
+  cameraFraming?: "assistant" | "home";
+  enableClickInteraction?: boolean;
+  lookTargetRef?: RefObject<VrmLookTarget | null>;
   mouthOpen: number;
   onLoadError: (error: Error) => void;
+  presentation?: "assistant" | "home";
   status: DigitalHumanStatus;
 }
 
@@ -25,13 +30,26 @@ const STATUS_LABELS: Record<DigitalHumanStatus, string> = {
 
 /** VRM 展示组件只负责模型呈现和状态扩展，不处理对话或音频业务。 */
 export function DigitalHumanAvatar3D({
+  cameraFraming,
+  enableClickInteraction = false,
+  lookTargetRef,
   mouthOpen,
   onLoadError,
+  presentation = "assistant",
   status,
 }: DigitalHumanAvatar3DProps) {
   const { error, isLoading, vrm } = useVrmAvatarModel();
   const reportedErrorRef = useRef<Error | null>(null);
   const cameraRef = useRef<ThreePerspectiveCamera>(null);
+  const [isDocumentVisible, setIsDocumentVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState === "visible",
+  );
+
+  useEffect(() => {
+    const updateVisibility = () => setIsDocumentVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
 
   useEffect(() => {
     if (error && reportedErrorRef.current !== error) {
@@ -41,16 +59,22 @@ export function DigitalHumanAvatar3D({
   }, [error, onLoadError]);
 
   return (
-    <div aria-busy={isLoading} className="digital-human-avatar">
-      <div aria-hidden="true" className="digital-human-stage__glow" />
+    <div
+      aria-busy={presentation === "assistant" ? isLoading : undefined}
+      className={`digital-human-avatar${presentation === "home" ? " digital-human-avatar--home" : ""}`}
+    >
+      {presentation === "assistant" && (
+        <div aria-hidden="true" className="digital-human-stage__glow" />
+      )}
 
       {vrm && !error && (
-        <AvatarCanvasErrorBoundary onError={onLoadError}>
+        <AvatarCanvasErrorBoundary onError={onLoadError} presentation={presentation}>
           <div className="digital-human-avatar__canvas">
             <Canvas
               aria-label={t("3D数字人形象")}
               dpr={getRenderPixelRatio()}
               fallback={null}
+              frameloop={isDocumentVisible ? "always" : "never"}
               gl={{ alpha: true, antialias: false, powerPreference: "low-power" }}
             >
               <ambientLight intensity={1.2} />
@@ -68,7 +92,10 @@ export function DigitalHumanAvatar3D({
               <Suspense fallback={null}>
                 <VrmAvatarScene
                   cameraRef={cameraRef}
+                  lookTargetRef={lookTargetRef}
                   mouthOpen={mouthOpen}
+                  cameraFraming={cameraFraming ?? presentation}
+                  enableClickInteraction={enableClickInteraction}
                   status={status}
                   vrm={vrm}
                 />
@@ -78,29 +105,31 @@ export function DigitalHumanAvatar3D({
         </AvatarCanvasErrorBoundary>
       )}
 
-      {isLoading && (
+      {presentation === "assistant" && isLoading && (
         <div className="digital-human-avatar__model-message" role="status">
           <span aria-hidden="true" className="digital-human-avatar__loader" />
           <span>{t("正在加载数字人模型…")}</span>
         </div>
       )}
-      {error && !isLoading && (
+      {presentation === "assistant" && error && !isLoading && (
         <div className="digital-human-avatar__model-message" role="status">
           <span>{t("3D数字人暂时无法显示")}</span>
         </div>
       )}
-      {vrm && !hasVrmMouthExpression(vrm) && (
+      {presentation === "assistant" && vrm && !hasVrmMouthExpression(vrm) && (
         <p className="digital-human-avatar__compatibility" role="status">
           {t("当前模型不包含嘴型表情，语音口型同步不可用。")}
         </p>
       )}
-      <span
-        aria-live="polite"
-        className={`digital-human-avatar__status digital-human-avatar__status--${status}`}
-        role="status"
-      >
-        {t(STATUS_LABELS[status])}
-      </span>
+      {presentation === "assistant" && (
+        <span
+          aria-live="polite"
+          className={`digital-human-avatar__status digital-human-avatar__status--${status}`}
+          role="status"
+        >
+          {t(STATUS_LABELS[status])}
+        </span>
+      )}
     </div>
   );
 }
@@ -108,6 +137,7 @@ export function DigitalHumanAvatar3D({
 interface AvatarCanvasErrorBoundaryProps {
   children: ReactNode;
   onError: (error: Error) => void;
+  presentation: "assistant" | "home";
 }
 
 interface AvatarCanvasErrorBoundaryState {
@@ -129,6 +159,7 @@ class AvatarCanvasErrorBoundary extends Component<
   }
 
   render() {
+    if (this.state.error && this.props.presentation === "home") return null;
     if (this.state.error) {
       return (
         <div className="digital-human-avatar__model-message" role="status">
@@ -151,5 +182,7 @@ function toAvatarCanvasError(error: Error): Error {
 function getRenderPixelRatio(): number {
   if (typeof window === "undefined") return 1;
   const isMobile = window.matchMedia?.("(max-width: 800px)").matches ?? false;
-  return Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.6);
+  const hasLimitedCpu = navigator.hardwareConcurrency > 0 && navigator.hardwareConcurrency <= 4;
+  const pixelRatioLimit = hasLimitedCpu ? 1 : isMobile ? 1.15 : 1.5;
+  return Math.min(window.devicePixelRatio || 1, pixelRatioLimit);
 }

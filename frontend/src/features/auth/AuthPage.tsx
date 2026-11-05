@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { AmbientBackground } from "../../components/AmbientBackground";
 import { useToast } from "../../components/ToastProvider";
@@ -17,6 +17,10 @@ import {
   type AuthPurpose,
   type AuthIdentity,
 } from "./authApi";
+
+const HomeDigitalHuman = lazy(() =>
+  import("./HomeDigitalHuman").then((module) => ({ default: module.HomeDigitalHuman })),
+);
 
 type AuthView = "login" | "register" | "password_reset";
 
@@ -138,6 +142,9 @@ export function AuthPage({
     <main className="auth-layout">
       <AmbientBackground mode="auth" />
       <ProductIntro />
+      <Suspense fallback={null}>
+        <HomeDigitalHuman />
+      </Suspense>
       <section className="auth-panel" aria-label={t("账号认证")}>
         <LanguageSwitcher className="language-switcher--auth" />
         <section className="auth-card" aria-labelledby="auth-title">
@@ -288,7 +295,13 @@ export function AuthPage({
               {isSubmitting ? (
                 <>
                   <span className="button-spinner" aria-hidden="true" />
-                  {t(view === "login" ? t("正在登录…") : view === "register" ? t("正在注册…") : t("正在更新…"))}
+                  {t(
+                    view === "login"
+                      ? t("正在登录…")
+                      : view === "register"
+                        ? t("正在注册…")
+                        : t("正在更新…"),
+                  )}
                 </>
               ) : view === "login" ? (
                 t("登录")
