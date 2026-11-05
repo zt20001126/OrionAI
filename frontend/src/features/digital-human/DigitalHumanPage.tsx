@@ -98,6 +98,11 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     messageId: string;
     answers: Record<string, string>;
   } | null>(null);
+  const [questionStep, setQuestionStep] = useState<{
+    conversationId: string | null;
+    messageId: string | null;
+    index: number;
+  }>({ conversationId: null, messageId: null, index: 0 });
   const [streamedAssistantText, setStreamedAssistantText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
@@ -121,6 +126,12 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     answerSelection.messageId === pendingQuestion?.messageId
       ? answerSelection.answers
       : {};
+  const currentQuestionIndex =
+    pendingQuestion &&
+    questionStep.conversationId === conversationId &&
+    questionStep.messageId === pendingQuestion.messageId
+      ? Math.min(questionStep.index, pendingQuestion.part.questions.length - 1)
+      : 0;
   const canSubmitAnswers =
     pendingQuestion !== null &&
     pendingQuestion.part.questions.every((question) => Boolean(selectedAnswers[question.id]));
@@ -346,6 +357,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       const persistedHistory = await refreshMessages(targetConversationId);
       if (activeConversationRef.current !== targetConversationId) return;
       setAnswerSelection(null);
+      setQuestionStep({ conversationId: null, messageId: null, index: 0 });
       setPendingMessage(null);
       setStreamedAssistantText("");
       assistantStreamRef.current = "";
@@ -396,6 +408,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
 
         <section aria-label={t("数字人对话")} className="digital-human-chat">
           <DigitalHumanConversation
+            currentQuestionIndex={currentQuestionIndex}
             isSubmitting={isSubmitting}
             isLoading={isMessagesLoading}
             messages={messages}
@@ -412,6 +425,22 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
                   messageId: pendingQuestion.messageId,
                   answers: { ...currentAnswers, [questionId]: answer },
                 };
+              });
+            }}
+            onQuestionNext={() => {
+              if (!conversationId || !pendingQuestion) return;
+              setQuestionStep({
+                conversationId,
+                messageId: pendingQuestion.messageId,
+                index: currentQuestionIndex + 1,
+              });
+            }}
+            onQuestionPrevious={() => {
+              if (!conversationId || !pendingQuestion) return;
+              setQuestionStep({
+                conversationId,
+                messageId: pendingQuestion.messageId,
+                index: currentQuestionIndex - 1,
               });
             }}
             onQuestionSubmit={() => void handleQuestionAnswerSubmit()}
