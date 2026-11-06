@@ -71,19 +71,45 @@ export function DigitalHumanComposer({
 
   return (
     <form className="digital-human-composer" onSubmit={submit}>
+      <div aria-hidden="true" className="digital-human-composer__waves">
+        <svg viewBox="0 0 800 32" preserveAspectRatio="none">
+          <path
+            className="digital-human-composer__wave digital-human-composer__wave--one"
+            d="M-800 25 C-750 25 -750 12 -700 12 S-650 25 -600 25 S-550 18 -500 18 S-450 25 -400 25 C-350 25 -350 12 -300 12 S-250 25 -200 25 S-150 18 -100 18 S-50 25 0 25 C50 25 50 12 100 12 S150 25 200 25 S250 18 300 18 S350 25 400 25 C450 25 450 12 500 12 S550 25 600 25 S650 18 700 18 S750 25 800 25 C850 25 850 12 900 12 S950 25 1000 25 S1050 18 1100 18 S1150 25 1200 25"
+          />
+          <path
+            className="digital-human-composer__wave digital-human-composer__wave--two"
+            d="M-800 25 C-750 25 -750 20 -700 20 S-650 25 -600 25 S-550 14 -500 14 S-450 25 -400 25 C-350 25 -350 20 -300 20 S-250 25 -200 25 S-150 14 -100 14 S-50 25 0 25 C50 25 50 20 100 20 S150 25 200 25 S250 14 300 14 S350 25 400 25 C450 25 450 20 500 20 S550 25 600 25 S650 14 700 14 S750 25 800 25 C850 25 850 20 900 20 S950 25 1000 25 S1050 14 1100 14 S1150 25 1200 25"
+          />
+        </svg>
+      </div>
       <label className="digital-human-visually-hidden" htmlFor="digital-human-message-input">
         {t("发送消息")}
       </label>
-      <textarea
-        id="digital-human-message-input"
-        disabled={disabled}
-        maxLength={20_000}
-        onChange={(event) => onDraftChange(event.target.value)}
-        onKeyDown={handleKeyDown}
-        ref={textareaRef}
-        rows={1}
-        value={draft}
-      />
+      <div className="digital-human-composer__input">
+        <textarea
+          id="digital-human-message-input"
+          disabled={disabled}
+          maxLength={20_000}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          ref={textareaRef}
+          rows={1}
+          placeholder={isRecording ? t("正在聆听...") : undefined}
+          value={draft}
+        />
+        {isRecording && (
+          <span className="digital-human-composer__listening" role="status">
+            {draft && <span>{t("正在聆听...")}</span>}
+            <span aria-hidden="true" className="digital-human-composer__bars">
+              {Array.from({ length: 7 }, (_, index) => (
+                <i key={index} />
+              ))}
+            </span>
+            {!draft && <span className="digital-human-visually-hidden">{t("正在聆听...")}</span>}
+          </span>
+        )}
+      </div>
       <div className="digital-human-composer__actions">
         <button
           aria-label={recordingButtonLabel}
