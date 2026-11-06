@@ -1,9 +1,19 @@
 # 架构概览
 
-OrionAI 当前为 Monorepo 和前后端分离的模块化单体，包含邮箱注册登录、访客会话、通用对话助手和图片助手。访客与注册用户共享 `users.id` 作为业务数据归属标识，但访客没有邮箱和密码凭据；会话仍保存在 Redis。React/Vite 前端通过 /api 代理访问 FastAPI；FastAPI 路由按模块聚合，基础设施目录集中封装数据库、Redis、SMTP、DeepSeek 对话模型和对象存储适配器，独立的 `modules/image_generation/` 封装 TokenHub 生图客户端、结果下载与任务结果 API/存储。用户、会话、消息、技能和图片任务记录保存在 PostgreSQL；图片字节保存在私有 OSS；验证码及登录状态保存在 Redis。
+本文描述当前仓库实现；带日期的需求和实施方案是历史设计记录。OrionAI 是 React/TypeScript/Vite 前端与 Python/FastAPI 后端组成的 Monorepo、模块化单体。前端通过 `/api` 访问后端；运行时使用 PostgreSQL、Redis、对象存储和外部模型服务。
 
-对话 API 的 Router 调用 `modules/conversations` Service；Service 通过 Repository 读写 `conversations/messages`，并按会话 `skill_code` 从 `modules/agents/registry.py` 选择 Runtime。通用对话助手复用 `agent/` 中的 BaseAgent；图片助手位于 `modules/agents/image_agent/`，复用通用输入校验、题卡工具、工具注册/执行节点和 Checkpointer。图片助手的专属图保留需求判断与结果处理节点：需求节点判断生图意图、生成非生图回复、提取画幅参数并调用图片生成工具；结果节点将生图工具结果映射为助手回复及受控结果 ID。图片助手的提示词和 Agent 编排留在 `image_agent/`；TokenHub、图片下载、任务结果模型/API/Service/Repository 位于独立 `modules/image_generation/`，图片结果接口按当前登录用户校验所有权后读取私有 OSS。图片助手提示词按 `prompts/loader.py` 与 `prompts/templates/{system,agent}.md` 组织，与通用 Agent 结构一致。同步 JSON 和 SSE 会话 API 继续使用统一 Agent Runtime 与消息协议。新会话首条消息会触发标题生成器并与 Agent 并行；结果仅在标题为空时写入现有会话字段，模型失败时回退为首条消息摘要。LangGraph Checkpointer 在应用 lifespan 内建立，线程 ID 包含认证用户、技能代码和会话，使不同 Agent 状态隔离，题卡等待可跨请求恢复。Agent 只接收显式注入的模型、工具、Provider、存储工厂和 Checkpointer，不直接访问 FastAPI 或 SSE。
+## 边界与调用
 
-技能会员准入由 `modules/membership/access_service.py` 统一判断，`access_cache.py` 通过 Redis 按用户缓存短期布尔结果和期限边界；数据库中的 `memberships` 期限仍是权威状态。会员 Router 提供准入查询，技能 Router 通过会员依赖保护 Agent 执行、记忆训练推进及提醒创建/更新/恢复接口，不把会员判断复制到各业务 Service。已验签支付事件提交会员期限后清理该用户缓存。历史数据读取和简历数据管理保持开放；已创建的提醒在会员到期后继续执行，用户仍可暂停或取消。
+- `backend/app/api/` 聚合路由，`core/` 管理应用和 Agent 的生命周期；业务模块负责各自 Router、Service、Repository 和模型。
+- `modules/conversations/` 管理会话和消息，按技能代码从 `modules/agents/registry.py` 选择运行时。`agent/` 提供通用 Agent 能力；图片、简历、文旅和数字人有各自的编排。会话支持同步、SSE 和可监听、可中断的运行。
+- 应用启动时注册通用对话、图片、简历、数字人、文旅洞察、提醒和记忆训练技能，并初始化模型与 LangGraph Checkpointer。Checkpointer 使用独立 `CHECKPOINT_DATABASE_URL`；业务数据使用 `DATABASE_URL`。
+- 数字人复用对话运行时和历史，提供语音识别、合成，以及日期、天气、新闻、行情、提醒和图片/视频生成工具。图片助手使用 TokenHub；数字人生图和视频使用百炼。媒体结果通过受控接口读取。
+- 文旅洞察导入 Excel 评分规则和 CSV 评论，保存分析匹配与情感结果；简历模块保存结构化简历并支持照片及 PDF 导出。
+- 会员服务以数据库期限为准，Redis 缓存准入结果；Stripe 测试支付通过签名 Webhook 处理订单。技能执行、部分训练和提醒写操作受会员准入限制。
+- Celery Worker 处理提醒投递与记忆训练题目生成；Beat 定期扫描提醒。Redis 是消息 broker，提醒规则和执行状态保存在 PostgreSQL。
 
-`users`、`conversations`、`messages`、`skills`、`user_skills` 和 `task_results` 的 BIGINT 主键由 `infrastructure/database/snowflake.py` 在应用侧生成，业务外键使用对应的 BIGINT ID。会话固定绑定一个已添加技能，图片消息只保存私有结果接口引用，`task_results` 保存 OSS 元数据而非图片字节。`SNOWFLAKE_WORKER_ID` 必须在同时运行的 backend 实例间保持唯一；API 将 Snowflake ID 作为十进制字符串返回，避免 JavaScript 精度损失。
+## 数据与隔离
+
+注册用户和访客均有 `users.id`，业务数据按用户隔离；Cookie 对应会话与验证码存于 Redis。会话消息、技能、任务结果、提醒、会员和文旅数据存于 PostgreSQL；图片、视频等文件存于 OSS，任务记录保存元数据。LangGraph Checkpointer 的内部表由其自身管理。主要业务 ID 使用应用侧 Snowflake，API 中的相关 ID 以字符串传输；并发进程须配置不同的 `SNOWFLAKE_WORKER_ID`。
+
+具体路由、表及配置分别见 [API](../api/api.md)、[数据库](../database/database.md) 和 [本地开发](../development/local-setup.md)。

@@ -1,6 +1,6 @@
 # OrionAI
 
-OrionAI 是一个面向企业级 AI 智能体应用的平台基础骨架。仓库采用 Monorepo 管理前后端，当前包含邮箱注册、邮箱密码登录、忘记密码和 Cookie 会话；对话、知识库、智能体和工作流业务尚未实现。
+OrionAI 是一个面向企业级 AI 智能体应用的平台基础骨架。仓库采用 Monorepo 管理前后端，当前实现邮箱及访客认证、技能市场、智能体对话、数字人、图片助手、简历助手、文旅洞察、记忆训练、提醒、会员与测试支付等功能。知识库和通用工作流尚未作为完整业务提供。
 
 ## 技术栈
 
@@ -19,7 +19,7 @@ backend/tests/            后端测试
 deploy/docker/            前后端开发镜像
 deploy/nginx/             Nginx 配置预留目录
 docs/                     架构与开发文档
-docker-compose.yml        后端、提醒 Celery Worker/Beat、PostgreSQL、Redis
+docker-compose.yml        前端、后端、Celery Worker/Beat、PostgreSQL、Redis
 AGENTS.md                 Codex 项目开发约束
 ~~~
 
@@ -28,6 +28,9 @@ AGENTS.md                 Codex 项目开发约束
 - [API 接口文档](docs/api/api.md)
 - [数据库表结构](docs/database/database.md)
 - [架构概览](docs/architecture/overview.md)
+- [本地开发](docs/development/local-setup.md)
+- [前端设计规范](docs/design/UI_DESIGN.md)
+- [历史需求](docs/requirements/)与[历史实施方案](docs/implementation-plans/)：记录编写时的设计，实际行为以代码和当前文档为准。
 
 ## 本地开发环境要求
 
@@ -46,7 +49,7 @@ Copy-Item .env.example .env
 
 .env.example 也包含认证和 SMTP 配置项。宿主机后端使用 localhost，Compose 后端使用容器内的 postgres 和 redis 地址。数据库默认密码为 orionai，仅用于本地开发；若自定义账号或密码，请同步修改 docker-compose.yml。不要提交 .env 或真实密钥。
 
-认证只需配置随机的 `AUTH_CODE_PEPPER`，以及 SMTP 主机、账号、密码和发件人邮箱。SMTP 默认使用 SSL 端口 465，发件人名称默认为 `OrionAI`；会话 Cookie 默认有效 7 天，并在 production 环境启用 `Secure`。验证码和会话保存在 Redis；账号、scrypt 密码哈希、创建时间和最后登录时间保存在唯一的 `users` 表。邮件配置不完整时，请求验证码会返回 503。
+认证和邮件功能需要随机的 `AUTH_CODE_PEPPER`，以及 SMTP 主机、账号、密码和发件人邮箱。Compose 启动还要求填写 `DATABASE_URL`、`CHECKPOINT_DATABASE_URL`、`DEEPSEEK_API_KEY`、`DEEPSEEK_MODEL`、`ALIYUN_BAILIAN_API_KEY`、`ALIYUN_BAILIAN_BASE_URL` 和 `TENCENT_TOKENHUB_API_KEY`；按功能配置 OSS、Stripe 和 GNews。完整说明见[本地开发](docs/development/local-setup.md)。SMTP 默认使用 SSL 端口 465，发件人名称默认为 `OrionAI`；会话 Cookie 默认有效 7 天，并在 production 环境启用 `Secure`。验证码和会话保存在 Redis；注册账号及访客身份保存在 `users` 表，业务数据存储在其他业务表。邮件配置不完整时，请求验证码会返回 503。
 
 ### 认证接口
 
@@ -63,7 +66,14 @@ Copy-Item .env.example .env
 
 ## Docker Compose 启动
 
-在项目根目录运行：
+首次使用全新 PostgreSQL 数据卷时，先启动数据库并创建 Checkpointer 数据库（以下使用 `.env.example` 的默认用户名和数据库名；自定义时请相应调整）：
+
+~~~powershell
+docker compose up -d postgres redis
+docker compose exec postgres createdb -U orionai -O orionai checkpoint
+~~~
+
+确认 `.env` 中 Compose 必填变量均已配置后，在项目根目录启动全部服务：
 
 ~~~powershell
 docker compose up -d --build
@@ -77,7 +87,7 @@ Compose 启动前端 Vite 开发服务器、后端、PostgreSQL、Redis、提醒
 docker compose up -d --build frontend
 ~~~
 
-前端容器通过 Compose 内部网络将 `/api` 请求代理到 `backend:8000`。如果只在宿主机启动前后端，可按下方“分别启动前后端”操作。
+Worker 消费 `reminders` 和 `memory_training` 队列。前端容器通过 Compose 内部网络将 `/api` 请求代理到 `backend:8000`。如果只在宿主机启动前后端，可按下方“分别启动前后端”操作。
 
 Compose 文件中的 API、Worker 和 Beat 均等待 PostgreSQL 与 Redis 健康检查；仅 API 容器在启动 Uvicorn 前执行 Alembic 迁移。提醒扫描由 Celery Beat 每 30 秒触发，Beat 必须保持单实例。提醒规则和执行状态以 PostgreSQL 为准，Redis 仅作为 Celery broker。
 
@@ -99,7 +109,7 @@ docker compose down
 
 ## 分别启动前后端
 
-若要在宿主机分别运行前后端，可只用 Docker 启动 PostgreSQL 和 Redis：
+若要在宿主机分别运行前后端，可只用 Docker 启动 PostgreSQL 和 Redis。首次使用新数据卷时也需要按上文创建 `checkpoint` 数据库：
 
 ~~~powershell
 docker compose up -d postgres redis
@@ -117,14 +127,14 @@ npm run dev
 
 ~~~powershell
 Set-Location backend
-conda run -n agent python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 python -m alembic upgrade head
 python -m uvicorn app.main:app --reload
 ~~~
 
-此命令使用名为 agent 的 Python 3.12 Conda 环境创建项目虚拟环境；若环境名称不同，请替换 agent，或使用已安装的 py -3.12。前端 Vite 将 /api 请求代理到本机的 http://localhost:8000。
+该命令使用 Windows Python 启动器创建虚拟环境；也可使用已有的 Python 3.12+。宿主机运行时还需另行启动 Celery Worker 和 Beat 才能使用异步记忆训练及提醒，命令见[本地开发](docs/development/local-setup.md)。前端 Vite 将 /api 请求代理到本机的 http://localhost:8000。
 
 ## 测试、格式化与静态检查
 

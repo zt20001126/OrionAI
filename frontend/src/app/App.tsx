@@ -459,7 +459,12 @@ function AppContent() {
       return <MemoryTrainingPage onNavigate={navigate} />;
     }
     if (isDigitalHumanPath(safePathname)) {
-      return <DigitalHumanPage conversationId={digitalHumanConversationId} onNavigate={navigate} />;
+      return (
+        <DigitalHumanPage
+          conversationId={digitalHumanConversationId}
+          onNavigate={navigate}
+        />
+      );
     }
     if (isTourismInsightPath(safePathname)) {
       return <TourismInsightPage conversationId={tourismConversationId ?? ""} />;

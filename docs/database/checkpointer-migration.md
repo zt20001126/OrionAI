@@ -1,5 +1,7 @@
 # Checkpointer 独立数据库迁移手册
 
+> 历史迁移记录：以下检查结果和命令针对 2026-10-28 的特定环境，不能作为当前数据库状态或通用操作步骤。当前配置见 [本地开发](../development/local-setup.md)；执行任何迁移前须重新检查环境并制定备份和验证方案。
+
 ## 目标与边界
 
 同一个 PostgreSQL Docker 服务继续承载两个数据库：`orionai` 保存业务数据，`checkpoint` 保存 LangGraph Checkpointer 数据。业务 Alembic 仍只读取 `DATABASE_URL`。迁移不会删除 `orionai` 中的 Checkpointer 表，也不会重建 Docker Volume。

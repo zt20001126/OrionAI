@@ -1,9 +1,11 @@
 # OrionAI API 接口文档
 
+本文为接口概览；实时完整契约以 FastAPI OpenAPI（`/docs`、`/openapi.json`）及路由源码为准。
+
 ## 通用约定
 
 - **默认前缀：** `/api`
-- **请求与响应：** JSON；请求体不接受未定义字段。
+- **请求与响应：** 多数接口使用 JSON；文件上传、音视频、PDF 和 SSE 接口使用对应的媒体类型。字段约束以各接口模型和 OpenAPI 为准。
 - **Snowflake ID：** 会话、消息和技能响应中的 ID 以十进制字符串返回，避免 JavaScript 整数精度损失；技能添加请求的 `skill_id` 也使用十进制字符串，路径参数使用十进制 ID。
 - **邮箱：** 去除首尾空格并转为小写，最多 254 个字符。
 - **密码：** 注册和重置为 8–128 个字符；登录为 1–128 个字符；已登录用户修改密码为 8–64 个字符，不能仅由空格组成，前后空格会作为密码内容保留。
@@ -26,46 +28,84 @@
 
 AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户确认前不会写入简历。
 
-## 接口列表
+## 当前路由目录
 
-| 方法   | 路径                       | 用途                     | 认证                           |
-| ------ | -------------------------- | ------------------------ | ------------------------------ |
-| `GET`  | `/api/health`              | 检查 API 服务            | 否                             |
-| `POST` | `/api/auth/email-codes`    | 请求注册或重置密码验证码 | 否                             |
-| `POST` | `/api/auth/register`       | 验证邮箱并创建账号       | 否                             |
-| `POST` | `/api/auth/login`          | 邮箱和密码登录           | 否                             |
-| `POST` | `/api/auth/guest`          | 创建访客身份并登录       | 否                             |
-| `GET`  | `/api/auth/session`        | 检查并恢复当前会话       | Cookie                         |
-| `POST` | `/api/auth/logout`         | 撤销当前会话             | Cookie（无 Cookie 时也可调用） |
-| `POST` | `/api/auth/password-reset` | 验证邮箱并更新密码       | 否                             |
-| `POST` | `/api/conversations` | 创建当前用户的空会话 | Cookie |
-| `GET` | `/api/conversations` | 列出当前用户会话 | Cookie |
-| `GET` | `/api/conversations/{id}/messages` | 分页读取会话消息 | Cookie |
-| `POST` | `/api/conversations/{id}/messages` | 发送文本并获取回答或题卡 | Cookie |
-| `POST` | `/api/conversations/{id}/messages/stream` | 流式发送文本并获取回答或题卡 | Cookie |
-| `POST` | `/api/conversations/{id}/answers` | 提交题卡选项并恢复对话 | Cookie |
-| `POST` | `/api/conversations/{id}/answers/stream` | 提交题卡选项并流式恢复对话 | Cookie |
-| `GET` | `/api/v1/skills` | 分页查询技能市场 | Cookie |
-| `GET` | `/api/v1/skills/{skill_id}` | 查询已发布技能详情 | Cookie |
-| `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加技能 | Cookie |
-| `POST` | `/api/v1/users/me/skills` | 添加已发布技能 | Cookie |
-| `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户的技能 | Cookie |
-| `GET` | `/api/v1/users/me/membership/access` | 查询当前用户技能使用准入状态 | Cookie |
-| `POST` | `/api/v1/memory-training/sessions` | 创建记忆训练会话 | Cookie，会员 |
-| `POST` | `/api/v1/memory-training/sessions/{session_id}/observation/start` | 启动训练观察 | Cookie，会员 |
-| `POST` | `/api/v1/memory-training/sessions/{session_id}/answers` | 提交训练答案 | Cookie，会员 |
-| `POST` | `/api/v1/reminders` | 创建提醒 | Cookie，会员 |
-| `PUT` | `/api/v1/reminders/{reminder_id}` | 更新提醒 | Cookie，会员 |
-| `POST` | `/api/v1/reminders/{reminder_id}/resume` | 恢复提醒 | Cookie，会员 |
-| `GET` | `/api/v1/users/me` | 读取当前用户个人资料 | Cookie |
-| `PATCH` | `/api/v1/users/me` | 更新当前用户昵称和头像 | Cookie |
-| `POST` | `/api/v1/users/me/password/code` | 向当前用户绑定邮箱发送修改密码验证码 | Cookie |
-| `PUT` | `/api/v1/users/me/password` | 验证验证码并修改当前用户密码 | Cookie |
-| `GET` | `/api/v1/task-results/{task_result_id}/image` | 读取本人已完成的私有图片结果 | Cookie |
+以下目录由当前 Router 声明整理；请求字段、响应模型、状态码及逐接口认证要求以运行服务的 `/docs` 或 `/openapi.json` 和源码为准。部分写操作需要会员，注册用户专属操作不接受访客；Webhook 使用 Stripe 签名。
 
-`POST /api/auth/guest` 无请求体，创建一个 `users.is_guest=true` 的访客用户并设置与邮箱登录相同的 `orionai_session` Cookie。响应为 `{"authenticated":true,"account":null,"is_guest":true}`；`GET /api/auth/session` 对访客会话返回 `is_guest:true`，注册用户及未登录响应仍保持原有字段。访客会话默认有效 7 天；Cookie 过期或被清除后，访客不能恢复该身份。访客数据当前不会自动清理。
-
-访客可访问使用用户 ID 隔离的工作空间功能。需要邮箱发送的提醒写操作、修改密码和邮箱验证码操作仅对注册用户开放，访客请求返回 `403`。访客个人资料账号字段为空。
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `GET` | `/api/health` | 检查服务健康状态。 |
+| `GET` | `/api/auth/session` | 查询当前会话。 |
+| `POST` | `/api/auth/email-codes` | 请求邮箱验证码。 |
+| `POST` | `/api/auth/guest` | 创建访客会话。 |
+| `POST` | `/api/auth/login` | 邮箱密码登录。 |
+| `POST` | `/api/auth/logout` | 退出当前会话。 |
+| `POST` | `/api/auth/password-reset` | 重置密码。 |
+| `POST` | `/api/auth/register` | 注册账号。 |
+| `GET` | `/api/conversations` | 按最近更新时间倒序列出当前用户会话。 |
+| `GET` | `/api/conversations/{conversation_id}/messages` | 读取当前用户会话中的消息记录。 |
+| `GET` | `/api/conversations/{conversation_id}/runs/active` | 查询当前用户会话中的活动任务，供页面重新进入时恢复监听。 |
+| `GET` | `/api/conversations/{conversation_id}/runs/{run_id}/listen` | 监听并回放任务事件；客户端断开只关闭监听。 |
+| `POST` | `/api/conversations` | 为当前用户创建空会话。 |
+| `POST` | `/api/conversations/{conversation_id}/answers` | 校验当前待答题卡选项并恢复原对话线程。 |
+| `POST` | `/api/conversations/{conversation_id}/answers/stream` | 预检并保存题卡答案，再以 SSE 返回恢复后的 Agent 回答。 |
+| `POST` | `/api/conversations/{conversation_id}/messages` | 存储用户文本并同步返回助手回答或题卡。 |
+| `POST` | `/api/conversations/{conversation_id}/messages/stream` | 先完成消息预检，再以 SSE 返回 Agent 的逐段回答。 |
+| `POST` | `/api/conversations/{conversation_id}/runs/answers` | 保存题卡答案并启动可重连的 Agent 恢复任务。 |
+| `POST` | `/api/conversations/{conversation_id}/runs/messages` | 保存用户消息并启动独立于监听连接的 Agent 生成任务。 |
+| `POST` | `/api/conversations/{conversation_id}/runs/{run_id}/interrupt` | 停止本轮 Agent 生成并保留已输出内容。 |
+| `GET` | `/api/digital-human/conversations` | 只返回当前用户的数字人技能会话。 |
+| `GET` | `/api/digital-human/task-results/{task_result_id}/video` | 返回当前用户的私有视频；输入任务 ID，输出 MP4；调用方：数字人播放器。 |
+| `POST` | `/api/digital-human/speech/recognitions` | 将短录音转成文本；音频仅在本次请求中暂存。 |
+| `POST` | `/api/digital-human/speech/syntheses` | 返回临时 MPEG 音频，不持久化音频或返回上游下载 URL。 |
+| `POST` | `/api/payments/stripe/webhook` | 读取有大小限制的原始请求体并交由支付服务验签处理。 |
+| `DELETE` | `/api/resume/photo` | 删除未引用的暂存照片。 |
+| `GET` | `/api/resume` | 读取当前用户简历。 |
+| `GET` | `/api/resume/export/pdf` | 导出简历 PDF。 |
+| `GET` | `/api/resume/photo` | 读取简历照片。 |
+| `POST` | `/api/resume/photo` | 上传简历照片。 |
+| `PUT` | `/api/resume` | 保存简历。 |
+| `GET` | `/api/tourism-insight/comments` | 分页查询评论。 |
+| `GET` | `/api/tourism-insight/results` | 分页查询分析结果。 |
+| `GET` | `/api/tourism-insight/summary` | 查询导入与分析概况。 |
+| `POST` | `/api/tourism-insight/analyses` | 分析指定评论。 |
+| `POST` | `/api/tourism-insight/comments/import` | 读取并导入 UGC 评论 CSV 文件。 |
+| `POST` | `/api/tourism-insight/rules/import` | 读取并导入评分规则文件。 |
+| `DELETE` | `/api/v1/users/me/skills/{skill_id}` | 移除当前用户与技能的关联。 |
+| `GET` | `/api/v1/skills` | 分页查询已发布技能市场。 |
+| `GET` | `/api/v1/skills/{skill_id}` | 读取已发布技能详情。 |
+| `GET` | `/api/v1/users/me/skills` | 查询当前用户已添加且仍发布的技能。 |
+| `POST` | `/api/v1/users/me/skills` | 将已发布技能添加到当前用户列表。 |
+| `POST` | `/api/v1/feedback` | 验证当前会话并将反馈交由业务 Service 处理。 |
+| `GET` | `/api/v1/membership/orders/{order_id}` | 查询当前注册用户自己的会员订单。 |
+| `GET` | `/api/v1/membership/plans` | 公开读取启用中的会员套餐。 |
+| `POST` | `/api/v1/membership/orders` | 为当前注册用户创建会员订单并快照套餐价格和期限。 |
+| `GET` | `/api/v1/memory-training/prepare` | 返回训练规则，不在准备阶段获取图片。 |
+| `GET` | `/api/v1/memory-training/sessions/{session_id}` | 查询本人会话阶段，以服务端时间推进观察结束状态。 |
+| `GET` | `/api/v1/memory-training/sessions/{session_id}/questions` | 仅在观察窗口结束且题目生成成功后返回不含答案的题目。 |
+| `GET` | `/api/v1/memory-training/sessions/{session_id}/result` | 读取本人已完成的训练结果和本次原图公开链接。 |
+| `POST` | `/api/v1/memory-training/sessions` | 随机抽取一张启用图片并创建短期训练会话。 |
+| `POST` | `/api/v1/memory-training/sessions/{session_id}/answers` | 提交全部答案并由后端评分。 |
+| `POST` | `/api/v1/memory-training/sessions/{session_id}/observation/start` | 在前端确认图片加载后启动服务端观察计时。 |
+| `GET` | `/api/v1/payments/methods` | 返回当前环境已完整配置的支付渠道。 |
+| `POST` | `/api/v1/payments/checkout-sessions` | 按客户端选中的可用支付方式创建或恢复支付会话。 |
+| `POST` | `/api/v1/payments/stripe/checkout-sessions` | 提供方案中 Stripe 专用的 Checkout Session API。 |
+| `GET` | `/api/v1/reminders` | 分页读取当前用户自己的提醒。 |
+| `GET` | `/api/v1/reminders/{reminder_id}` | 读取当前用户的一条提醒；跨用户 ID 与不存在 ID 使用同一 404。 |
+| `GET` | `/api/v1/reminders/{reminder_id}/executions` | 读取本人提醒的执行历史，并只返回脱敏后的收件邮箱。 |
+| `POST` | `/api/v1/reminders` | 为当前登录用户创建一个单次或周期提醒。 |
+| `POST` | `/api/v1/reminders/{reminder_id}/cancel` | 软取消提醒，保留所有已经创建的执行历史。 |
+| `POST` | `/api/v1/reminders/{reminder_id}/pause` | 暂停周期提醒，已开始的 SMTP 调用无法撤回。 |
+| `POST` | `/api/v1/reminders/{reminder_id}/resume` | 恢复暂停的周期提醒并计算下一次未来计划。 |
+| `PUT` | `/api/v1/reminders/{reminder_id}` | 用完整规则更新提醒，并以 expected_version 拒绝过期表单。 |
+| `GET` | `/api/v1/task-results/{task_result_id}/image` | 只向任务所属用户返回完成状态的图片字节。 |
+| `GET` | `/api/v1/users/me` | 读取当前登录用户资料。 |
+| `GET` | `/api/v1/users/me/membership` | 读取当前、未来和最近过期的会员期限。 |
+| `GET` | `/api/v1/users/me/membership/access` | 从 Redis 准入缓存读取当前用户是否可使用技能。 |
+| `GET` | `/api/v1/users/me/membership/orders` | 分页读取当前注册用户的会员订单历史。 |
+| `PATCH` | `/api/v1/users/me` | 一次提交当前用户昵称和可选头像文件。 |
+| `POST` | `/api/v1/users/me/password/code` | 向当前登录用户绑定的邮箱发送修改密码验证码。 |
+| `PUT` | `/api/v1/users/me/password` | 修改当前用户密码并清除当前浏览器会话 Cookie。 |
 
 ## 接口详情
 
@@ -138,6 +178,10 @@ AI 优化沿用 `/api/conversations` 的消息和题卡接口；候选在用户�
 账号不存在和密码错误均返回相同的 `401` 响应：`{"detail":"邮箱或密码错误。"}`。
 
 当前没有独立的登录失败次数或 IP 限流。
+
+### `POST /api/auth/guest`
+
+创建访客身份并设置会话 Cookie；访客身份与业务数据关联到新的用户 ID，Cookie 丢失或过期后不能恢复。访客无法使用仅限注册用户的操作；具体会员准入要求见路由依赖。
 
 ### `GET /api/auth/session`
 
@@ -307,5 +351,5 @@ Agent 需要用户选择时，发送完整且已保存的题卡消息：
 - 路由与 Cookie：[`backend/app/modules/auth/router.py`](../../backend/app/modules/auth/router.py)
 - 请求与响应模型：[`backend/app/modules/auth/schemas.py`](../../backend/app/modules/auth/schemas.py)
 - 认证业务：[`backend/app/modules/auth/service.py`](../../backend/app/modules/auth/service.py)
-- 会话路由与业务：[`backend/app/modules/conversations/router.py`](../../backend/app/modules/conversations/router.py)、[`backend/app/modules/conversations/service.py`](../../backend/app/modules/conversations/service.py)
+- 会话路由与业务：[`backend/app/modules/conversations/router/router.py`](../../backend/app/modules/conversations/router/router.py)、[`backend/app/modules/conversations/service/service.py`](../../backend/app/modules/conversations/service/service.py)
 - 技能路由与业务：[`backend/app/modules/skills/router.py`](../../backend/app/modules/skills/router.py)、[`backend/app/modules/skills/service.py`](../../backend/app/modules/skills/service.py)
