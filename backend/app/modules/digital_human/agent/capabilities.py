@@ -27,6 +27,17 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "首次执行必须在未来。参数齐全后创建，只根据工具结果报告成功或失败。",
     ),
     DigitalHumanCapability(
+        "查询提醒",
+        "查询当前用户提醒列表、状态和单条详情",
+        frozenset({"list_reminders", "get_reminder", "ask_user_questions"}),
+        "查询提醒列表时调用 list_reminders；不传 status 表示查询全部状态，"
+        "状态只能使用 active、paused、cancelled、completed。按工具返回的 total、offset、"
+        "has_more 说明分页；用户要求查看全部时逐页查询，不得把未读取页面说成已列出。"
+        "详情查询调用 get_reminder，reminder_id 只能来自当前用户的列表结果或用户明确提供的 ID。"
+        "列表按标题查找时若有多个匹配，使用 ask_user_questions 让用户选择；"
+        "未查完所有页面时不得声称没有匹配。只根据工具结果回答，不泄露或猜测其他用户数据。",
+    ),
+    DigitalHumanCapability(
         "互动提问", "使用题卡收集选择或文字输入", frozenset({"ask_user_questions"})
     ),
     DigitalHumanCapability(

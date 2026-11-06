@@ -30,7 +30,11 @@ from app.modules.digital_human.agent.tools.current_date import get_current_date
 from app.modules.digital_human.agent.tools.email import prepare_email
 from app.modules.digital_human.agent.tools.index_quote import get_index_quote
 from app.modules.digital_human.agent.tools.news import get_news
-from app.modules.digital_human.agent.tools.reminder import create_reminder
+from app.modules.digital_human.agent.tools.reminder import (
+    create_reminder,
+    get_reminder,
+    list_reminders,
+)
 from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
 from app.modules.digital_human.agent.tools.weather import get_current_weather
 
@@ -101,6 +105,8 @@ def create_digital_human_graph(
             get_index_quote,
             prepare_email,
             create_reminder,
+            list_reminders,
+            get_reminder,
             get_news,
         ]
     )
