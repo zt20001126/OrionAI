@@ -3,7 +3,7 @@
 ## 概览
 
 - **关系型数据库：** PostgreSQL 17。
-- **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`、`task_results`、`resumes`。
+- **业务表：** `users`、`conversations`、`messages`、`skills`、`user_skills`、`task_results`、`resumes`、`reminders`、`reminder_executions`、`memory_images`、`membership_plans`、`membership_orders`、`memberships`、`scoring_rules`、`ugc_comments`、`comment_matches`。字段、索引和约束以对应 SQLAlchemy 模型与 Alembic 迁移为准。
 - **验证码和认证会话：** 保存在 Redis；用户及业务数据保存在 PostgreSQL。访客身份同样使用 `users.id` 归属业务数据。
 - **迁移：** Alembic。Docker 后端启动时自动执行迁移；本地可在 `backend/` 目录运行 `python -m alembic upgrade head`。
 
@@ -70,7 +70,7 @@ Snowflake 生成器由 `SNOWFLAKE_WORKER_ID` 区分并发 backend 实例，范�
 | `status` | `VARCHAR(20)` | 否 | `published` | CHECK：`published` 或 `disabled` | 技能发布状态 |
 | `created_at` | `TIMESTAMPTZ` | 否 | `now()` | — | 创建时间 |
 
-索引：`(status, type, created_at)`。技能 ID 由应用侧 Snowflake 生成；手工执行 SQL 插入时需要显式提供 Snowflake `id`。应用启动时幂等注册 `general_chat` 和已发布的 `image_agent`（名称“图片助手”）；技能记录是技能市场数据源。
+索引：`(status, type, created_at)`。技能 ID 由应用侧 Snowflake 生成；手工执行 SQL 插入时需要显式提供 Snowflake `id`。应用启动时幂等注册通用对话、图片、简历、提醒、记忆训练、数字人和文旅洞察技能；技能记录是技能市场数据源。
 
 ## `user_skills` — 用户技能关联
 
@@ -123,3 +123,14 @@ LangGraph PostgreSQL Checkpointer 使用其依赖管理的内部表保存图执�
 | 登录会话 | `orionai:auth:session:{sha256(cookie_token)}`       | 注册用户账号及密码哈希指纹，或访客 `user_id` | 默认 604800 秒（7 天） |
 
 验证码摘要使用 `HMAC-SHA256(AUTH_CODE_PEPPER, purpose + ":" + account + ":" + code)` 计算。Redis 不保存原始验证码；会话键使用 Cookie 令牌的 SHA-256 摘要，密码更新后通过密码哈希指纹使旧会话失效。验证码按用途和规范化账号隔离，验证错误最多允许 5 次。
+
+## 其他业务表
+
+| 表 | 用途 | 模型 |
+|---|---|---|
+| `reminders`、`reminder_executions` | 提醒规则、状态与投递执行记录 | [提醒模型](../../backend/app/modules/reminders/models.py) |
+| `memory_images` | 记忆训练可用素材及 URL | [记忆训练模型](../../backend/app/modules/memory_training/models.py) |
+| `membership_plans`、`membership_orders`、`memberships` | 套餐、订单快照与会员有效期 | [会员模型](../../backend/app/modules/membership/models.py) |
+| `scoring_rules`、`ugc_comments`、`comment_matches` | 文旅评分规则、评论与匹配和情感分析 | [文旅模型](../../backend/app/modules/tourism_insight/models.py) |
+
+对应结构由 `0014` 至 `0020` 等迁移维护。查看约束、索引和字段时请同时核对模型和迁移；Checkpointer 表位于配置的状态库，不是业务 Alembic 管理的表。
