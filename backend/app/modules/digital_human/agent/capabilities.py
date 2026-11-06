@@ -16,6 +16,17 @@ class DigitalHumanCapability:
 DIGITAL_HUMAN_CAPABILITIES = (
     DigitalHumanCapability("日常交流", "聊天、回答问题、写作和整理想法"),
     DigitalHumanCapability(
+        "创建提醒",
+        "根据用户要求创建单次或周期提醒",
+        frozenset({"create_reminder", "get_current_date", "ask_user_questions"}),
+        "仅在用户明确要求创建提醒时调用 create_reminder。先提取标题、内容、重复类型、"
+        "日期和时间；信息缺失或有歧义时用 ask_user_questions 追问。相对日期先调用 "
+        "get_current_date。默认时区 Asia/Shanghai，用户指定时使用有效 IANA 时区。"
+        "单次 once 使用 date；每天 daily、每周 weekly、每月 monthly 使用 start_date，"
+        "可选 end_date；每周星期和每月日期由 start_date 决定。时间 local_time 使用 HH:MM，"
+        "首次执行必须在未来。参数齐全后创建，只根据工具结果报告成功或失败。",
+    ),
+    DigitalHumanCapability(
         "互动提问", "使用题卡收集选择或文字输入", frozenset({"ask_user_questions"})
     ),
     DigitalHumanCapability(
