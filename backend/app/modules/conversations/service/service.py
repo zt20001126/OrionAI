@@ -1049,6 +1049,17 @@ class ConversationService:
                         ),
                     }
                 )
+            if response.video_result_id is not None:
+                parts.append(
+                    {
+                        "type": "video_result",
+                        "task_result_id": response.video_result_id,
+                        "generation_status": "succeeded",
+                        "video_url": (
+                            f"/api/digital-human/task-results/{response.video_result_id}/video"
+                        ),
+                    }
+                )
             content: dict[str, object] = {"parts": parts}
         else:
             if response.questions is None:

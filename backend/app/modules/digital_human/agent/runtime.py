@@ -190,6 +190,7 @@ class DigitalHumanRuntime(AgentRuntime):
             status="completed",
             answer=answer,
             image_result_id=_image_result_id_from_current_turn(messages),
+            video_result_id=_video_result_id_from_current_turn(messages),
         )
 
 
@@ -218,4 +219,24 @@ def _image_result_id_from_current_turn(messages: list[Any]) -> str | None:
         if isinstance(task_result_id, str) and task_result_id.isdigit():
             return task_result_id
         return None
+    return None
+
+
+def _video_result_id_from_current_turn(messages: list[Any]) -> str | None:
+    """读取本轮视频工具的成功结果；调用方：数字人 Runtime。"""
+    for message in reversed(messages):
+        if isinstance(message, HumanMessage):
+            break
+        if isinstance(message, ToolMessage) and message.name == "generate_video":
+            if not isinstance(message.content, str):
+                return None
+            try:
+                result = json.loads(message.content)
+            except json.JSONDecodeError:
+                return None
+            if isinstance(result, dict) and result.get("success") is True:
+                task_id = result.get("task_result_id")
+                if isinstance(task_id, str) and task_id.isdigit():
+                    return task_id
+            return None
     return None

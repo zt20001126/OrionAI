@@ -50,6 +50,14 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "失败时如实说明，不声称图片已生成。",
     ),
     DigitalHumanCapability(
+        "视频生成",
+        "根据用户的文字描述生成并播放视频",
+        frozenset({"generate_video"}),
+        "仅在用户明确要求生成视频时调用 generate_video，忠实保留画面、动作和风格。"
+        "缺少必要描述时先询问，不主动要求画幅或时长。每轮只调用一次，"
+        "成功后直接回复，失败时如实说明，不得声称视频已生成。",
+    ),
+    DigitalHumanCapability(
         "日期查询",
         "查询北京时间的日期和星期",
         frozenset({"get_current_date"}),

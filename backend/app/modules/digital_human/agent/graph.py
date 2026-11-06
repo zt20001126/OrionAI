@@ -29,6 +29,7 @@ from app.modules.digital_human.agent.state import DigitalHumanState
 from app.modules.digital_human.agent.tools.current_date import get_current_date
 from app.modules.digital_human.agent.tools.email import prepare_email
 from app.modules.digital_human.agent.tools.generate_image import generate_image
+from app.modules.digital_human.agent.tools.generate_video import generate_video
 from app.modules.digital_human.agent.tools.index_quote import get_index_quote
 from app.modules.digital_human.agent.tools.news import get_news
 from app.modules.digital_human.agent.tools.reminder import (
@@ -103,6 +104,7 @@ def create_digital_human_graph(
             get_current_date,
             get_current_weather,
             generate_image,
+            generate_video,
             get_stock_quote,
             get_index_quote,
             prepare_email,

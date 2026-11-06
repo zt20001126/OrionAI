@@ -2,9 +2,11 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import Response
+from sqlalchemy.orm import Session
 
+from app.infrastructure.database.session import get_db_session
 from app.modules.auth.dependencies import validate_origin
 from app.modules.digital_human.dependencies.dependencies import (
     CurrentUser,
@@ -15,11 +17,31 @@ from app.modules.digital_human.schemas.schemas import (
     SynthesisRequest,
     TranscriptionResponse,
 )
+from app.modules.digital_human.service.video_generation import (
+    VideoResultUnavailableError,
+    get_user_video,
+)
 from app.modules.membership.dependencies import require_membership_access
 
 router = APIRouter(prefix="/digital-human", tags=["digital-human"])
 PageLimit = Annotated[int, Query(ge=1, le=100, description="每页条数，最大 100。")]
 PageOffset = Annotated[int, Query(ge=0, description="分页偏移量。")]
+
+
+@router.get("/task-results/{task_result_id}/video")
+def get_task_result_video(
+    task_result_id: int, user: CurrentUser, session: Annotated[Session, Depends(get_db_session)]
+) -> Response:
+    """返回当前用户的私有视频；输入任务 ID，输出 MP4；调用方：数字人播放器。"""
+    try:
+        video = get_user_video(session, user.id, task_result_id)
+    except VideoResultUnavailableError:
+        raise HTTPException(status_code=404, detail="视频结果不存在或暂不可用。") from None
+    return Response(
+        content=video,
+        media_type="video/mp4",
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
 
 
 @router.get("/conversations", response_model=DigitalHumanConversationListResponse)

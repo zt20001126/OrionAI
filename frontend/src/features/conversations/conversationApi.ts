@@ -66,8 +66,19 @@ export interface ImageResultContentPart {
   image_url: string;
 }
 
+export interface VideoResultContentPart {
+  type: "video_result";
+  task_result_id: string;
+  generation_status: "succeeded";
+  video_url: string;
+}
+
 export type MessageContentPart =
-  TextContentPart | QuestionContentPart | QuestionAnswersContentPart | ImageResultContentPart;
+  | TextContentPart
+  | QuestionContentPart
+  | QuestionAnswersContentPart
+  | ImageResultContentPart
+  | VideoResultContentPart;
 
 export interface ConversationMessage {
   id: string;

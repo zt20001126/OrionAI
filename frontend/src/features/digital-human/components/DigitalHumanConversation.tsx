@@ -8,6 +8,7 @@ import type {
   ImageResultContentPart,
   QuestionAnswersContentPart,
   QuestionContentPart,
+  VideoResultContentPart,
 } from "../../conversations/conversationApi";
 import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/QuestionAnswerCards";
 import { QuestionWizard } from "../../conversations/QuestionWizard";
@@ -41,6 +42,29 @@ function getText(message: ConversationMessage): string {
 function getImageResults(message: ConversationMessage): ImageResultContentPart[] {
   return message.content.parts.filter(
     (part): part is ImageResultContentPart => part.type === "image_result",
+  );
+}
+
+/** 提取视频结果，供数字人对话播放器展示。 */
+function getVideoResults(message: ConversationMessage): VideoResultContentPart[] {
+  return message.content.parts.filter(
+    (part): part is VideoResultContentPart => part.type === "video_result",
+  );
+}
+
+/** 播放当前用户的视频结果；输入视频消息，输出带控制栏的播放器。 */
+function DigitalHumanVideoResult({ part }: { part: VideoResultContentPart }) {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) return <p role="status">{t("生成视频暂时无法播放。")}</p>;
+  return (
+    <video
+      className="digital-human-video-result"
+      controls
+      preload="metadata"
+      aria-label={t("AI 生成的视频")}
+      onError={() => setHasError(true)}
+      src={part.video_url}
+    />
   );
 }
 
@@ -129,6 +153,7 @@ export function DigitalHumanConversation({
       {messages.map((message, index) => {
         const text = getText(message);
         const imageResults = getImageResults(message);
+        const videoResults = getVideoResults(message);
         const questionPart = getQuestionPart(message);
         const questionAnswersPart = getQuestionAnswersPart(message);
         const isPendingQuestion = pendingQuestionMessageId === message.id;
@@ -138,7 +163,13 @@ export function DigitalHumanConversation({
           nextMessage?.role === "user" &&
           (getQuestionAnswersPart(nextMessage) !== null ||
             getText(nextMessage).startsWith("用户已提交以下选择："));
-        if (!text && imageResults.length === 0 && !questionPart && !questionAnswersPart)
+        if (
+          !text &&
+          imageResults.length === 0 &&
+          videoResults.length === 0 &&
+          !questionPart &&
+          !questionAnswersPart
+        )
           return null;
         return (
           <article
@@ -152,6 +183,9 @@ export function DigitalHumanConversation({
             )}
             {imageResults.map((part) => (
               <DigitalHumanImageResult key={part.task_result_id} part={part} />
+            ))}
+            {videoResults.map((part) => (
+              <DigitalHumanVideoResult key={part.task_result_id} part={part} />
             ))}
             {questionAnswersPart && <QuestionAnswerCard items={questionAnswersPart.items} />}
             {questionPart && isPendingQuestion && (

@@ -731,3 +731,10 @@
     transition: none;
   }
 }
+.digital-human-video-result {
+  display: block;
+  width: min(100%, 480px);
+  max-height: 360px;
+  margin-top: var(--space-3);
+  border-radius: var(--radius-control);
+}

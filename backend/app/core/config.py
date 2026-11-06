@@ -125,6 +125,9 @@ class Settings(BaseSettings):
     digital_human_image_model: str = Field(
         default="qwen-image-2.1-turbo", description="数字人生图使用的阿里云百炼模型名称。"
     )
+    digital_human_video_model: str = Field(
+        default="wan3.0-video-prime", description="数字人生成视频使用的百炼模型。"
+    )
     tokenhub_api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias=AliasChoices("TOKENHUB_API_KEY", "TENCENT_TOKENHUB_API_KEY"),
