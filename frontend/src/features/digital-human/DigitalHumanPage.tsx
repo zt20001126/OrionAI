@@ -5,8 +5,8 @@ import { t } from "../../i18n/localeStore";
 import {
   createConversation,
   listAllMessages,
-  streamConversationMessage,
-  streamQuestionAnswers,
+  streamDigitalHumanReply,
+  type DigitalHumanAudioEvent,
 } from "../conversations/conversationApi";
 import type {
   ConversationMessage,
@@ -18,7 +18,7 @@ import { DigitalHumanAvatarHost } from "./components/DigitalHumanAvatarHost";
 import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractionHint";
 import { DigitalHumanComposer } from "./components/DigitalHumanComposer";
 import { DigitalHumanConversation } from "./components/DigitalHumanConversation";
-import { DigitalHumanApiError, synthesizeSpeech } from "./digitalHumanApi";
+import { DigitalHumanApiError } from "./digitalHumanApi";
 import { useAssistantAudio } from "./hooks/useAssistantAudio";
 import { useMicrophoneRecorder } from "./hooks/useMicrophoneRecorder";
 import { createRequestKey } from "./requestKey";
@@ -28,24 +28,6 @@ import "./digitalHuman.css";
 interface DigitalHumanPageProps {
   conversationId: string | null;
   onNavigate: (path: PlatformRoute) => void;
-}
-
-function messageText(message: ConversationMessage): string {
-  return message.content.parts
-    .filter(
-      (part): part is Extract<(typeof message.content.parts)[number], { type: "text" }> =>
-        part.type === "text",
-    )
-    .map((part) => part.text)
-    .join("\n")
-    .trim();
-}
-
-function getAssistantText(history: MessageListResponse): string {
-  const finalAssistant = [...history.items]
-    .reverse()
-    .find((message) => message.role === "assistant");
-  return finalAssistant ? messageText(finalAssistant) : "";
 }
 
 function getPendingQuestion(
@@ -66,18 +48,6 @@ function formatQuestionAnswers(
   return `用户已提交以下选择：\n${questionPart.questions
     .map((question) => `- ${question.title}：${answers[question.id]}`)
     .join("\n")}`;
-}
-
-function prepareSpeechText(text: string): string {
-  return text
-    .replace(/```[\w-]*\s*\n?/g, " ")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
-    .replace(/[*_~`]/g, "")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -105,7 +75,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   }>({ conversationId: null, messageId: null, index: 0 });
   const [streamedAssistantText, setStreamedAssistantText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSynthesizing, setIsSynthesizing] = useState(false);
+  const audioTurnRef = useRef<string | null>(null);
+  const nextSegmentRef = useRef(1);
+  const requestStartedRef = useRef(0);
+  const playbackEndedRef = useRef<number | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const submitLockRef = useRef(false);
   const conversationCreationLockRef = useRef(false);
@@ -156,11 +129,18 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     [showToast],
   );
   const recorder = useMicrophoneRecorder({ onTranscribed, onError: onRecorderError });
-  const { audioRef, isSpeaking, playAudio, stopAudio } = useAssistantAudio();
+  const { audioRef, isSpeaking, enqueueAudio, stopAudio } = useAssistantAudio();
 
   useEffect(() => {
     stopAudio();
   }, [conversationId, stopAudio]);
+
+  useEffect(
+    () => () => {
+      requestRef.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -202,9 +182,9 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   const avatarStatus: DigitalHumanStatus = useMemo(() => {
     if (recorder.status === "starting" || recorder.status === "listening") return "listening";
     if (isSpeaking) return "speaking";
-    if (recorder.status === "transcribing" || isSubmitting || isSynthesizing) return "thinking";
+    if (recorder.status === "transcribing" || isSubmitting) return "thinking";
     return "idle";
-  }, [isSpeaking, isSubmitting, isSynthesizing, recorder.status]);
+  }, [isSpeaking, isSubmitting, recorder.status]);
 
   async function startNewConversation(preservePendingRequest = false): Promise<string | null> {
     if (conversationCreationLockRef.current) return null;
@@ -230,33 +210,47 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     return response;
   }
 
-  async function speakAssistantAnswer(
-    answer: string,
-    targetConversationId: string,
-    signal: AbortSignal,
-  ) {
-    if (!answer || activeConversationRef.current !== targetConversationId) return;
-    setIsSynthesizing(true);
-    try {
-      const audioBlob = await synthesizeSpeech(prepareSpeechText(answer), signal);
-      if (activeConversationRef.current !== targetConversationId) return;
-      try {
-        await playAudio(audioBlob);
-      } catch {
-        if (activeConversationRef.current === targetConversationId) {
-          showToast("error", t("语音播放失败，文字回复已保留。"));
-        }
-      }
-    } catch (speechError) {
-      if (activeConversationRef.current === targetConversationId && !signal.aborted) {
-        showToast(
-          "error",
-          `${errorMessage(speechError, t("语音合成失败。"))} ${t("文字回复已保留。")}`,
-        );
-      }
-    } finally {
-      setIsSynthesizing(false);
+  /** 将当前请求的音频段按顺序加入播放器；取消后忽略旧事件。 */
+  function receiveAudio(event: DigitalHumanAudioEvent, signal: AbortSignal) {
+    if (signal.aborted) return;
+    if (!audioTurnRef.current) audioTurnRef.current = event.turn_id;
+    if (event.turn_id !== audioTurnRef.current) return;
+    if (event.type === "audio_error") {
+      showToast("error", t("语音合成失败，文字回复已保留。"));
+      return;
     }
+    if (
+      event.type !== "audio_segment" ||
+      event.segment_id !== nextSegmentRef.current ||
+      !event.audio
+    )
+      return;
+    nextSegmentRef.current += 1;
+    const bytes = Uint8Array.from(atob(event.audio), (char) => char.charCodeAt(0));
+    return enqueueAudio(
+      new Blob([bytes], { type: "audio/mpeg" }),
+      () => showToast("error", t("语音播放失败，文字回复已保留。")),
+      () => {
+        const now = performance.now();
+        console.info("digital_human_playback", {
+          turn_id: event.turn_id,
+          segment_id: event.segment_id,
+          frontend_first_playback_ms:
+            event.segment_id === 1 ? now - requestStartedRef.current : undefined,
+          playback_gap_ms:
+            playbackEndedRef.current === null ? undefined : now - playbackEndedRef.current,
+        });
+      },
+      () => {
+        playbackEndedRef.current = performance.now();
+      },
+    );
+  }
+
+  function stopReply() {
+    requestRef.current?.abort();
+    audioTurnRef.current = null;
+    stopAudio();
   }
 
   async function handleSend() {
@@ -270,6 +264,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     ) {
       return;
     }
+    stopReply();
+    nextSegmentRef.current = 1;
+    playbackEndedRef.current = null;
+    requestStartedRef.current = performance.now();
     submitLockRef.current = true;
     setIsSubmitting(true);
     setPendingMessage(message);
@@ -285,17 +283,19 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       idempotencyRef.current = { key: requestKey, text: message };
       activeConversationId = activeConversationId ?? (await startNewConversation(true));
       if (!activeConversationId) return;
-      await streamConversationMessage(
+      await streamDigitalHumanReply(
         activeConversationId,
-        message,
+        "messages",
+        { message },
         (delta) => {
           assistantStreamRef.current += delta;
           setStreamedAssistantText(assistantStreamRef.current);
         },
+        (event) => receiveAudio(event, controller.signal),
         controller.signal,
         requestKey,
       );
-      const persistedHistory = await refreshMessages(activeConversationId);
+      await refreshMessages(activeConversationId);
       // 持久化消息已加载，移除临时流式气泡，避免 TTS 期间重复展示同一回复。
       setStreamedAssistantText("");
       assistantStreamRef.current = "";
@@ -303,8 +303,6 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setDraft("");
       setPendingMessage(null);
       idempotencyRef.current = null;
-      const answer = getAssistantText(persistedHistory);
-      await speakAssistantAnswer(answer, activeConversationId, controller.signal);
     } catch (sendError) {
       if (!controller.signal.aborted) {
         showToast("error", errorMessage(sendError, t("发送消息失败，请稍后重试。")));
@@ -336,6 +334,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     const targetConversationId = conversationId;
     const answers = selectedAnswers;
     const submittedText = formatQuestionAnswers(pendingQuestion.part, answers);
+    stopReply();
+    nextSegmentRef.current = 1;
+    playbackEndedRef.current = null;
+    requestStartedRef.current = performance.now();
     submitLockRef.current = true;
     setIsSubmitting(true);
     setPendingMessage(submittedText);
@@ -345,16 +347,18 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     requestRef.current = controller;
 
     try {
-      await streamQuestionAnswers(
+      await streamDigitalHumanReply(
         targetConversationId,
-        answers,
+        "answers",
+        { answers },
         (delta) => {
           assistantStreamRef.current += delta;
           setStreamedAssistantText(assistantStreamRef.current);
         },
+        (event) => receiveAudio(event, controller.signal),
         controller.signal,
       );
-      const persistedHistory = await refreshMessages(targetConversationId);
+      await refreshMessages(targetConversationId);
       if (activeConversationRef.current !== targetConversationId) return;
       setAnswerSelection(null);
       setQuestionStep({ conversationId: null, messageId: null, index: 0 });
@@ -362,11 +366,6 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setStreamedAssistantText("");
       assistantStreamRef.current = "";
       setIsSubmitting(false);
-      await speakAssistantAnswer(
-        getAssistantText(persistedHistory),
-        targetConversationId,
-        controller.signal,
-      );
     } catch (submitError) {
       if (!controller.signal.aborted) {
         showToast("error", errorMessage(submitError, t("提交答案失败，请稍后重试。")));
@@ -391,7 +390,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     void recorder.startRecording();
   }
 
-  const isBusy = isSubmitting || isSynthesizing || recorder.status !== "idle";
+  const isBusy = isSubmitting || recorder.status !== "idle";
 
   return (
     <section aria-label={t("数字人助手")} className="digital-human-page">
@@ -451,6 +450,8 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
           />
           <DigitalHumanComposer
             disabled={isBusy || pendingQuestion !== null}
+            isSubmitting={isSubmitting}
+            onStop={stopReply}
             draft={draft}
             recorderStatus={recorder.status}
             onDraftChange={setDraft}

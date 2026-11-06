@@ -397,3 +397,86 @@ export function getConversationErrorMessage(error: unknown): string {
   if (error.status === 503) return error.message || t("对话服务暂不可用，请稍后重试。");
   return error.message;
 }
+
+export interface DigitalHumanAudioEvent {
+  type: "audio_segment" | "audio_done" | "audio_error";
+  turn_id: string;
+  segment_id?: number;
+  audio?: string;
+}
+
+/** 读取数字人请求内语音流；输入消息或题卡答案，输出文字与有序音频事件。 */
+export async function streamDigitalHumanReply(
+  conversationId: string,
+  endpoint: "messages" | "answers",
+  body: object,
+  onText: (text: string) => void,
+  onAudio: (event: DigitalHumanAudioEvent) => void | Promise<void>,
+  signal: AbortSignal,
+  idempotencyKey?: string,
+): Promise<void> {
+  const response = await fetch(
+    `/api/conversations/${conversationId}/${endpoint}/stream?voice=true`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+      },
+      body: JSON.stringify(body),
+      signal,
+    },
+  );
+  if (!response.ok || !response.body) {
+    const payload: unknown = await response.json().catch(() => null);
+    throw getResponseError(response, payload);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed = false;
+  const consume = async (frame: string) => {
+    if (signal.aborted) return;
+    const raw = frame
+      .split(/\r?\n/)
+      .find((line) => line.startsWith("data:"))
+      ?.slice(5)
+      .trim();
+    if (!raw) return;
+    const envelope = JSON.parse(raw) as ConversationStreamEnvelope;
+    if (!envelope.data || typeof envelope.data !== "object") return;
+    const event = envelope.data as Record<string, unknown>;
+    if (envelope.event_type === "end") {
+      completed = event.status === "completed";
+    } else if (envelope.event_type === "message") {
+      if (event.type === "text_delta" && typeof event.content === "string") onText(event.content);
+      if (
+        (event.type === "audio_segment" ||
+          event.type === "audio_done" ||
+          event.type === "audio_error") &&
+        typeof event.turn_id === "string"
+      ) {
+        await onAudio(event as unknown as DigitalHumanAudioEvent);
+      }
+    }
+  };
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let delimiter = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
+      while (delimiter?.index !== undefined) {
+        await consume(buffer.slice(0, delimiter.index));
+        buffer = buffer.slice(delimiter.index + delimiter[0].length);
+        delimiter = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
+      }
+      if (done || signal.aborted) break;
+    }
+    if (buffer.trim() && !signal.aborted) await consume(buffer);
+    if (!completed && !signal.aborted) throw new ConversationApiError(t("对话连接已中断。"), 0);
+  } finally {
+    if (signal.aborted) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}

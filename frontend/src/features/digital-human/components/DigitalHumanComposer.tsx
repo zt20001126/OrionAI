@@ -7,6 +7,8 @@ import type { RecorderStatus } from "../hooks/useMicrophoneRecorder";
 interface DigitalHumanComposerProps {
   draft: string;
   disabled: boolean;
+  isSubmitting?: boolean;
+  onStop?: () => void;
   recorderStatus: RecorderStatus;
   onDraftChange: (value: string) => void;
   onSend: () => void;
@@ -17,6 +19,8 @@ interface DigitalHumanComposerProps {
 export function DigitalHumanComposer({
   draft,
   disabled,
+  isSubmitting = false,
+  onStop,
   recorderStatus,
   onDraftChange,
   onSend,
@@ -98,15 +102,26 @@ export function DigitalHumanComposer({
             <PlatformIcon name={isRecording ? "close" : "microphone"} size={18} />
           )}
         </button>
-        <button
-          aria-label={t("发送")}
-          title={t("发送")}
-          className="button button--primary digital-human-composer__button digital-human-composer__button--send"
-          disabled={!draft.trim() || disabled}
-          type="submit"
-        >
-          <PlatformIcon name="arrow" size={18} />
-        </button>
+        {isSubmitting ? (
+          <button
+            aria-label={t("停止生成")}
+            className="button button--primary digital-human-composer__button digital-human-composer__button--send"
+            onClick={onStop}
+            type="button"
+          >
+            <PlatformIcon name="close" size={18} />
+          </button>
+        ) : (
+          <button
+            aria-label={t("发送")}
+            title={t("发送")}
+            className="button button--primary digital-human-composer__button digital-human-composer__button--send"
+            disabled={!draft.trim() || disabled}
+            type="submit"
+          >
+            <PlatformIcon name="arrow" size={18} />
+          </button>
+        )}
       </div>
     </form>
   );
