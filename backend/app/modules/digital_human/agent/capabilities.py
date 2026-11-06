@@ -41,6 +41,15 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "互动提问", "使用题卡收集选择或文字输入", frozenset({"ask_user_questions"})
     ),
     DigitalHumanCapability(
+        "图片生成",
+        "根据用户的文字描述生成一张图片并展示在对话中",
+        frozenset({"generate_image"}),
+        "仅在用户明确要求生成图片时调用 generate_image。提示词应忠实保留用户指定的主体、"
+        "场景、风格和画幅；没有明确要求时不额外询问画幅。模型使用默认图片尺寸，"
+        "不传尺寸参数。生图前澄清必要信息；每轮只调用一次，成功后直接回复，"
+        "失败时如实说明，不声称图片已生成。",
+    ),
+    DigitalHumanCapability(
         "日期查询",
         "查询北京时间的日期和星期",
         frozenset({"get_current_date"}),

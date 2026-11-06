@@ -1,5 +1,6 @@
 """执行数字人专属图并实现共享 AgentRuntime 调用协议。"""
 
+import json
 import logging
 from collections.abc import AsyncIterator, Mapping
 from typing import Any
@@ -45,6 +46,7 @@ class DigitalHumanRuntime(AgentRuntime):
         chat_model: Any,
         checkpointer: BaseCheckpointSaver[Any] | None = None,
     ) -> None:
+        """构造数字人专属图；输入模型和检查点，供应用生命周期创建 Runtime。"""
         self._checkpointer = checkpointer
         self._graph: CompiledStateGraph[DigitalHumanState, object, object, object] = (
             create_digital_human_graph(
@@ -187,4 +189,33 @@ class DigitalHumanRuntime(AgentRuntime):
             agent=DIGITAL_HUMAN_AGENT_CODE,
             status="completed",
             answer=answer,
+            image_result_id=_image_result_id_from_current_turn(messages),
         )
+
+
+def _image_result_id_from_current_turn(messages: list[Any]) -> str | None:
+    """读取本轮生图工具成功结果；输入图消息，输出任务 ID；调用方：数字人 Runtime。"""
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], HumanMessage)
+        ),
+        -1,
+    )
+    for message in reversed(messages[latest_user_index + 1 :]):
+        if not isinstance(message, ToolMessage) or message.name != "generate_image":
+            continue
+        if not isinstance(message.content, str):
+            return None
+        try:
+            result = json.loads(message.content)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(result, dict) or result.get("success") is not True:
+            return None
+        task_result_id = result.get("task_result_id")
+        if isinstance(task_result_id, str) and task_result_id.isdigit():
+            return task_result_id
+        return None
+    return None

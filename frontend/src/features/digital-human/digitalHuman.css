@@ -300,6 +300,37 @@
   font-size: 0.92em;
 }
 
+.digital-human-image-result {
+  width: min(100%, 320px);
+  margin: var(--space-3) 0 0;
+}
+
+.digital-human-image-result a {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+
+.digital-human-image-result a:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.digital-human-image-result img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  background: var(--color-surface-muted);
+}
+
+.digital-human-image-result__status {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
 .digital-human-markdown a {
   color: var(--color-brand-active);
 }
