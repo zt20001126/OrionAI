@@ -80,7 +80,6 @@ export function DigitalHumanComposer({
         maxLength={20_000}
         onChange={(event) => onDraftChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={t("输入消息…")}
         ref={textareaRef}
         rows={1}
         value={draft}
