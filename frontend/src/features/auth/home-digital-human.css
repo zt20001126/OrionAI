@@ -27,6 +27,7 @@
 
 .auth-digital-human .digital-human-avatar__canvas canvas {
   display: block;
+  pointer-events: auto;
   width: 100% !important;
   height: 100% !important;
   background: transparent;

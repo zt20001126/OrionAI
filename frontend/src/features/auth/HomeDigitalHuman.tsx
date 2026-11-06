@@ -12,7 +12,7 @@ const LazyDigitalHumanAvatar3D = lazy(() =>
 
 const ignoreModelError = () => undefined;
 
-/** 首页仅展示 VRM；首屏绘制后的空闲时段才加载模型与渲染模块。 */
+/** 在认证首页展示可交互的数字人；首屏绘制后的空闲时段加载模型与渲染模块。 */
 export function HomeDigitalHuman() {
   const [isWideViewport, setIsWideViewport] = useState(() => window.innerWidth > 980);
   const [isReady, setIsReady] = useState(false);
@@ -48,6 +48,7 @@ export function HomeDigitalHuman() {
       {isWideViewport && isReady && (
         <Suspense fallback={null}>
           <LazyDigitalHumanAvatar3D
+            enableClickInteraction
             lookTargetRef={lookTargetRef}
             mouthOpen={0}
             onLoadError={ignoreModelError}
