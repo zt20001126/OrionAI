@@ -253,6 +253,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     stopAudio();
   }
 
+  /** 提交当前草稿并流式接收回复；发送后立即清空，失败时在原会话恢复草稿。 */
   async function handleSend() {
     const message = draft.trim();
     if (
@@ -271,6 +272,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     submitLockRef.current = true;
     setIsSubmitting(true);
     setPendingMessage(message);
+    setDraft("");
     setStreamedAssistantText("");
     assistantStreamRef.current = "";
     const controller = new AbortController();
@@ -300,11 +302,13 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setStreamedAssistantText("");
       assistantStreamRef.current = "";
       setIsSubmitting(false);
-      setDraft("");
       setPendingMessage(null);
       idempotencyRef.current = null;
     } catch (sendError) {
       if (!controller.signal.aborted) {
+        if (activeConversationRef.current === activeConversationId) {
+          setDraft((current) => current || message);
+        }
         showToast("error", errorMessage(sendError, t("发送消息失败，请稍后重试。")));
         if (activeConversationId) {
           void refreshMessages(activeConversationId).catch(() => undefined);
