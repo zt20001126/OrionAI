@@ -46,7 +46,7 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   overflow: hidden;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-panel);
   background:
     radial-gradient(ellipse at 52% 38%, rgb(177 164 255 / 48%), transparent 65%),
     linear-gradient(120deg, #dbe7ff 0%, #d9d4ff 48%, #c5d9ff 100%);
