@@ -4,9 +4,9 @@ import httpx
 import pytest
 
 from app.core.config import Settings
-from app.modules.digital_human.providers.asr import BailianAsrProvider
 from app.modules.digital_human.providers.errors import DigitalHumanProviderError
-from app.modules.digital_human.providers.tts import BailianTtsProvider
+from app.modules.digital_human.providers.speech.asr import BailianAsrProvider
+from app.modules.digital_human.providers.speech.tts import BailianTtsProvider
 
 
 def _settings(**overrides: object) -> Settings:
@@ -106,7 +106,7 @@ async def test_tts_rejects_malformed_response_payload(malformed_payload: object)
 @pytest.mark.anyio
 async def test_tts_rejects_audio_above_configured_limit(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "app.modules.digital_human.providers.tts.DIGITAL_HUMAN_MAX_TTS_AUDIO_BYTES",
+        "app.modules.digital_human.providers.speech.tts.DIGITAL_HUMAN_MAX_TTS_AUDIO_BYTES",
         4,
     )
 

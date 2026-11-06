@@ -2,7 +2,9 @@
 
 import httpx
 
-from app.modules.digital_human.providers.image_generation import DigitalHumanImageProviderError
+from app.modules.digital_human.providers.image.image_generation import (
+    DigitalHumanImageProviderError,
+)
 
 _CHUNK_BYTES = 64 * 1024
 

@@ -8,7 +8,9 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.config import get_settings
-from app.modules.digital_human.providers.image_generation import DigitalHumanImageProviderError
+from app.modules.digital_human.providers.image.image_generation import (
+    DigitalHumanImageProviderError,
+)
 from app.modules.digital_human.service.image_generation import generate_and_save_image
 
 logger = logging.getLogger(__name__)

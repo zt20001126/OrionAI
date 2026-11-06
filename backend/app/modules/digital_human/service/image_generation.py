@@ -7,8 +7,10 @@ from app.core.config import Settings
 from app.infrastructure.database.snowflake import generate_snowflake_id
 from app.infrastructure.storage.aliyun_oss import AliyunOSSObjectStorage
 from app.modules.digital_human.constants import DIGITAL_HUMAN_IMAGE_TIMEOUT_SECONDS
-from app.modules.digital_human.providers.image_generation import BailianImageClient
-from app.modules.digital_human.providers.image_result_downloader import BailianImageResultDownloader
+from app.modules.digital_human.providers.image.image_generation import BailianImageClient
+from app.modules.digital_human.providers.image.image_result_downloader import (
+    BailianImageResultDownloader,
+)
 from app.modules.image_generation.service import TaskResultStore
 
 

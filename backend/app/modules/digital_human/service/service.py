@@ -11,9 +11,9 @@ from app.modules.digital_human.constants import (
     DIGITAL_HUMAN_MAX_AUDIO_BYTES,
     DIGITAL_HUMAN_MAX_TTS_TEXT_CHARS,
 )
-from app.modules.digital_human.providers.asr import AsrProvider, BailianAsrProvider
 from app.modules.digital_human.providers.errors import DigitalHumanProviderError
-from app.modules.digital_human.providers.tts import BailianTtsProvider, TtsProvider
+from app.modules.digital_human.providers.speech.asr import AsrProvider, BailianAsrProvider
+from app.modules.digital_human.providers.speech.tts import BailianTtsProvider, TtsProvider
 from app.modules.digital_human.repository import repository
 from app.modules.digital_human.schemas.schemas import (
     DigitalHumanConversationListResponse,
