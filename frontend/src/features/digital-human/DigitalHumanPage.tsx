@@ -16,6 +16,7 @@ import type {
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { DigitalHumanAvatarHost } from "./components/DigitalHumanAvatarHost";
 import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractionHint";
+import { DigitalHumanWelcome } from "./components/DigitalHumanWelcome";
 import { DigitalHumanComposer } from "./components/DigitalHumanComposer";
 import { DigitalHumanConversation } from "./components/DigitalHumanConversation";
 import { VoiceRecordingOverlay } from "./components/VoiceRecordingOverlay";
@@ -58,6 +59,13 @@ function errorMessage(error: unknown, fallback: string): string {
 /** 数字人交互页面：串联会话消息、语音识别、语音合成和数字人播放状态。 */
 export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPageProps) {
   const { showToast } = useToast();
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [previousConversationId, setPreviousConversationId] = useState(conversationId);
+  // 返回新会话时重新展示引导，打开历史会话则继续展示原消息。
+  if (previousConversationId !== conversationId) {
+    setPreviousConversationId(conversationId);
+    if (conversationId === null) setShowWelcome(true);
+  }
   const [loadedMessages, setLoadedMessages] = useState<{
     conversationId: string;
     items: ConversationMessage[];
@@ -266,6 +274,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     ) {
       return;
     }
+    setShowWelcome(false);
     stopReply();
     nextSegmentRef.current = 1;
     playbackEndedRef.current = null;
@@ -411,48 +420,56 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         </section>
 
         <section aria-label={t("数字人对话")} className="digital-human-chat">
-          <DigitalHumanConversation
-            currentQuestionIndex={currentQuestionIndex}
-            isSubmitting={isSubmitting}
-            isLoading={isMessagesLoading}
-            messages={messages}
-            onQuestionAnswerSelect={(questionId, answer) => {
-              if (!conversationId || !pendingQuestion) return;
-              setAnswerSelection((current) => {
-                const currentAnswers =
-                  current?.conversationId === conversationId &&
-                  current.messageId === pendingQuestion.messageId
-                    ? current.answers
-                    : {};
-                return {
+          {showWelcome && !conversationId ? (
+            <DigitalHumanWelcome
+              draft={draft}
+              onSelect={setDraft}
+              onSkip={() => setShowWelcome(false)}
+            />
+          ) : (
+            <DigitalHumanConversation
+              currentQuestionIndex={currentQuestionIndex}
+              isSubmitting={isSubmitting}
+              isLoading={isMessagesLoading}
+              messages={messages}
+              onQuestionAnswerSelect={(questionId, answer) => {
+                if (!conversationId || !pendingQuestion) return;
+                setAnswerSelection((current) => {
+                  const currentAnswers =
+                    current?.conversationId === conversationId &&
+                    current.messageId === pendingQuestion.messageId
+                      ? current.answers
+                      : {};
+                  return {
+                    conversationId,
+                    messageId: pendingQuestion.messageId,
+                    answers: { ...currentAnswers, [questionId]: answer },
+                  };
+                });
+              }}
+              onQuestionNext={() => {
+                if (!conversationId || !pendingQuestion) return;
+                setQuestionStep({
                   conversationId,
                   messageId: pendingQuestion.messageId,
-                  answers: { ...currentAnswers, [questionId]: answer },
-                };
-              });
-            }}
-            onQuestionNext={() => {
-              if (!conversationId || !pendingQuestion) return;
-              setQuestionStep({
-                conversationId,
-                messageId: pendingQuestion.messageId,
-                index: currentQuestionIndex + 1,
-              });
-            }}
-            onQuestionPrevious={() => {
-              if (!conversationId || !pendingQuestion) return;
-              setQuestionStep({
-                conversationId,
-                messageId: pendingQuestion.messageId,
-                index: currentQuestionIndex - 1,
-              });
-            }}
-            onQuestionSubmit={() => void handleQuestionAnswerSubmit()}
-            pendingMessage={pendingMessage}
-            pendingQuestionMessageId={pendingQuestion?.messageId ?? null}
-            selectedAnswers={selectedAnswers}
-            streamedAssistantText={streamedAssistantText}
-          />
+                  index: currentQuestionIndex + 1,
+                });
+              }}
+              onQuestionPrevious={() => {
+                if (!conversationId || !pendingQuestion) return;
+                setQuestionStep({
+                  conversationId,
+                  messageId: pendingQuestion.messageId,
+                  index: currentQuestionIndex - 1,
+                });
+              }}
+              onQuestionSubmit={() => void handleQuestionAnswerSubmit()}
+              pendingMessage={pendingMessage}
+              pendingQuestionMessageId={pendingQuestion?.messageId ?? null}
+              selectedAnswers={selectedAnswers}
+              streamedAssistantText={streamedAssistantText}
+            />
+          )}
           <DigitalHumanComposer
             disabled={isBusy || pendingQuestion !== null}
             isSubmitting={isSubmitting}

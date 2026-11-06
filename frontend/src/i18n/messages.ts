@@ -2,6 +2,20 @@ type MessageMap = Record<string, string>;
 
 const catalogs: Record<string, MessageMap> = {
   common: {
+    "你好，我是 Orion 助手": "Hello, I'm Orion Assistant",
+    "选择一个能力，试着和我聊聊": "Choose a capability to start a conversation",
+    跳过引导: "Skip introduction",
+    帮我生成一张图片: "Help me generate an image",
+    发送邮件: "Send email",
+    帮我发送一封邮件: "Help me send an email",
+    设置提醒: "Set a reminder",
+    提醒我明天下午开会: "Remind me about my meeting tomorrow afternoon",
+    查询股票数据: "Look up stock data",
+    "帮我查询 A 股指数": "Look up the A-share indices",
+    互动聊天: "Chat",
+    陪我聊聊天: "Let's chat",
+    了解我的能力: "Explore my capabilities",
+    "你都有哪些能力？": "What can you do?",
     "EN": "EN",
     "中文": "中文",
     "切换到英文": "Switch to English",
