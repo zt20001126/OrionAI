@@ -18,6 +18,7 @@ import { DigitalHumanAvatarHost } from "./components/DigitalHumanAvatarHost";
 import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractionHint";
 import { DigitalHumanComposer } from "./components/DigitalHumanComposer";
 import { DigitalHumanConversation } from "./components/DigitalHumanConversation";
+import { VoiceRecordingOverlay } from "./components/VoiceRecordingOverlay";
 import { DigitalHumanApiError } from "./digitalHumanApi";
 import { useAssistantAudio } from "./hooks/useAssistantAudio";
 import { useMicrophoneRecorder } from "./hooks/useMicrophoneRecorder";
@@ -463,6 +464,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
             onToggleRecording={toggleRecording}
           />
         </section>
+        <VoiceRecordingOverlay
+          isRecording={recorder.status === "listening"}
+          onCancel={recorder.cancelRecording}
+        />
       </div>
       <audio aria-hidden="true" className="digital-human-audio" ref={audioRef} />
     </section>

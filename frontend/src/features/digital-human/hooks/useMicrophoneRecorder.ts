@@ -58,6 +58,20 @@ export function useMicrophoneRecorder({ onTranscribed, onError }: UseMicrophoneR
     }
   }, []);
 
+  /** 取消当前录音并释放麦克风；输入为空，输出为空；调用方：数字人页面，取消时不执行转写。 */
+  const cancelRecording = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    // 禁用异步停止回调，确保取消和录音错误均不会提交音频。
+    recorder.ondataavailable = null;
+    recorder.onstop = null;
+    recorder.onerror = null;
+    if (recorder.state === "recording") recorder.stop();
+    chunksRef.current = [];
+    releaseMicrophone();
+    if (mountedRef.current) setStatus("idle");
+  }, [releaseMicrophone]);
+
   const startRecording = useCallback(async () => {
     if (startLockRef.current || recorderRef.current) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
@@ -87,8 +101,7 @@ export function useMicrophoneRecorder({ onTranscribed, onError }: UseMicrophoneR
       };
       recorder.onerror = () => {
         if (mountedRef.current) errorRef.current(t("录音失败，请检查麦克风后重试。"));
-        releaseMicrophone();
-        if (mountedRef.current) setStatus("idle");
+        cancelRecording();
       };
       recorder.onstop = () => {
         const recording = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
@@ -136,17 +149,16 @@ export function useMicrophoneRecorder({ onTranscribed, onError }: UseMicrophoneR
     } finally {
       startLockRef.current = false;
     }
-  }, [releaseMicrophone, stopRecording]);
+  }, [cancelRecording, releaseMicrophone, stopRecording]);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       requestRef.current?.abort();
-      stopRecording();
-      releaseMicrophone();
+      cancelRecording();
     };
-  }, [releaseMicrophone, stopRecording]);
+  }, [cancelRecording]);
 
-  return { status, startRecording, stopRecording };
+  return { status, startRecording, stopRecording, cancelRecording };
 }

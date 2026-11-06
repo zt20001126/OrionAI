@@ -95,7 +95,7 @@ export function DigitalHumanComposer({
           onKeyDown={handleKeyDown}
           ref={textareaRef}
           rows={1}
-          placeholder={isRecording ? t("正在聆听...") : undefined}
+          placeholder={isRecording ? "" : undefined}
           value={draft}
         />
         {isRecording && (
