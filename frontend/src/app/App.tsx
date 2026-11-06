@@ -387,6 +387,7 @@ function AppContent() {
     }
   }
 
+  /** 完成认证后的状态更新；输入认证身份和方式，跳转 Orion 助手；由认证页面调用。 */
   async function handleAuthenticated(authenticatedIdentity: AuthIdentity, method: AuthMethod) {
     if (method === "register" && !authenticatedIdentity.is_guest && authenticatedIdentity.account) {
       await ensureWelcomeNotification(authenticatedIdentity.account);
@@ -400,7 +401,7 @@ function AppContent() {
     setHasUnsavedSettings(false);
     setUserProfile(null);
     setIdentity(authenticatedIdentity);
-    navigate(platformPaths.market, true);
+    navigate(platformPaths.digitalHuman, true);
   }
 
   function handlePasswordChanged(message: string) {
