@@ -12,6 +12,9 @@ const BLINK_DURATION_SECONDS = 0.18;
 const BLINK_MIN_INTERVAL_SECONDS = 2.8;
 const BLINK_INTERVAL_VARIANCE_SECONDS = 2.6;
 const BLINK_BLEND_SPEED = 32;
+const IDLE_BLINK_MIN_INTERVAL_SECONDS = 2.2;
+const IDLE_BLINK_INTERVAL_VARIANCE_SECONDS = 2.1;
+const IDLE_BLINK_BLEND_SPEED = 48;
 const ARM_RELAX_ANGLE = 1.25;
 const SHOULDER_RELAX_SHARE = 0.12;
 // Orion 的 normalized 肘骨绕局部 Z 轴才会在正面形成屈肘；Y 轴主要让前臂转向深度方向。
@@ -22,29 +25,31 @@ const RIGHT_WRIST_FLEX_ANGLE = 0.06;
 const POSE_BLEND_SPEED = 4;
 const CHEST_BREATHING_AMPLITUDE = 0.022;
 const CHEST_BREATHING_FREQUENCY = 0.9;
-const IDLE_HEAD_PITCH_AMPLITUDE = 0.06;
-const IDLE_HEAD_YAW_AMPLITUDE = 0.045;
-const IDLE_HEAD_TILT_AMPLITUDE = 0.06;
-const IDLE_HEAD_PITCH_FREQUENCY = 0.45;
-const IDLE_HEAD_YAW_FREQUENCY = 0.24;
-const IDLE_HEAD_TILT_FREQUENCY = 0.3;
+const IDLE_CHEST_BREATHING_AMPLITUDE = 0.035;
+const IDLE_CHEST_BREATHING_FREQUENCY = 1.15;
+const IDLE_HEAD_PITCH_AMPLITUDE = 0.085;
+const IDLE_HEAD_YAW_AMPLITUDE = 0.07;
+const IDLE_HEAD_TILT_AMPLITUDE = 0.085;
+const IDLE_HEAD_PITCH_FREQUENCY = 0.6;
+const IDLE_HEAD_YAW_FREQUENCY = 0.34;
+const IDLE_HEAD_TILT_FREQUENCY = 0.42;
 const NECK_MOTION_SHARE = 0.24;
 const POINTER_HEAD_PITCH_AMPLITUDE = 0.34;
 const POINTER_HEAD_YAW_AMPLITUDE = 0.62;
-const IDLE_SHOULDER_SWAY_AMPLITUDE = 0.01;
-const IDLE_SHOULDER_SWAY_FREQUENCY = 0.42;
-const IDLE_SHOULDER_BREATHING_AMPLITUDE = 0.012;
-const IDLE_ARM_SWAY_AMPLITUDE = 0.008;
-const IDLE_ARM_SWAY_FREQUENCY = 0.32;
+const IDLE_SHOULDER_SWAY_AMPLITUDE = 0.018;
+const IDLE_SHOULDER_SWAY_FREQUENCY = 0.55;
+const IDLE_SHOULDER_BREATHING_AMPLITUDE = 0.019;
+const IDLE_ARM_SWAY_AMPLITUDE = 0.018;
+const IDLE_ARM_SWAY_FREQUENCY = 0.45;
 const IDLE_ARM_SWAY_PHASE = 0.7;
 const IDLE_RIGHT_ARM_SWAY_PHASE = 2.5;
-const WEIGHT_SHIFT_MAX_ANGLE = 0.022;
-const WEIGHT_SHIFT_START_MIN_SECONDS = 5;
-const WEIGHT_SHIFT_START_MAX_SECONDS = 9;
-const WEIGHT_SHIFT_DURATION_MIN_SECONDS = 3.2;
-const WEIGHT_SHIFT_DURATION_MAX_SECONDS = 4.4;
-const WEIGHT_SHIFT_REST_MIN_SECONDS = 6;
-const WEIGHT_SHIFT_REST_MAX_SECONDS = 10;
+const WEIGHT_SHIFT_MAX_ANGLE = 0.038;
+const WEIGHT_SHIFT_START_MIN_SECONDS = 3.5;
+const WEIGHT_SHIFT_START_MAX_SECONDS = 6;
+const WEIGHT_SHIFT_DURATION_MIN_SECONDS = 2.8;
+const WEIGHT_SHIFT_DURATION_MAX_SECONDS = 3.8;
+const WEIGHT_SHIFT_REST_MIN_SECONDS = 4;
+const WEIGHT_SHIFT_REST_MAX_SECONDS = 7;
 const WEIGHT_SHIFT_RESUME_DELAY_SECONDS = 2.5;
 const SPINE_COUNTER_SHIFT_SHARE = 0.42;
 const LISTENING_HEAD_PITCH_AMPLITUDE = 0.22;
@@ -279,7 +284,10 @@ export function useVrmAvatarAnimation(
   status: DigitalHumanStatus,
   lookTargetRef?: RefObject<VrmLookTarget | null>,
 ): VrmAvatarGesturePlayer {
-  const blinkState = useRef<BlinkState>({ elapsed: 0, waiting: randomBlinkInterval() });
+  const blinkState = useRef<BlinkState>({
+    elapsed: 0,
+    waiting: randomBlinkInterval(status === "idle"),
+  });
   const smoothedBlink = useRef(0);
   const prefersReducedMotion = useRef(false);
   const breathingRig = useRef<BreathingRig | null>(null);
@@ -349,9 +357,10 @@ export function useVrmAvatarAnimation(
 
     const manager = vrm.expressionManager;
     const motionEnabled = !prefersReducedMotion.current;
-    const blinkAmount = nextBlinkAmount(blinkState.current, delta);
+    const blinkAmount = nextBlinkAmount(blinkState.current, delta, status === "idle");
     const blinkTarget = motionEnabled ? blinkAmount : 0;
-    const blinkBlend = 1 - Math.exp(-BLINK_BLEND_SPEED * delta);
+    const blinkBlendSpeed = status === "idle" ? IDLE_BLINK_BLEND_SPEED : BLINK_BLEND_SPEED;
+    const blinkBlend = 1 - Math.exp(-blinkBlendSpeed * delta);
     smoothedBlink.current += (blinkTarget - smoothedBlink.current) * blinkBlend;
 
     if (manager?.getExpression(VRMExpressionPresetName.Blink)) {
@@ -410,8 +419,13 @@ export function useVrmAvatarAnimation(
     );
     statusTargets.headPitch += pointerLook.pitch;
     statusTargets.headYaw += pointerLook.yaw;
+    // 待机时加强呼吸，其余状态保留原有节奏，避免影响说话和倾听表现。
+    const breathingFrequency =
+      status === "idle" ? IDLE_CHEST_BREATHING_FREQUENCY : CHEST_BREATHING_FREQUENCY;
+    const breathingAmplitude =
+      status === "idle" ? IDLE_CHEST_BREATHING_AMPLITUDE : CHEST_BREATHING_AMPLITUDE;
     const breathingTarget = motionEnabled
-      ? Math.sin(rig.elapsed * CHEST_BREATHING_FREQUENCY) * CHEST_BREATHING_AMPLITUDE
+      ? Math.sin(rig.elapsed * breathingFrequency) * breathingAmplitude
       : 0;
     const blend = 1 - Math.exp(-POSE_BLEND_SPEED * delta);
 
@@ -704,7 +718,7 @@ export function getIdleMotionTargets(
       Math.sin(elapsed * IDLE_ARM_SWAY_FREQUENCY + IDLE_RIGHT_ARM_SWAY_PHASE) *
       IDLE_ARM_SWAY_AMPLITUDE,
     shoulderBreathing:
-      Math.sin(elapsed * CHEST_BREATHING_FREQUENCY) * IDLE_SHOULDER_BREATHING_AMPLITUDE,
+      Math.sin(elapsed * IDLE_CHEST_BREATHING_FREQUENCY) * IDLE_SHOULDER_BREATHING_AMPLITUDE,
     shoulderSway: Math.sin(elapsed * IDLE_SHOULDER_SWAY_FREQUENCY) * IDLE_SHOULDER_SWAY_AMPLITUDE,
     weightShift,
   };
@@ -969,7 +983,7 @@ function nextWeightShiftAmount(
   return shift.direction * WEIGHT_SHIFT_MAX_ANGLE * Math.sin(Math.PI * smoothStep(progress));
 }
 
-function nextBlinkAmount(blink: BlinkState, delta: number): number {
+function nextBlinkAmount(blink: BlinkState, delta: number, isIdle: boolean): number {
   if (blink.waiting > 0) {
     const waitBeforeFrame = blink.waiting;
     blink.waiting = Math.max(0, blink.waiting - delta);
@@ -981,15 +995,17 @@ function nextBlinkAmount(blink: BlinkState, delta: number): number {
 
   if (blink.elapsed >= BLINK_DURATION_SECONDS) {
     blink.elapsed = 0;
-    blink.waiting = randomBlinkInterval();
+    blink.waiting = randomBlinkInterval(isIdle);
     return 0;
   }
 
   return Math.sin((blink.elapsed / BLINK_DURATION_SECONDS) * Math.PI);
 }
 
-function randomBlinkInterval(): number {
-  return BLINK_MIN_INTERVAL_SECONDS + Math.random() * BLINK_INTERVAL_VARIANCE_SECONDS;
+function randomBlinkInterval(isIdle: boolean): number {
+  return isIdle
+    ? IDLE_BLINK_MIN_INTERVAL_SECONDS + Math.random() * IDLE_BLINK_INTERVAL_VARIANCE_SECONDS
+    : BLINK_MIN_INTERVAL_SECONDS + Math.random() * BLINK_INTERVAL_VARIANCE_SECONDS;
 }
 
 function randomBetween(minimum: number, maximum: number): number {
