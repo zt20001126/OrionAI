@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { PlatformIcon } from "./PlatformIcon";
 import type { MarketSkill } from "./skillApi";
@@ -9,9 +9,9 @@ interface SkillDetailsDialogProps {
   skill: MarketSkill;
 }
 
-/** 展示技能目录中的描述和状态，并保留键盘及遮罩关闭行为。 */
+/** 展示技能介绍和对应演示 GIF；输入为目录技能，输出为可由 Escape、遮罩或关闭按钮关闭的详情弹窗。 */
 export function SkillDetailsDialog({ onClose, skill }: SkillDetailsDialogProps) {
-  const [imageUnavailable, setImageUnavailable] = useState(false);
+  const [unavailableImageUrl, setUnavailableImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -34,7 +34,7 @@ export function SkillDetailsDialog({ onClose, skill }: SkillDetailsDialogProps) 
   const demoFile = demoFileByCode[skill.code] ?? `${skill.name}.gif`;
   const demoUrl = `/feature_detail/${encodeURIComponent(demoFile)}`;
 
-  useEffect(() => setImageUnavailable(false), [demoUrl]);
+  const imageUnavailable = unavailableImageUrl === demoUrl;
 
   return (
     <div
@@ -67,7 +67,7 @@ export function SkillDetailsDialog({ onClose, skill }: SkillDetailsDialogProps) 
               <span className="skill-detail-dialog__gif-label" aria-hidden="true">GIF</span>
               <img
                 alt={t("{name} 功能演示", { name: skill.name })}
-                onError={() => setImageUnavailable(true)}
+                onError={() => setUnavailableImageUrl(demoUrl)}
                 src={demoUrl}
               />
             </>

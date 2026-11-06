@@ -524,6 +524,8 @@ const catalogs: Record<string, MessageMap> = {
     "快捷提问": "Suggested prompts",
     "感谢你的反馈，这将帮助我们不断改进产品体验。": "Thanks for your feedback. It helps us improve the product.",
     "我的技能加载失败": "Could not load my skills",
+    "暂无功能演示": "No feature demo available",
+    "{name} 功能演示": "{name} feature demo",
     "我的提醒": "My reminders",
     "所有会员套餐享受相同的会员身份。": "All membership plans provide the same membership status.",
     "所有套餐享受相同会员身份，仅有效期不同": "All plans provide the same membership status and differ only in duration.",
