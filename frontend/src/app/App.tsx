@@ -1,9 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 
-import { AmbientBackground } from "../components/AmbientBackground";
 import { ToastProvider, useToast } from "../components/ToastProvider";
 import { AuthPage } from "../features/auth/AuthPage";
-import { BrandMark, ProductIntro } from "../features/auth/ProductIntro";
+import { LoginLoadingScreen } from "../features/auth/LoginLoadingScreen";
 import { PlatformLayout } from "../features/platform/PlatformLayout";
 import { PlaceholderPage } from "../features/platform/PlaceholderPage";
 import { SettingsPage } from "../features/platform/SettingsPage";
@@ -36,7 +35,6 @@ import { getSession, logout, type AuthIdentity, type AuthMethod } from "../featu
 import { getUserProfile, type UserProfile } from "../features/platform/profileApi";
 import { ensureWelcomeNotification } from "../features/notifications/notificationStorage";
 import { LocaleProvider, useLocale } from "../i18n/LocaleProvider";
-import { LanguageSwitcher } from "../i18n/LanguageSwitcher";
 import { t } from "../i18n/localeStore";
 
 type AppPath = PlatformRoute | typeof platformPaths.login;
@@ -419,34 +417,18 @@ function AppContent() {
     setPathname(platformPaths.login);
   }
 
-  if (isRestoringSession) {
+  if (isRestoringSession || !identity) {
     return (
-      <main className="auth-layout">
-        <AmbientBackground mode="auth" />
-        <ProductIntro />
-        <section className="auth-panel">
-          <LanguageSwitcher className="language-switcher--auth" />
-          <section className="auth-card status-card" aria-live="polite">
-            <div className="auth-card-brand">
-              <BrandMark />
-              <span>OrionAI</span>
-            </div>
-            <span className="status-spinner" aria-hidden="true" />
-            <h1>{t("正在恢复登录状态")}</h1>
-            <p>{t("请稍候，我们正在确认你的安全会话。")}</p>
-          </section>
-        </section>
-      </main>
-    );
-  }
-
-  if (!identity) {
-    return (
-      <AuthPage
-        initialMessage={sessionError ? t(sessionError) : null}
-        initialSuccessMessage={authSuccessMessage}
-        onAuthenticated={handleAuthenticated}
-      />
+      <>
+        {!isRestoringSession && (
+          <AuthPage
+            initialMessage={sessionError ? t(sessionError) : null}
+            initialSuccessMessage={authSuccessMessage}
+            onAuthenticated={handleAuthenticated}
+          />
+        )}
+        <LoginLoadingScreen ready={!isRestoringSession} />
+      </>
     );
   }
 

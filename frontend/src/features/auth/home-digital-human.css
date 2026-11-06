@@ -38,3 +38,37 @@
     display: none;
   }
 }
+
+.home-avatar-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  gap: 8px;
+  transform: translate(-50%, -50%);
+}
+.home-avatar-loading span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  opacity: 0.5;
+  animation: home-avatar-pulse 1.2s ease-in-out infinite;
+}
+.home-avatar-loading span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.home-avatar-loading span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes home-avatar-pulse {
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-avatar-loading span {
+    animation: none;
+  }
+}

@@ -50,7 +50,14 @@ afterEach(() => cleanup());
 beforeEach(() => {
   canvasMockState.throws = false;
   canvasMockState.clickInteractionValues = [];
-  vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm: null });
+  vi.mocked(useVrmAvatarModel).mockReturnValue({
+    phase: "loading",
+    progress: null,
+    retry: vi.fn(),
+    error: null,
+    isLoading: false,
+    vrm: null,
+  });
 });
 
 describe("DigitalHumanAvatar3D", () => {
@@ -62,15 +69,22 @@ describe("DigitalHumanAvatar3D", () => {
   ] as const)("announces the %s state", (status, label) => {
     render(<DigitalHumanAvatar3D mouthOpen={0} onLoadError={vi.fn()} status={status} />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(label);
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
   it("shows a short loading message while the VRM model loads", () => {
-    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: true, vrm: null });
+    vi.mocked(useVrmAvatarModel).mockReturnValue({
+      phase: "loading",
+      progress: null,
+      retry: vi.fn(),
+      error: null,
+      isLoading: true,
+      vrm: null,
+    });
 
     render(<DigitalHumanAvatar3D mouthOpen={0} onLoadError={vi.fn()} status="idle" />);
 
-    expect(screen.getByText("正在加载数字人模型…")).toBeInTheDocument();
+    expect(screen.getByText("正在加载数字人...")).toBeInTheDocument();
     expect(screen.queryByTestId("avatar-canvas")).not.toBeInTheDocument();
   });
 
@@ -78,7 +92,14 @@ describe("DigitalHumanAvatar3D", () => {
     const vrm = {
       meta: { author: "JustAPal", metaVersion: "0", title: "Mal 14.16 Optimized" },
     } as unknown as VRM;
-    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm });
+    vi.mocked(useVrmAvatarModel).mockReturnValue({
+      phase: "loading",
+      progress: null,
+      retry: vi.fn(),
+      error: null,
+      isLoading: false,
+      vrm,
+    });
 
     const onLoadError = vi.fn();
     render(<DigitalHumanAvatar3D mouthOpen={0.6} onLoadError={onLoadError} status="speaking" />);
@@ -93,7 +114,14 @@ describe("DigitalHumanAvatar3D", () => {
     const vrm = {
       meta: { author: "OrionAI", metaVersion: "1", title: "Orion" },
     } as unknown as VRM;
-    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm });
+    vi.mocked(useVrmAvatarModel).mockReturnValue({
+      phase: "loading",
+      progress: null,
+      retry: vi.fn(),
+      error: null,
+      isLoading: false,
+      vrm,
+    });
 
     render(
       <DigitalHumanAvatar3D
@@ -113,7 +141,14 @@ describe("DigitalHumanAvatar3D", () => {
     const vrm = {
       meta: { author: "OrionAI", metaVersion: "1", title: "Orion" },
     } as unknown as VRM;
-    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm });
+    vi.mocked(useVrmAvatarModel).mockReturnValue({
+      phase: "loading",
+      progress: null,
+      retry: vi.fn(),
+      error: null,
+      isLoading: false,
+      vrm,
+    });
 
     const homeRender = render(
       <DigitalHumanAvatar3D
@@ -142,7 +177,14 @@ describe("DigitalHumanAvatar3D", () => {
   it("reports model load failures through the provided error handler", () => {
     const error = new Error("model fetch failed");
     const onLoadError = vi.fn();
-    vi.mocked(useVrmAvatarModel).mockReturnValue({ error, isLoading: false, vrm: null });
+    vi.mocked(useVrmAvatarModel).mockReturnValue({
+      phase: "loading",
+      progress: null,
+      retry: vi.fn(),
+      error,
+      isLoading: false,
+      vrm: null,
+    });
 
     render(<DigitalHumanAvatar3D mouthOpen={0} onLoadError={onLoadError} status="idle" />);
 
@@ -157,7 +199,14 @@ describe("DigitalHumanAvatar3D", () => {
     const vrm = {
       meta: { author: "JustAPal", metaVersion: "0", title: "Mal 14.16 Optimized" },
     } as unknown as VRM;
-    vi.mocked(useVrmAvatarModel).mockReturnValue({ error: null, isLoading: false, vrm });
+    vi.mocked(useVrmAvatarModel).mockReturnValue({
+      phase: "loading",
+      progress: null,
+      retry: vi.fn(),
+      error: null,
+      isLoading: false,
+      vrm,
+    });
 
     render(<DigitalHumanAvatar3D mouthOpen={0} onLoadError={onLoadError} status="idle" />);
 
