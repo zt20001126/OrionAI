@@ -13,7 +13,7 @@ from app.agent.tools.registry import ToolRegistry
 from app.modules.digital_human.agent import graph
 from app.modules.digital_human.agent.capabilities import build_capabilities_prompt
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
-from app.modules.digital_human.agent.tools import current_date, stock_quote
+from app.modules.digital_human.agent.tools import current_date, index_quote, stock_quote
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -188,17 +188,33 @@ async def test_digital_human_calls_date_tool_and_returns_answer() -> None:
 async def test_stock_question_continues_to_registered_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    question_call = AIMessage(content="", tool_calls=[{
-        "name": "ask_user_questions",
-        "args": {"questions": [{"id": "stock", "title": "请输入股票名称或代码", "type": "Text"}]},
-        "id": "stock-question", "type": "tool_call",
-    }])
-    stock_call = AIMessage(content="", tool_calls=[{
-        "name": "get_stock_quote", "args": {"stock": "600519"},
-        "id": "stock-quote", "type": "tool_call",
-    }])
+    question_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "ask_user_questions",
+                "args": {
+                    "questions": [{"id": "stock", "title": "请输入股票名称或代码", "type": "Text"}]
+                },
+                "id": "stock-question",
+                "type": "tool_call",
+            }
+        ],
+    )
+    stock_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_stock_quote",
+                "args": {"stock": "600519"},
+                "id": "stock-quote",
+                "type": "tool_call",
+            }
+        ],
+    )
     monkeypatch.setattr(
-        stock_quote, "_fetch_stock_quote",
+        stock_quote,
+        "_fetch_stock_quote",
         lambda stock: {"status": "ok", "code": stock, "price": 100},
     )
     runtime = DigitalHumanRuntime(
@@ -218,5 +234,42 @@ async def test_stock_question_continues_to_registered_tool(
     assert response.answer == "价格为100元。"
     assert any(
         message.type == "tool" and message.name == "get_stock_quote" and "600519" in message.content
+        for message in state.values["messages"]
+    )
+
+
+@pytest.mark.anyio
+async def test_index_query_reaches_registered_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """验证指数提问经过数字人图执行指数工具并将结果交回模型。"""
+    call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_index_quote",
+                "args": {"index": "上证指数"},
+                "id": "index-quote",
+                "type": "tool_call",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        index_quote,
+        "_fetch_index_quote",
+        lambda index: {
+            "status": "ok",
+            "name": index,
+            "code": "000001",
+            "value": 3000,
+        },
+    )
+    model = ScriptedChatModel([call, AIMessage(content="上证指数为 3000 点。")])
+    runtime = DigitalHumanRuntime(chat_model=model, checkpointer=MemorySaver())
+    config = {"configurable": {"thread_id": "index-test"}}
+    response = await runtime.ainvoke("上证指数多少点？", runnable_config=config)
+    state = await runtime.compiled_graph.aget_state(config)
+    assert response.answer == "上证指数为 3000 点。"
+    assert "A 股指数行情查询" in model._received_messages[0].content
+    assert any(
+        message.type == "tool" and message.name == "get_index_quote" and "3000" in message.content
         for message in state.values["messages"]
     )
