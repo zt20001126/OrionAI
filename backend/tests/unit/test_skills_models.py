@@ -205,7 +205,7 @@ def test_image_agent_seed_adds_the_published_market_skill_idempotently() -> None
         engine.dispose()
 
 
-def test_digital_human_skill_seed_is_idempotent_and_preserves_admin_changes() -> None:
+def test_digital_human_skill_seed_syncs_name_and_preserves_other_admin_changes() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     try:
@@ -215,7 +215,8 @@ def test_digital_human_skill_seed_is_idempotent_and_preserves_admin_changes() ->
             assert skill is not None
             skill_id = skill.id
             skill.status = "disabled"
-            skill.name = "管理员暂时停用"
+            skill.name = "数字人助手"
+            skill.description = "管理员自定义说明"
             session.commit()
 
             ensure_digital_human_skill(session)
@@ -224,7 +225,8 @@ def test_digital_human_skill_seed_is_idempotent_and_preserves_admin_changes() ->
             assert skill is not None
             assert skill.id == skill_id
             assert skill.status == "disabled"
-            assert skill.name == "管理员暂时停用"
+            assert skill.name == "Orion 助手"
+            assert skill.description == "管理员自定义说明"
             assert (
                 session.scalar(
                     select(func.count()).select_from(Skill).where(Skill.code == "digital_human")

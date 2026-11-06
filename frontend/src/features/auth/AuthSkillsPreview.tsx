@@ -21,7 +21,7 @@ const skills: { title: string; description: string; icon: PlatformIconName; tone
     tone: "memory",
   },
   {
-    title: "数字人助手",
+    title: "Orion 助手",
     description: "与 AI 数字人语音交流",
     icon: "assistant",
     tone: "digital-human",

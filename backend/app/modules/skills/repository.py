@@ -47,7 +47,7 @@ MEMORY_TRAINING_TOOL = {
 }
 DIGITAL_HUMAN = {
     "code": "digital_human",
-    "name": "数字人助手",
+    "name": "Orion 助手",
     "description": "通过文字或语音与数字人助手进行多轮对话。",
     "type": "agent",
     "status": "published",
@@ -334,25 +334,32 @@ def ensure_memory_training_tool_skill(session: Session) -> None:
 
 
 def ensure_digital_human_skill(session: Session) -> None:
-    """幂等发布数字人 Agent 技能，不覆盖管理员对已有条目的修改。"""
+    """幂等发布 Orion 助手技能并同步展示名称；输入为应用生命周期数据库会话，保留已有状态和描述。"""
 
     values = DIGITAL_HUMAN.copy()
     dialect_name = session.get_bind().dialect.name
     if dialect_name == "postgresql":
+        insert_statement = postgresql_insert(Skill).values(**values)
         statement = (
-            postgresql_insert(Skill)
-            .values(**values)
-            .on_conflict_do_nothing(index_elements=[Skill.code])
+            insert_statement.on_conflict_do_update(
+                index_elements=[Skill.code],
+                set_={"name": insert_statement.excluded.name},
+            )
         )
     elif dialect_name == "sqlite":
+        insert_statement = sqlite_insert(Skill).values(**values)
         statement = (
-            sqlite_insert(Skill)
-            .values(**values)
-            .on_conflict_do_nothing(index_elements=[Skill.code])
+            insert_statement.on_conflict_do_update(
+                index_elements=[Skill.code],
+                set_={"name": insert_statement.excluded.name},
+            )
         )
     else:
-        if session.scalar(select(Skill.id).where(Skill.code == DIGITAL_HUMAN["code"])) is None:
+        skill = session.scalar(select(Skill).where(Skill.code == DIGITAL_HUMAN["code"]))
+        if skill is None:
             session.add(Skill(**values))
+        else:
+            skill.name = DIGITAL_HUMAN["name"]
         session.commit()
         return
     session.execute(statement)

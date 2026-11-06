@@ -393,7 +393,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   const isBusy = isSubmitting || recorder.status !== "idle";
 
   return (
-    <section aria-label={t("数字人助手")} className="digital-human-page">
+    <section aria-label={t("Orion 助手")} className="digital-human-page">
       <div className="digital-human-layout">
         <section aria-label={t("数字人展示区域")} className="digital-human-stage">
           <DigitalHumanAvatarHost

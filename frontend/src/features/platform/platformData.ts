@@ -151,7 +151,7 @@ export function isTourismInsightPath(pathname: PlatformRoute): pathname is Touri
 export const navigationItems = [
   { path: platformPaths.market, label: "技能市场", icon: "market" },
   { path: platformPaths.mySkills, label: "我的技能", icon: "agents" },
-  { path: platformPaths.digitalHuman, label: "我的数字人", icon: "assistant" },
+  { path: platformPaths.digitalHuman, label: "Orion 助手", icon: "assistant" },
   { path: platformPaths.sessions, label: "会话记录", icon: "sessions" },
 ] as const;
 
