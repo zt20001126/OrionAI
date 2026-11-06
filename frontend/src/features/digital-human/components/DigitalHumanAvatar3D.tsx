@@ -9,6 +9,7 @@ import { useVrmAvatarModel } from "../hooks/useVrmAvatarModel";
 import type { VrmLookTarget } from "../hooks/useVrmPointerLookTarget";
 import type { DigitalHumanStatus } from "../types";
 import { hasVrmMouthExpression } from "../vrm/vrmAvatarCapabilities";
+import { DigitalHumanLoadingOverlay } from "./DigitalHumanLoadingOverlay";
 import { VrmAvatarScene } from "./VrmAvatarScene";
 
 interface DigitalHumanAvatar3DProps {
@@ -38,7 +39,10 @@ export function DigitalHumanAvatar3D({
   presentation = "assistant",
   status,
 }: DigitalHumanAvatar3DProps) {
-  const { error, isLoading, vrm } = useVrmAvatarModel();
+  const { error, isLoading, vrm, phase, progress, retry } = useVrmAvatarModel();
+  const [frameReady, setFrameReady] = useState(false);
+  const [canvasError, setCanvasError] = useState<Error | null>(null);
+  const [canvasVersion, setCanvasVersion] = useState(0);
   const reportedErrorRef = useRef<Error | null>(null);
   const cameraRef = useRef<ThreePerspectiveCamera>(null);
   const [isDocumentVisible, setIsDocumentVisible] = useState(
@@ -60,7 +64,7 @@ export function DigitalHumanAvatar3D({
 
   return (
     <div
-      aria-busy={presentation === "assistant" ? isLoading : undefined}
+      aria-busy={presentation === "assistant" ? !frameReady && !error && !canvasError : undefined}
       className={`digital-human-avatar${presentation === "home" ? " digital-human-avatar--home" : ""}`}
     >
       {presentation === "assistant" && (
@@ -68,7 +72,14 @@ export function DigitalHumanAvatar3D({
       )}
 
       {vrm && !error && (
-        <AvatarCanvasErrorBoundary onError={onLoadError} presentation={presentation}>
+        <AvatarCanvasErrorBoundary
+          key={canvasVersion}
+          onError={(canvasLoadError) => {
+            setCanvasError(canvasLoadError);
+            onLoadError(canvasLoadError);
+          }}
+          presentation={presentation}
+        >
           <div className="digital-human-avatar__canvas">
             <Canvas
               aria-label={t("3D数字人形象")}
@@ -94,6 +105,7 @@ export function DigitalHumanAvatar3D({
                   cameraRef={cameraRef}
                   lookTargetRef={lookTargetRef}
                   mouthOpen={mouthOpen}
+                  onFirstFrame={() => setFrameReady(true)}
                   cameraFraming={cameraFraming ?? presentation}
                   enableClickInteraction={enableClickInteraction}
                   status={status}
@@ -105,16 +117,33 @@ export function DigitalHumanAvatar3D({
         </AvatarCanvasErrorBoundary>
       )}
 
-      {presentation === "assistant" && isLoading && (
-        <div className="digital-human-avatar__model-message" role="status">
-          <span aria-hidden="true" className="digital-human-avatar__loader" />
-          <span>{t("正在加载数字人模型…")}</span>
+      {presentation === "home" && !frameReady && !error && !canvasError && (
+        <div className="home-avatar-loading" aria-hidden="true">
+          <span />
+          <span />
+          <span />
         </div>
       )}
-      {presentation === "assistant" && error && !isLoading && (
-        <div className="digital-human-avatar__model-message" role="status">
-          <span>{t("3D数字人暂时无法显示")}</span>
-        </div>
+      {presentation === "assistant" && (
+        <DigitalHumanLoadingOverlay
+          phase={
+            error || canvasError
+              ? "error"
+              : frameReady
+                ? "ready"
+                : isLoading
+                  ? phase
+                  : "initializing"
+          }
+          progress={progress ?? null}
+          errorMessage={canvasError?.message}
+          onRetry={() => {
+            setFrameReady(false);
+            setCanvasError(null);
+            setCanvasVersion((value) => value + 1);
+            if (error) retry();
+          }}
+        />
       )}
       {presentation === "assistant" && vrm && !hasVrmMouthExpression(vrm) && (
         <p className="digital-human-avatar__compatibility" role="status">
@@ -160,13 +189,7 @@ class AvatarCanvasErrorBoundary extends Component<
 
   render() {
     if (this.state.error && this.props.presentation === "home") return null;
-    if (this.state.error) {
-      return (
-        <div className="digital-human-avatar__model-message" role="status">
-          <span>{t("当前浏览器无法启用 3D 渲染。")}</span>
-        </div>
-      );
-    }
+    if (this.state.error) return null;
 
     return this.props.children;
   }

@@ -21,6 +21,8 @@ from app.modules.conversations.schemas.schemas import (
     MessageListResponse,
     QuestionAnswersRequest,
 )
+from app.modules.digital_human.dependencies.dependencies import DigitalHumanServiceDependency
+from app.modules.digital_human.service.speech_stream import stream_speech
 from app.modules.membership.dependencies import require_membership_access
 from app.shared.streaming import create_sse_response
 
@@ -168,7 +170,9 @@ def stream_message(
     payload: MessageCreateRequest,
     user: CurrentUser,
     service: ConversationServiceDependency,
+    speech_service: DigitalHumanServiceDependency,
     idempotency_key: IdempotencyKey = None,
+    voice: bool = False,
 ) -> StreamingResponse:
     """先完成消息预检，再以 SSE 返回 Agent 的逐段回答。"""
 
@@ -178,7 +182,11 @@ def stream_message(
         payload.message,
         idempotency_key=idempotency_key,
     )
-    return create_sse_response(service.stream_turn(prepared))
+    use_voice = voice and prepared.conversation.skill_code == "digital_human"
+    events = service.stream_turn(prepared, save_partial_on_cancel=use_voice)
+    if use_voice:
+        events = stream_speech(events, speech_service)
+    return create_sse_response(events)
 
 
 @router.post(
@@ -222,8 +230,14 @@ def stream_answers(
     payload: QuestionAnswersRequest,
     user: CurrentUser,
     service: ConversationServiceDependency,
+    speech_service: DigitalHumanServiceDependency,
+    voice: bool = False,
 ) -> StreamingResponse:
     """预检并保存题卡答案，再以 SSE 返回恢复后的 Agent 回答。"""
 
     prepared = service.prepare_answer_stream(user, conversation_id, payload)
-    return create_sse_response(service.stream_turn(prepared))
+    use_voice = voice and prepared.conversation.skill_code == "digital_human"
+    events = service.stream_turn(prepared, save_partial_on_cancel=use_voice)
+    if use_voice:
+        events = stream_speech(events, speech_service)
+    return create_sse_response(events)

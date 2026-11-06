@@ -317,8 +317,10 @@ class ConversationService:
     async def stream_turn(
         self,
         prepared: PreparedConversationTurn,
+        *,
+        save_partial_on_cancel: bool = False,
     ) -> AsyncIterator[StreamEvent]:
-        """将 Agent 文本增量转为 SSE 消息，并在成功后保存正式结果。"""
+        """将 Agent 文本增量转为 SSE 消息，并在成功或指定的中断场景下保存结果。"""
 
         if prepared.cached_response_message is not None:
             cached_message = self._message_response(prepared.cached_response_message)
@@ -347,6 +349,7 @@ class ConversationService:
             else None
         )
         agent_response: AgentResponse | None = None
+        partial_text: list[str] = []
         thread_id = build_conversation_thread_id(
             prepared.user_id, prepared.conversation.id, prepared.conversation.skill_code
         )
@@ -357,6 +360,8 @@ class ConversationService:
                 message_id=str(prepared.message_id),
             ):
                 if isinstance(event, AgentTextDelta):
+                    if save_partial_on_cancel:
+                        partial_text.append(event.content)
                     payload = ConversationTextDeltaEvent(
                         type="text_delta",
                         content=event.content,
@@ -381,7 +386,7 @@ class ConversationService:
                 prepared,
                 assistant_message_id=int(persisted_turn.message.id),
             )
-        except asyncio.CancelledError:
+        except (asyncio.CancelledError, GeneratorExit):
             self._fail_idempotency_key(prepared)
             if title_task is not None:
                 title_task.cancel()
@@ -390,6 +395,10 @@ class ConversationService:
             with anyio.CancelScope(shield=True):
                 with suppress(Exception):
                     await self._finish_stream_title(prepared, None)
+                if save_partial_on_cancel and partial_text:
+                    await anyio.to_thread.run_sync(
+                        self._save_partial_response, prepared, "".join(partial_text)
+                    )
             raise
         except Exception as error:
             self._fail_idempotency_key(prepared)
@@ -1037,6 +1046,17 @@ class ConversationService:
                         "generation_status": "succeeded",
                         "image_url": (
                             f"{IMAGE_RESULT_URL_PREFIX}/{response.image_result_id}/image"
+                        ),
+                    }
+                )
+            if response.video_result_id is not None:
+                parts.append(
+                    {
+                        "type": "video_result",
+                        "task_result_id": response.video_result_id,
+                        "generation_status": "succeeded",
+                        "video_url": (
+                            f"/api/digital-human/task-results/{response.video_result_id}/video"
                         ),
                     }
                 )

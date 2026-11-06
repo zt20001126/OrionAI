@@ -2,8 +2,15 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useMicrophoneRecorder } from "./useMicrophoneRecorder";
+import { recognizeSpeech } from "../digitalHumanApi";
+
+vi.mock("../digitalHumanApi", () => ({ recognizeSpeech: vi.fn() }));
 
 class MockMediaRecorder {
+  static latest: MockMediaRecorder;
+  constructor() {
+    MockMediaRecorder.latest = this;
+  }
   static isTypeSupported() {
     return true;
   }
@@ -33,6 +40,66 @@ afterEach(() => {
 });
 
 describe("useMicrophoneRecorder", () => {
+  it("麦克风权限被拒绝时恢复空闲状态并提示错误", async () => {
+    vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockRejectedValue(new Error("denied")) },
+    });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useMicrophoneRecorder({ onTranscribed: vi.fn(), onError }));
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    expect(result.current.status).toBe("idle");
+    expect(onError).toHaveBeenCalledOnce();
+    expect(recognizeSpeech).not.toHaveBeenCalled();
+  });
+  it("取消录音时释放轨道且不调用语音识别", async () => {
+    vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+    const stopTrack = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop: stopTrack }] }),
+      },
+    });
+    const onTranscribed = vi.fn();
+    const { result } = renderHook(() => useMicrophoneRecorder({ onTranscribed, onError: vi.fn() }));
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    act(() => {
+      result.current.cancelRecording();
+    });
+    expect(result.current.status).toBe("idle");
+    expect(stopTrack).toHaveBeenCalled();
+    expect(recognizeSpeech).not.toHaveBeenCalled();
+    expect(onTranscribed).not.toHaveBeenCalled();
+  });
+
+  it("录音错误时释放轨道并跳过识别", async () => {
+    vi.stubGlobal("MediaRecorder", MockMediaRecorder);
+    const stopTrack = vi.fn();
+    Object.defineProperty(navigator, "mediaDevices", {
+      configurable: true,
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop: stopTrack }] }),
+      },
+    });
+    const onError = vi.fn();
+    const { result } = renderHook(() => useMicrophoneRecorder({ onTranscribed: vi.fn(), onError }));
+    await act(async () => {
+      await result.current.startRecording();
+    });
+    act(() => {
+      MockMediaRecorder.latest.onerror?.(new Event("error"));
+    });
+    expect(result.current.status).toBe("idle");
+    expect(onError).toHaveBeenCalledOnce();
+    expect(stopTrack).toHaveBeenCalled();
+    expect(recognizeSpeech).not.toHaveBeenCalled();
+  });
   it("marks microphone permission startup as busy", async () => {
     vi.stubGlobal("MediaRecorder", MockMediaRecorder);
     const stream = { getTracks: () => [{ stop: vi.fn() }] } as unknown as MediaStream;

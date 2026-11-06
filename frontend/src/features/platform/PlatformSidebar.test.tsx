@@ -26,7 +26,7 @@ function renderSidebar(pathname: PlatformRoute, onNavigate = vi.fn()) {
 }
 
 describe("PlatformSidebar", () => {
-  it("places My Digital Human between My Skills and Conversations", () => {
+  it("places Orion Assistant between My Skills and Conversations", () => {
     expect(navigationItems.map(({ path }) => path)).toEqual([
       platformPaths.market,
       platformPaths.mySkills,
@@ -38,7 +38,7 @@ describe("PlatformSidebar", () => {
   it("selects the digital human item for a conversation route and navigates to its root", () => {
     const onNavigate = renderSidebar(`${platformPaths.digitalHuman}/42`);
     const navigation = screen.getByRole("navigation");
-    const item = within(navigation).getByRole("link", { name: "我的数字人" });
+    const item = within(navigation).getByRole("link", { name: "Orion 助手" });
 
     expect(item).toHaveAttribute("aria-current", "page");
     fireEvent.click(item);

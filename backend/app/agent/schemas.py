@@ -147,6 +147,9 @@ class AgentResponse(BaseModel):
         pattern=r"^[0-9]{1,20}$",
         description="可选的私有图片任务结果 ID。",
     )
+    video_result_id: str | None = Field(
+        default=None, pattern=r"^[0-9]{1,20}$", description="可选的私有视频任务结果 ID。"
+    )
 
     @model_validator(mode="after")
     def validate_result_state(self) -> "AgentResponse":
@@ -155,7 +158,12 @@ class AgentResponse(BaseModel):
         if self.status == "completed":
             if self.answer is None or not self.answer.strip() or self.questions is not None:
                 raise ValueError("completed 结果必须只包含非空 answer。")
-        elif self.answer is not None or self.questions is None or self.image_result_id is not None:
+        elif (
+            self.answer is not None
+            or self.questions is None
+            or self.image_result_id is not None
+            or self.video_result_id is not None
+        ):
             raise ValueError("waiting 结果必须只包含 questions。")
         return self
 

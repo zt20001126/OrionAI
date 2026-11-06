@@ -1,7 +1,7 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { VRM } from "@pixiv/three-vrm";
-import { useThree } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import { Box3, Vector3 } from "three";
 import type { PerspectiveCamera } from "three";
 
@@ -16,6 +16,7 @@ interface VrmAvatarSceneProps {
   enableClickInteraction?: boolean;
   lookTargetRef?: RefObject<VrmLookTarget | null>;
   mouthOpen: number;
+  onFirstFrame: () => void;
   status: DigitalHumanStatus;
   vrm: VRM;
 }
@@ -27,10 +28,25 @@ export function VrmAvatarScene({
   enableClickInteraction = false,
   lookTargetRef,
   mouthOpen,
+  onFirstFrame,
   status,
   vrm,
 }: VrmAvatarSceneProps) {
   const { camera, gl, size } = useThree();
+  const frameReported = useRef(false);
+  const frameRequest = useRef<number | null>(null);
+  useLayoutEffect(
+    () => () => {
+      if (frameRequest.current !== null) cancelAnimationFrame(frameRequest.current);
+    },
+    [],
+  );
+  useFrame(() => {
+    if (!frameReported.current) {
+      frameReported.current = true;
+      frameRequest.current = requestAnimationFrame(onFirstFrame);
+    }
+  });
   const playGesture = useVrmAvatarAnimation(vrm, mouthOpen, status, lookTargetRef);
   useVrmAvatarClickInteraction({
     camera,

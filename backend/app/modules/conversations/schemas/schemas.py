@@ -120,8 +120,23 @@ class ImageResultContentPart(BaseModel):
     image_url: str = Field(description="需要登录后访问的图片接口相对路径。")
 
 
+class VideoResultContentPart(BaseModel):
+    """消息中指向当前用户私有视频结果的稳定引用。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["video_result"]
+    task_result_id: str = Field(pattern=r"^[0-9]{1,20}$")
+    generation_status: Literal["succeeded"]
+    video_url: str
+
+
 MessageContentPart = Annotated[
-    TextContentPart | QuestionContentPart | QuestionAnswersContentPart | ImageResultContentPart,
+    TextContentPart
+    | QuestionContentPart
+    | QuestionAnswersContentPart
+    | ImageResultContentPart
+    | VideoResultContentPart,
     Field(discriminator="type"),
 ]
 

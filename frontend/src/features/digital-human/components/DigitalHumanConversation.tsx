@@ -1,12 +1,14 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { t } from "../../../i18n/localeStore";
 import type {
   ConversationMessage,
+  ImageResultContentPart,
   QuestionAnswersContentPart,
   QuestionContentPart,
+  VideoResultContentPart,
 } from "../../conversations/conversationApi";
 import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/QuestionAnswerCards";
 import { QuestionWizard } from "../../conversations/QuestionWizard";
@@ -36,8 +38,65 @@ function getText(message: ConversationMessage): string {
     .join("\n");
 }
 
+/** 提取消息中的生图结果，供数字人对话气泡展示。 */
+function getImageResults(message: ConversationMessage): ImageResultContentPart[] {
+  return message.content.parts.filter(
+    (part): part is ImageResultContentPart => part.type === "image_result",
+  );
+}
+
+/** 提取视频结果，供数字人对话播放器展示。 */
+function getVideoResults(message: ConversationMessage): VideoResultContentPart[] {
+  return message.content.parts.filter(
+    (part): part is VideoResultContentPart => part.type === "video_result",
+  );
+}
+
+/** 播放当前用户的视频结果；输入视频消息，输出带控制栏的播放器。 */
+function DigitalHumanVideoResult({ part }: { part: VideoResultContentPart }) {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) return <p role="status">{t("生成视频暂时无法播放。")}</p>;
+  return (
+    <video
+      className="digital-human-video-result"
+      controls
+      preload="metadata"
+      aria-label={t("AI 生成的视频")}
+      onError={() => setHasError(true)}
+      src={part.video_url}
+    />
+  );
+}
+
+/** 展示数字人生成的私有图片缩略图，并提供查看原图入口。 */
+function DigitalHumanImageResult({ part }: { part: ImageResultContentPart }) {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) {
+    return (
+      <p className="digital-human-image-result__status" role="status">
+        {t("生成图片暂时无法显示。")}
+      </p>
+    );
+  }
+  return (
+    <figure className="digital-human-image-result">
+      <a
+        aria-label={t("查看生成图片原图")}
+        href={part.image_url}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <img alt={t("AI 生成的图片")} onError={() => setHasError(true)} src={part.image_url} />
+      </a>
+    </figure>
+  );
+}
+
 /** 判断持久化历史是否已包含当前临时用户消息，避免刷新交界时重复显示；调用方：数字人消息列表。 */
-function hasPersistedPendingMessage(messages: ConversationMessage[], pendingMessage: string): boolean {
+function hasPersistedPendingMessage(
+  messages: ConversationMessage[],
+  pendingMessage: string,
+): boolean {
   return messages.some(
     (message) => message.role === "user" && getText(message).trim() === pendingMessage.trim(),
   );
@@ -93,6 +152,8 @@ export function DigitalHumanConversation({
     >
       {messages.map((message, index) => {
         const text = getText(message);
+        const imageResults = getImageResults(message);
+        const videoResults = getVideoResults(message);
         const questionPart = getQuestionPart(message);
         const questionAnswersPart = getQuestionAnswersPart(message);
         const isPendingQuestion = pendingQuestionMessageId === message.id;
@@ -102,7 +163,14 @@ export function DigitalHumanConversation({
           nextMessage?.role === "user" &&
           (getQuestionAnswersPart(nextMessage) !== null ||
             getText(nextMessage).startsWith("用户已提交以下选择："));
-        if (!text && !questionPart && !questionAnswersPart) return null;
+        if (
+          !text &&
+          imageResults.length === 0 &&
+          videoResults.length === 0 &&
+          !questionPart &&
+          !questionAnswersPart
+        )
+          return null;
         return (
           <article
             className={`digital-human-message digital-human-message--${message.role}${questionPart ? " digital-human-message--question" : ""}${questionAnswersPart ? " digital-human-message--question-answers" : ""}`}
@@ -113,6 +181,12 @@ export function DigitalHumanConversation({
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
               </div>
             )}
+            {imageResults.map((part) => (
+              <DigitalHumanImageResult key={part.task_result_id} part={part} />
+            ))}
+            {videoResults.map((part) => (
+              <DigitalHumanVideoResult key={part.task_result_id} part={part} />
+            ))}
             {questionAnswersPart && <QuestionAnswerCard items={questionAnswersPart.items} />}
             {questionPart && isPendingQuestion && (
               <QuestionWizard

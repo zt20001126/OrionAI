@@ -12,6 +12,9 @@ const BLINK_DURATION_SECONDS = 0.18;
 const BLINK_MIN_INTERVAL_SECONDS = 2.8;
 const BLINK_INTERVAL_VARIANCE_SECONDS = 2.6;
 const BLINK_BLEND_SPEED = 32;
+const IDLE_BLINK_MIN_INTERVAL_SECONDS = 2.2;
+const IDLE_BLINK_INTERVAL_VARIANCE_SECONDS = 2.1;
+const IDLE_BLINK_BLEND_SPEED = 48;
 const ARM_RELAX_ANGLE = 1.25;
 const SHOULDER_RELAX_SHARE = 0.12;
 // Orion 的 normalized 肘骨绕局部 Z 轴才会在正面形成屈肘；Y 轴主要让前臂转向深度方向。
@@ -22,31 +25,42 @@ const RIGHT_WRIST_FLEX_ANGLE = 0.06;
 const POSE_BLEND_SPEED = 4;
 const CHEST_BREATHING_AMPLITUDE = 0.022;
 const CHEST_BREATHING_FREQUENCY = 0.9;
-const IDLE_HEAD_PITCH_AMPLITUDE = 0.06;
-const IDLE_HEAD_YAW_AMPLITUDE = 0.045;
-const IDLE_HEAD_TILT_AMPLITUDE = 0.06;
-const IDLE_HEAD_PITCH_FREQUENCY = 0.45;
-const IDLE_HEAD_YAW_FREQUENCY = 0.24;
-const IDLE_HEAD_TILT_FREQUENCY = 0.3;
+const IDLE_CHEST_BREATHING_AMPLITUDE = 0.035;
+const IDLE_CHEST_BREATHING_FREQUENCY = 1.15;
+const IDLE_HEAD_PITCH_AMPLITUDE = 0.085;
+const IDLE_HEAD_YAW_AMPLITUDE = 0.07;
+const IDLE_HEAD_TILT_AMPLITUDE = 0.085;
+const IDLE_HEAD_PITCH_FREQUENCY = 0.6;
+const IDLE_HEAD_YAW_FREQUENCY = 0.34;
+const IDLE_HEAD_TILT_FREQUENCY = 0.42;
 const NECK_MOTION_SHARE = 0.24;
 const POINTER_HEAD_PITCH_AMPLITUDE = 0.34;
 const POINTER_HEAD_YAW_AMPLITUDE = 0.62;
-const IDLE_SHOULDER_SWAY_AMPLITUDE = 0.01;
-const IDLE_SHOULDER_SWAY_FREQUENCY = 0.42;
-const IDLE_SHOULDER_BREATHING_AMPLITUDE = 0.012;
-const IDLE_ARM_SWAY_AMPLITUDE = 0.008;
-const IDLE_ARM_SWAY_FREQUENCY = 0.32;
+const IDLE_SHOULDER_SWAY_AMPLITUDE = 0.018;
+const IDLE_SHOULDER_SWAY_FREQUENCY = 0.55;
+const IDLE_SHOULDER_BREATHING_AMPLITUDE = 0.019;
+const IDLE_ARM_SWAY_AMPLITUDE = 0.018;
+const IDLE_ARM_SWAY_FREQUENCY = 0.45;
 const IDLE_ARM_SWAY_PHASE = 0.7;
 const IDLE_RIGHT_ARM_SWAY_PHASE = 2.5;
-const WEIGHT_SHIFT_MAX_ANGLE = 0.022;
-const WEIGHT_SHIFT_START_MIN_SECONDS = 5;
-const WEIGHT_SHIFT_START_MAX_SECONDS = 9;
-const WEIGHT_SHIFT_DURATION_MIN_SECONDS = 3.2;
-const WEIGHT_SHIFT_DURATION_MAX_SECONDS = 4.4;
-const WEIGHT_SHIFT_REST_MIN_SECONDS = 6;
-const WEIGHT_SHIFT_REST_MAX_SECONDS = 10;
+const WEIGHT_SHIFT_MAX_ANGLE = 0.038;
+const WEIGHT_SHIFT_START_MIN_SECONDS = 3.5;
+const WEIGHT_SHIFT_START_MAX_SECONDS = 6;
+const WEIGHT_SHIFT_DURATION_MIN_SECONDS = 2.8;
+const WEIGHT_SHIFT_DURATION_MAX_SECONDS = 3.8;
+const WEIGHT_SHIFT_REST_MIN_SECONDS = 4;
+const WEIGHT_SHIFT_REST_MAX_SECONDS = 7;
 const WEIGHT_SHIFT_RESUME_DELAY_SECONDS = 2.5;
 const SPINE_COUNTER_SHIFT_SHARE = 0.42;
+const IDLE_JUMP_WAIT_MIN_SECONDS = 10;
+const IDLE_JUMP_WAIT_MAX_SECONDS = 30;
+const IDLE_JUMP_PREPARE_SECONDS = 0.25;
+const IDLE_JUMP_FLIGHT_SECONDS = 0.7;
+const IDLE_JUMP_RECOVER_SECONDS = 0.4;
+const IDLE_JUMP_HEIGHT = 0.1;
+const IDLE_JUMP_THIGH_ANGLE = 0.14;
+const IDLE_JUMP_KNEE_ANGLE = 0.28;
+const IDLE_JUMP_ARM_ANGLE = 0.12;
 const LISTENING_HEAD_PITCH_AMPLITUDE = 0.22;
 const LISTENING_HEAD_TILT = 0.11;
 const LISTENING_HEAD_PITCH_FREQUENCY = 1.25;
@@ -120,18 +134,28 @@ interface WeightShiftState {
   waiting: number;
 }
 
+interface IdleJumpState {
+  elapsed: number | null;
+  waiting: number;
+}
+
 interface BreathingRig {
+  scene: Object3D;
   chest: PoseBone | null;
   fingers: FingerPose[];
   head: PoseBone | null;
   hips: PoseBone | null;
   leftHand: PoseBone | null;
   leftLowerArm: PoseBone | null;
+  leftUpperLeg: PoseBone | null;
+  leftLowerLeg: PoseBone | null;
   leftShoulder: PoseBone | null;
   leftUpperArm: PoseBone | null;
   neck: PoseBone | null;
   rightHand: PoseBone | null;
   rightLowerArm: PoseBone | null;
+  rightUpperLeg: PoseBone | null;
+  rightLowerLeg: PoseBone | null;
   rightShoulder: PoseBone | null;
   rightUpperArm: PoseBone | null;
   spine: PoseBone | null;
@@ -153,6 +177,8 @@ interface BreathingRig {
   smoothedLeftWristFlex: number;
   smoothedRightWristFlex: number;
   weightShift: WeightShiftState;
+  jump: IdleJumpState;
+  baseSceneY: number;
   scratchBlendedQuaternion: Quaternion;
   scratchEuler: Euler;
   scratchGestureEuler: Euler;
@@ -279,7 +305,10 @@ export function useVrmAvatarAnimation(
   status: DigitalHumanStatus,
   lookTargetRef?: RefObject<VrmLookTarget | null>,
 ): VrmAvatarGesturePlayer {
-  const blinkState = useRef<BlinkState>({ elapsed: 0, waiting: randomBlinkInterval() });
+  const blinkState = useRef<BlinkState>({
+    elapsed: 0,
+    waiting: randomBlinkInterval(status === "idle"),
+  });
   const smoothedBlink = useRef(0);
   const prefersReducedMotion = useRef(false);
   const breathingRig = useRef<BreathingRig | null>(null);
@@ -289,7 +318,7 @@ export function useVrmAvatarAnimation(
   const nextHeadTiltDirection = useRef<1 | -1>(1);
 
   const playGesture = useCallback<VrmAvatarGesturePlayer>((kind) => {
-    if (gestureState.current) return false;
+    if (gestureState.current || breathingRig.current?.jump.elapsed != null) return false;
 
     const direction = kind === "headTilt" ? nextHeadTiltDirection.current : 1;
     if (kind === "headTilt") nextHeadTiltDirection.current *= -1;
@@ -303,6 +332,7 @@ export function useVrmAvatarAnimation(
 
     return () => {
       restoreBreathingRig(rig);
+      rig.scene.position.y = rig.baseSceneY;
       if (breathingRig.current === rig) breathingRig.current = null;
     };
   }, [vrm]);
@@ -349,9 +379,10 @@ export function useVrmAvatarAnimation(
 
     const manager = vrm.expressionManager;
     const motionEnabled = !prefersReducedMotion.current;
-    const blinkAmount = nextBlinkAmount(blinkState.current, delta);
+    const blinkAmount = nextBlinkAmount(blinkState.current, delta, status === "idle");
     const blinkTarget = motionEnabled ? blinkAmount : 0;
-    const blinkBlend = 1 - Math.exp(-BLINK_BLEND_SPEED * delta);
+    const blinkBlendSpeed = status === "idle" ? IDLE_BLINK_BLEND_SPEED : BLINK_BLEND_SPEED;
+    const blinkBlend = 1 - Math.exp(-blinkBlendSpeed * delta);
     smoothedBlink.current += (blinkTarget - smoothedBlink.current) * blinkBlend;
 
     if (manager?.getExpression(VRMExpressionPresetName.Blink)) {
@@ -391,6 +422,13 @@ export function useVrmAvatarAnimation(
       return;
     }
 
+    const jump = nextIdleJump(rig.jump, delta, motionEnabled, status === "idle" && !activeGesture);
+    rig.scene.position.y = rig.baseSceneY + jump.height;
+    applyBoneRotation(rig.leftUpperLeg, -jump.bend * IDLE_JUMP_THIGH_ANGLE, 0, 0, rig);
+    applyBoneRotation(rig.rightUpperLeg, -jump.bend * IDLE_JUMP_THIGH_ANGLE, 0, 0, rig);
+    applyBoneRotation(rig.leftLowerLeg, jump.bend * IDLE_JUMP_KNEE_ANGLE, 0, 0, rig);
+    applyBoneRotation(rig.rightLowerLeg, jump.bend * IDLE_JUMP_KNEE_ANGLE, 0, 0, rig);
+
     rig.elapsed += delta;
     const weightShiftTarget = nextWeightShiftAmount(
       rig.weightShift,
@@ -410,8 +448,13 @@ export function useVrmAvatarAnimation(
     );
     statusTargets.headPitch += pointerLook.pitch;
     statusTargets.headYaw += pointerLook.yaw;
+    // 待机时加强呼吸，其余状态保留原有节奏，避免影响说话和倾听表现。
+    const breathingFrequency =
+      status === "idle" ? IDLE_CHEST_BREATHING_FREQUENCY : CHEST_BREATHING_FREQUENCY;
+    const breathingAmplitude =
+      status === "idle" ? IDLE_CHEST_BREATHING_AMPLITUDE : CHEST_BREATHING_AMPLITUDE;
     const breathingTarget = motionEnabled
-      ? Math.sin(rig.elapsed * CHEST_BREATHING_FREQUENCY) * CHEST_BREATHING_AMPLITUDE
+      ? Math.sin(rig.elapsed * breathingFrequency) * breathingAmplitude
       : 0;
     const blend = 1 - Math.exp(-POSE_BLEND_SPEED * delta);
 
@@ -541,7 +584,7 @@ export function useVrmAvatarAnimation(
       rig.leftUpperArm,
       0,
       0,
-      upperArmRelax + rig.smoothedArmSway,
+      upperArmRelax + rig.smoothedArmSway - jump.bend * IDLE_JUMP_ARM_ANGLE,
       0,
       0,
       clampGestureAngle(
@@ -555,7 +598,9 @@ export function useVrmAvatarAnimation(
       rig.rightUpperArm,
       0,
       0,
-      -(upperArmRelax + rig.smoothedRightArmSway) + speakingGesture,
+      -(upperArmRelax + rig.smoothedRightArmSway) +
+        speakingGesture +
+        jump.bend * IDLE_JUMP_ARM_ANGLE,
       0,
       0,
       clampGestureAngle(
@@ -704,7 +749,7 @@ export function getIdleMotionTargets(
       Math.sin(elapsed * IDLE_ARM_SWAY_FREQUENCY + IDLE_RIGHT_ARM_SWAY_PHASE) *
       IDLE_ARM_SWAY_AMPLITUDE,
     shoulderBreathing:
-      Math.sin(elapsed * CHEST_BREATHING_FREQUENCY) * IDLE_SHOULDER_BREATHING_AMPLITUDE,
+      Math.sin(elapsed * IDLE_CHEST_BREATHING_FREQUENCY) * IDLE_SHOULDER_BREATHING_AMPLITUDE,
     shoulderSway: Math.sin(elapsed * IDLE_SHOULDER_SWAY_FREQUENCY) * IDLE_SHOULDER_SWAY_AMPLITUDE,
     weightShift,
   };
@@ -818,17 +863,22 @@ function createBreathingRig(vrm: VRM): BreathingRig {
   }
 
   return {
+    scene: vrm.scene,
     chest: getPoseBone(vrm, "upperChest") ?? getPoseBone(vrm, "chest"),
     fingers,
     head: getPoseBone(vrm, "head"),
     hips: getPoseBone(vrm, "hips"),
     leftHand: getPoseBone(vrm, "leftHand"),
     leftLowerArm: getPoseBone(vrm, "leftLowerArm"),
+    leftUpperLeg: getPoseBone(vrm, "leftUpperLeg"),
+    leftLowerLeg: getPoseBone(vrm, "leftLowerLeg"),
     leftShoulder: getPoseBone(vrm, "leftShoulder"),
     leftUpperArm: getPoseBone(vrm, "leftUpperArm"),
     neck: getPoseBone(vrm, "neck"),
     rightHand: getPoseBone(vrm, "rightHand"),
     rightLowerArm: getPoseBone(vrm, "rightLowerArm"),
+    rightUpperLeg: getPoseBone(vrm, "rightUpperLeg"),
+    rightLowerLeg: getPoseBone(vrm, "rightLowerLeg"),
     rightShoulder: getPoseBone(vrm, "rightShoulder"),
     rightUpperArm: getPoseBone(vrm, "rightUpperArm"),
     spine: getPoseBone(vrm, "spine"),
@@ -850,6 +900,11 @@ function createBreathingRig(vrm: VRM): BreathingRig {
     smoothedLeftWristFlex: 0,
     smoothedRightWristFlex: 0,
     weightShift: createWeightShiftState(),
+    jump: {
+      elapsed: null,
+      waiting: randomBetween(IDLE_JUMP_WAIT_MIN_SECONDS, IDLE_JUMP_WAIT_MAX_SECONDS),
+    },
+    baseSceneY: vrm.scene.position.y,
     scratchBlendedQuaternion: new Quaternion(),
     scratchEuler: new Euler(0, 0, 0, "XYZ"),
     scratchGestureEuler: new Euler(0, 0, 0, "XYZ"),
@@ -910,11 +965,15 @@ function restoreBreathingRig(rig: BreathingRig): void {
     rig.hips,
     rig.leftHand,
     rig.leftLowerArm,
+    rig.leftUpperLeg,
+    rig.leftLowerLeg,
     rig.leftShoulder,
     rig.leftUpperArm,
     rig.neck,
     rig.rightHand,
     rig.rightLowerArm,
+    rig.rightUpperLeg,
+    rig.rightLowerLeg,
     rig.rightShoulder,
     rig.rightUpperArm,
     rig.spine,
@@ -931,6 +990,55 @@ function createWeightShiftState(): WeightShiftState {
     duration: 0,
     elapsed: 0,
     waiting: randomBetween(WEIGHT_SHIFT_START_MIN_SECONDS, WEIGHT_SHIFT_START_MAX_SECONDS),
+  };
+}
+
+/** 推进低频待机跳跃；输入帧间隔及播放条件，输出离地高度和屈膝比例；供动画帧调用。 */
+function nextIdleJump(
+  jump: IdleJumpState,
+  delta: number,
+  motionEnabled: boolean,
+  canStart: boolean,
+): { height: number; bend: number } {
+  if (!motionEnabled) {
+    if (jump.elapsed !== null) {
+      jump.elapsed = null;
+      jump.waiting = randomBetween(IDLE_JUMP_WAIT_MIN_SECONDS, IDLE_JUMP_WAIT_MAX_SECONDS);
+    }
+    return { height: 0, bend: 0 };
+  }
+
+  if (jump.elapsed === null) {
+    if (!canStart) return { height: 0, bend: 0 };
+    jump.waiting -= delta;
+    if (jump.waiting > 0) return { height: 0, bend: 0 };
+    jump.elapsed = 0;
+  }
+
+  // 已起跳时完成落地，避免对话状态变化导致人物瞬间回到地面。
+  jump.elapsed += delta;
+  const flightStart = IDLE_JUMP_PREPARE_SECONDS;
+  const flightEnd = flightStart + IDLE_JUMP_FLIGHT_SECONDS;
+  const end = flightEnd + IDLE_JUMP_RECOVER_SECONDS;
+  if (jump.elapsed >= end) {
+    jump.elapsed = null;
+    jump.waiting = randomBetween(IDLE_JUMP_WAIT_MIN_SECONDS, IDLE_JUMP_WAIT_MAX_SECONDS);
+    return { height: 0, bend: 0 };
+  }
+
+  if (jump.elapsed < flightStart) {
+    return { height: 0, bend: smoothStep(jump.elapsed / flightStart) };
+  }
+  if (jump.elapsed < flightEnd) {
+    const progress = (jump.elapsed - flightStart) / IDLE_JUMP_FLIGHT_SECONDS;
+    return {
+      height: IDLE_JUMP_HEIGHT * 4 * progress * (1 - progress),
+      bend: 1 - 0.65 * Math.sin(Math.PI * progress),
+    };
+  }
+  return {
+    height: 0,
+    bend: 1 - smoothStep((jump.elapsed - flightEnd) / IDLE_JUMP_RECOVER_SECONDS),
   };
 }
 
@@ -969,7 +1077,7 @@ function nextWeightShiftAmount(
   return shift.direction * WEIGHT_SHIFT_MAX_ANGLE * Math.sin(Math.PI * smoothStep(progress));
 }
 
-function nextBlinkAmount(blink: BlinkState, delta: number): number {
+function nextBlinkAmount(blink: BlinkState, delta: number, isIdle: boolean): number {
   if (blink.waiting > 0) {
     const waitBeforeFrame = blink.waiting;
     blink.waiting = Math.max(0, blink.waiting - delta);
@@ -981,15 +1089,17 @@ function nextBlinkAmount(blink: BlinkState, delta: number): number {
 
   if (blink.elapsed >= BLINK_DURATION_SECONDS) {
     blink.elapsed = 0;
-    blink.waiting = randomBlinkInterval();
+    blink.waiting = randomBlinkInterval(isIdle);
     return 0;
   }
 
   return Math.sin((blink.elapsed / BLINK_DURATION_SECONDS) * Math.PI);
 }
 
-function randomBlinkInterval(): number {
-  return BLINK_MIN_INTERVAL_SECONDS + Math.random() * BLINK_INTERVAL_VARIANCE_SECONDS;
+function randomBlinkInterval(isIdle: boolean): number {
+  return isIdle
+    ? IDLE_BLINK_MIN_INTERVAL_SECONDS + Math.random() * IDLE_BLINK_INTERVAL_VARIANCE_SECONDS
+    : BLINK_MIN_INTERVAL_SECONDS + Math.random() * BLINK_INTERVAL_VARIANCE_SECONDS;
 }
 
 function randomBetween(minimum: number, maximum: number): number {

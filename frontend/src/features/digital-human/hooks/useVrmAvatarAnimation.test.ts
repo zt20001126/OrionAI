@@ -54,11 +54,11 @@ describe("getStatusMotionTargets", () => {
   });
 
   it("adds visible idle head motion", () => {
-    const motion = getStatusMotionTargets("idle", Math.PI / 0.9, true);
+    const motion = getStatusMotionTargets("idle", Math.PI / 1.2, true);
 
-    expect(motion.headPitch).toBeCloseTo(0.06);
-    expect(motion.headTilt).toBeCloseTo(Math.sin((Math.PI / 0.9) * 0.3) * 0.06);
-    expect(motion.headYaw).toBeCloseTo(Math.sin((Math.PI / 0.9) * 0.24) * 0.045);
+    expect(motion.headPitch).toBeCloseTo(0.085);
+    expect(motion.headTilt).toBeCloseTo(Math.sin((Math.PI / 1.2) * 0.42) * 0.085);
+    expect(motion.headYaw).toBeCloseTo(Math.sin((Math.PI / 1.2) * 0.34) * 0.07);
   });
 
   it("disables body motion when reduced motion is requested", () => {
@@ -73,11 +73,11 @@ describe("getStatusMotionTargets", () => {
   it("keeps idle arm sway subtle and includes the occasional weight shift", () => {
     const motion = getIdleMotionTargets(1, 0.02, true);
 
-    expect(Math.abs(motion.armSway)).toBeLessThanOrEqual(0.008);
-    expect(Math.abs(motion.rightArmSway)).toBeLessThanOrEqual(0.008);
+    expect(Math.abs(motion.armSway)).toBeLessThanOrEqual(0.018);
+    expect(Math.abs(motion.rightArmSway)).toBeLessThanOrEqual(0.018);
     expect(motion.armSway).not.toBeCloseTo(motion.rightArmSway, 3);
-    expect(Math.abs(motion.shoulderSway)).toBeLessThanOrEqual(0.01);
-    expect(Math.abs(motion.shoulderBreathing)).toBeLessThanOrEqual(0.012);
+    expect(Math.abs(motion.shoulderSway)).toBeLessThanOrEqual(0.018);
+    expect(Math.abs(motion.shoulderBreathing)).toBeLessThanOrEqual(0.019);
     expect(motion.weightShift).toBe(0.02);
   });
 
