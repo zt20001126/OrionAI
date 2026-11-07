@@ -1,5 +1,6 @@
 """构造数字人模块独立的输入、模型、工具和输出 LangGraph。"""
 
+from collections.abc import Callable
 from typing import Literal
 
 from langchain_core.language_models import BaseChatModel
@@ -37,8 +38,10 @@ from app.modules.digital_human.agent.tools.reminder import (
     get_reminder,
     list_reminders,
 )
+from app.modules.digital_human.agent.tools.resume import create_resume_tools
 from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
 from app.modules.digital_human.agent.tools.weather import get_current_weather
+from app.modules.resume.schemas import ResumeResponse, ResumeSaveRequest
 
 DIGITAL_HUMAN_AGENT_CODE = "digital_human"
 MAX_INPUT_CHARS = 20_000
@@ -94,26 +97,29 @@ def _route_after_tools(state: DigitalHumanState) -> Literal["agent_node", "pause
 def create_digital_human_graph(
     *,
     chat_model: BaseChatModel,
+    resume_reader: Callable[[int], ResumeResponse] | None = None,
+    resume_writer: Callable[[int, ResumeSaveRequest], ResumeResponse] | None = None,
     checkpointer: BaseCheckpointSaver[object] | None = None,
 ) -> CompiledStateGraph[DigitalHumanState, object, object, object]:
-    """用专属身份编排共享节点；输入为模型和检查点，输出为数字人独立图，供 Runtime 调用。"""
+    """组装数字人图和可选简历工具；由数字人 Runtime 调用。"""
 
-    tool_registry = ToolRegistry(
-        [
-            ask_user_questions,
-            get_current_date,
-            get_current_weather,
-            generate_image,
-            generate_video,
-            get_stock_quote,
-            get_index_quote,
-            prepare_email,
-            create_reminder,
-            list_reminders,
-            get_reminder,
-            get_news,
-        ]
-    )
+    tools = [
+        ask_user_questions,
+        get_current_date,
+        get_current_weather,
+        generate_image,
+        generate_video,
+        get_stock_quote,
+        get_index_quote,
+        prepare_email,
+        create_reminder,
+        list_reminders,
+        get_reminder,
+        get_news,
+    ]
+    if resume_reader is not None and resume_writer is not None:
+        tools.extend(create_resume_tools(resume_reader, resume_writer))
+    tool_registry = ToolRegistry(tools)
     config = BaseAgentConfig(
         system_prompt=load_digital_human_prompt(tool_registry.names),
         agent=DIGITAL_HUMAN_AGENT_CODE,

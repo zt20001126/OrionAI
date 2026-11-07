@@ -37,6 +37,7 @@ from app.modules.payment.errors import PaymentError
 from app.modules.reminders.errors import ReminderError
 from app.modules.resume.dependencies import get_resume_photo_storage
 from app.modules.resume.errors import ResumeError
+from app.modules.resume.schemas import ResumeResponse, ResumeSaveRequest
 from app.modules.resume.service import ResumeApplicationService
 from app.modules.skills.errors import SkillsError
 from app.modules.skills.repository import (
@@ -87,10 +88,6 @@ def create_agent_lifespan(
                 chat_model=chat_model,
                 checkpointer=checkpointer,
             )
-            digital_human_agent = DigitalHumanRuntime(
-                chat_model=chat_model,
-                checkpointer=checkpointer,
-            )
             image_agent = ImageAgent(
                 settings=settings,
                 chat_model=chat_model,
@@ -116,6 +113,32 @@ def create_agent_lifespan(
                         session, photo_storage=get_resume_photo_storage(settings)
                     )
                     return service.apply_optimization(user_id, candidate)
+
+            def read_digital_human_resume(user_id: int) -> ResumeResponse:
+                """读取数字人当前用户的完整简历；调用方：数字人简历查询工具。"""
+                with SessionLocal() as session:
+                    service = ResumeApplicationService(
+                        session, photo_storage=get_resume_photo_storage(settings)
+                    )
+                    return service.get_resume(user_id)
+
+            def save_digital_human_resume(
+                user_id: int,
+                payload: ResumeSaveRequest,
+            ) -> ResumeResponse:
+                """保存经用户确认的简历；调用方：数字人确认节点。"""
+                with SessionLocal() as session:
+                    service = ResumeApplicationService(
+                        session, photo_storage=get_resume_photo_storage(settings)
+                    )
+                    return service.save_resume(user_id, payload)
+
+            digital_human_agent = DigitalHumanRuntime(
+                chat_model=chat_model,
+                resume_reader=read_digital_human_resume,
+                resume_writer=save_digital_human_resume,
+                checkpointer=checkpointer,
+            )
 
             resume_agent = ResumeAgent(
                 chat_model=chat_model,

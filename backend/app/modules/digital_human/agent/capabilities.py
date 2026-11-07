@@ -38,6 +38,19 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "未查完所有页面时不得声称没有匹配。只根据工具结果回答，不泄露或猜测其他用户数据。",
     ),
     DigitalHumanCapability(
+        "查询和修改简历",
+        "查询当前用户简历，并按用户要求整理修改内容后经确认保存",
+        frozenset({"get_resume", "save_resume", "ask_user_questions"}),
+        "查询简历时调用 get_resume，并只依据工具返回内容作答；exists 为 false 表示返回的是"
+        "尚未保存的示例简历。修改简历前先读取本轮最新简历；"
+        "仅根据用户提供的信息修改，不编造经历、时间、学历、成绩或技能。完整保留用户未要求"
+        "修改的字段、条目 ID 和排版设置。整理出完整 save_resume 参数后调用该工具，"
+        "调用前先用 ask_user_questions 展示具体变更并等待用户确认。只有用户在题卡中明确选择"
+        "“确认并保存”后才能调用 save_resume；继续修改、取消或暂不处理都不得调用。"
+        "保存工具结果没有表明已保存时，"
+        "不得声称保存成功。若版本冲突，重新读取并合并后再次展示确认内容。",
+    ),
+    DigitalHumanCapability(
         "互动提问", "使用题卡收集选择或文字输入", frozenset({"ask_user_questions"})
     ),
     DigitalHumanCapability(
