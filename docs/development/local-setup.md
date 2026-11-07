@@ -9,6 +9,7 @@
 - Compose 要求非空的 DeepSeek、百炼和 TokenHub 配置（具体变量参见 README）；实际模型调用还需要有效凭据。SMTP 和 `AUTH_CODE_PEPPER` 支持认证、邮件提醒及反馈；OSS 支持头像、生成媒体和训练图片。相关凭据缺失会使对应功能不可用。
 - 会员支付仅支持 Stripe Sandbox；设置 `STRIPE_SECRET_KEY`、`STRIPE_WEBHOOK_SECRET` 和前端返回地址后，还需让 Stripe Webhook 到达 `/api/payments/stripe/webhook`。GNews 功能使用 `GNEWS_API_KEY`；数字人文献查询使用 `OPENALEX_API_KEY`。OpenAlex 请求超时、重试和数量上限由数字人文献工具代码常量控制。语音及数字人生图、视频的模型和限额见配置代码。
 - Compose 的 `environment` 明确列出了传入容器的变量；`.env.example` 中的其他变量不一定自动传入容器。需要覆盖时应检查或调整服务配置。
+- Gitee 登录需在 `.env` 配置 `GITEE_CLIENT_ID`、`GITEE_CLIENT_SECRET` 和 `GITEE_REDIRECT_URI`。本地回调使用 `http://localhost:8000/api/v1/auth/gitee/callback`，生产环境设置为 `https://orionaihub.ltd/api/v1/auth/gitee/callback`；Gitee 应用只申请 `user_info` 权限。`AUTH_FRONTEND_BASE_URL` 用于回调后的前端跳转，本地默认为 `http://localhost:5173`，生产环境应设为 `https://orionaihub.ltd`。运行 `alembic upgrade head` 创建 OAuth 身份关联表；未配置 Gitee 凭据时邮箱和访客认证照常可用，Gitee 入口会提示服务暂不可用。
 
 ## 后台任务
 

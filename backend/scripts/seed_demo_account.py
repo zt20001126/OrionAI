@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.infrastructure.database.session import SessionLocal  # noqa: E402
 from app.infrastructure.redis.client import create_redis_client  # noqa: E402
 from app.modules.auth.models import User  # noqa: E402
-from app.modules.auth.service import hash_password, verify_password  # noqa: E402
+from app.modules.auth.services.auth import hash_password, verify_password  # noqa: E402
 from app.modules.membership.access_cache import MembershipAccessCache  # noqa: E402
 from app.modules.membership.constants import (  # noqa: E402
     MembershipOrderStatus,

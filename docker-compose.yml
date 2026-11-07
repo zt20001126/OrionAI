@@ -32,6 +32,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: "[\"http://localhost:${FRONTEND_PORT:-5173}\"]"
       AUTH_CODE_PEPPER: ${AUTH_CODE_PEPPER:-}
+      GITEE_CLIENT_ID: ${GITEE_CLIENT_ID:-}
+      GITEE_CLIENT_SECRET: ${GITEE_CLIENT_SECRET:-}
+      GITEE_REDIRECT_URI: ${GITEE_REDIRECT_URI:-http://localhost:8000/api/v1/auth/gitee/callback}
+      AUTH_FRONTEND_BASE_URL: ${AUTH_FRONTEND_BASE_URL:-http://localhost:5173}
       GNEWS_API_KEY: ${GNEWS_API_KEY:-}
       OPENALEX_API_KEY: ${OPENALEX_API_KEY:-}
       ALIYUN_OSS_ACCESS_KEY_ID: ${ALIYUN_OSS_ACCESS_KEY_ID:-}

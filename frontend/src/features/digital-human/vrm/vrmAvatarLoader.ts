@@ -5,12 +5,11 @@ import type { VRM } from "@pixiv/three-vrm";
 
 export const VRM_MODEL_URL = "/models/orion.vrm";
 
-/** 读取并准备一个 VRM 资源；原始文件只读，不会被改写。 */
-export async function loadVrmAvatar(
+/** 下载 VRM 文件字节；调用方可在多个独立场景解析同一份缓存数据。 */
+export async function downloadVrmAvatar(
   signal: AbortSignal,
   onProgress: (progress: number | null) => void,
-  onInitializing: () => void,
-): Promise<VRM> {
+): Promise<ArrayBuffer> {
   const response = await fetch(VRM_MODEL_URL, { signal });
   if (!response.ok) throw new Error("数字人模型暂时无法加载。");
 
@@ -40,12 +39,21 @@ export async function loadVrmAvatar(
   } else {
     modelData = await response.arrayBuffer();
   }
-  onInitializing();
   signal.throwIfAborted();
+
+  return modelData;
+}
+
+/** 从共享文件数据创建独立 VRM 场景，供不同 Canvas 安全呈现。 */
+export async function parseVrmAvatar(
+  modelData: ArrayBuffer,
+  onInitializing: () => void,
+): Promise<VRM> {
+  onInitializing();
 
   const loader = new GLTFLoader();
   loader.register((parser) => new VRMLoaderPlugin(parser));
-  const gltf = await parseModel(loader, modelData);
+  const gltf = await parseModel(loader, modelData.slice(0));
 
   const vrm = gltf.userData.vrm as VRM | undefined;
   if (!vrm) {
@@ -54,7 +62,6 @@ export async function loadVrmAvatar(
   }
 
   try {
-    signal.throwIfAborted();
     // VRM 0.0 的正面方向与 Three.js 场景约定相反；VRM 1.0 已由加载器按规范处理。
     if (vrm.meta.metaVersion === "0") VRMUtils.rotateVRM0(vrm);
     VRMUtils.removeUnnecessaryVertices(gltf.scene);

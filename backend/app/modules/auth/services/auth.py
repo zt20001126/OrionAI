@@ -17,7 +17,6 @@ from app.infrastructure.redis.auth_state import (
     PASSWORD_CHANGE_CODE_TTL_SECONDS,
     AuthSession,
 )
-from app.modules.auth import repository
 from app.modules.auth.errors import (
     AccountExistsError,
     AuthUnavailableError,
@@ -26,7 +25,8 @@ from app.modules.auth.errors import (
     PasswordPolicyError,
     RateLimitError,
 )
-from app.modules.auth.models import User
+from app.modules.auth.models.user import User
+from app.modules.auth.repositories import users as repository
 
 SCRYPT_N = 2**15
 SCRYPT_R = 8
@@ -214,9 +214,11 @@ class AuthService:
                 user = self._get_user_by_id(auth_session.user_id)
                 if (
                     user is None
-                    or not user.is_guest
                     or user.password_hash is not None
                     or auth_session.password_fingerprint is not None
+                    or user.account is not None
+                    or (user.is_guest and user.gitee_id is not None)
+                    or (not user.is_guest and user.gitee_id is None)
                 ):
                     self._state_store.delete_session(token_digest)
                     return None
@@ -236,6 +238,9 @@ class AuthService:
                 return None
             return user
         except RedisError as error:
+            raise AuthUnavailableError from error
+        except SQLAlchemyError as error:
+            self._session.rollback()
             raise AuthUnavailableError from error
 
     def get_session_account(self, token: str | None) -> str | None:
@@ -335,8 +340,12 @@ class AuthService:
             raise AuthUnavailableError from error
 
     def _create_session(self, user: User) -> str:
+        """签发 Redis Cookie 会话。
+
+        输入：持久化用户；输出：原始令牌；调用方：认证及 OAuth Service。
+        """
         token = secrets.token_urlsafe(32)
-        if user.is_guest:
+        if user.is_guest or (user.account is None and user.gitee_id is not None):
             session = AuthSession(user_id=user.id)
         else:
             if user.account is None or user.password_hash is None:
@@ -354,3 +363,7 @@ class AuthService:
         except RedisError as error:
             raise AuthUnavailableError from error
         return token
+
+    def create_session(self, user: User) -> str:
+        """为已识别用户签发现有会话；输入：持久化用户；输出：原始令牌；调用方：OAuth Service。"""
+        return self._create_session(user)

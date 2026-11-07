@@ -14,6 +14,9 @@ vi.mock("./authApi", async (importOriginal) => {
     register: vi.fn(),
   };
 });
+vi.mock("../digital-human/components/DigitalHumanAvatar3D", () => ({
+  DigitalHumanAvatar3D: () => <div data-testid="auth-avatar" />,
+}));
 
 afterEach(() => {
   cleanup();
@@ -21,13 +24,61 @@ afterEach(() => {
 });
 
 describe("AuthPage", () => {
-  it("shows the demo account dialog on login without an inline notice", () => {
+  it("keeps the demo account hidden until the product logo is clicked", () => {
     render(
       <ToastProvider>
         <AuthPage onAuthenticated={vi.fn()} />
       </ToastProvider>,
     );
 
+    expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
+    expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
+  });
+
+  it("offers Gitee sign in from the login view", () => {
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "使用 Gitee 登录" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/gitee/login",
+    );
+  });
+
+  it("returns protected showcase actions to the existing login card without clearing input", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: "orion@example.com" } });
+    fireEvent.click(screen.getByRole("textbox", { name: "请先登录后开始对话" }));
+
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(document.querySelector(".auth-card")).toHaveClass("is-auth-highlighted");
+    expect(screen.getByLabelText("邮箱")).toHaveValue("orion@example.com");
+    expect(screen.getByRole("tab", { name: "登录" })).toHaveAttribute("aria-selected", "true");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  });
+
+  it("shows the demo account dialog on demand without an inline notice", () => {
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
     expect(screen.getByText("admin@admin.com")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
@@ -48,6 +99,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("邮箱")).toHaveFocus());
@@ -68,6 +120,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
 
     expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
@@ -80,6 +133,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     const closeButton = screen.getByRole("button", { name: "关闭测试账号弹窗" });
     const acknowledgeButton = screen.getByRole("button", { name: "我知道了" });
     expect(closeButton).toHaveFocus();
@@ -96,6 +150,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.click(screen.getByRole("button", { name: "关闭测试账号弹窗" }));
 
     expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
@@ -114,6 +169,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.click(screen.getByRole("button", { name: "复制账号" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("admin@admin.com"));
@@ -137,6 +193,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
     act(() => setLocale("en"));
 
@@ -154,7 +211,6 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
     fireEvent.click(screen.getByRole("tab", { name: "注册" }));
 
     expect(screen.getByLabelText("邮箱")).toHaveAttribute("type", "email");
@@ -170,7 +226,6 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
     fireEvent.change(screen.getByLabelText("邮箱"), {
       target: { value: "member@example.com" },
     });
@@ -195,7 +250,6 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
     fireEvent.click(screen.getByRole("tab", { name: "注册" }));
     fireEvent.change(screen.getByLabelText("邮箱"), {
       target: { value: "new-member@example.com" },

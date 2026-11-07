@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     auth_cookie_name: str = "orionai_session"
     auth_session_ttl_seconds: int = Field(default=60 * 60 * 24 * 7, gt=0)
     auth_cookie_secure: bool | None = None
+    gitee_client_id: str = ""
+    gitee_client_secret: SecretStr = SecretStr("")
+    gitee_redirect_uri: str = "http://localhost:8000/api/v1/auth/gitee/callback"
+    auth_frontend_base_url: str = "http://localhost:5173"
     gnews_api_key: SecretStr = SecretStr("")
     openalex_api_key: SecretStr = SecretStr("")
     smtp_host: str = ""

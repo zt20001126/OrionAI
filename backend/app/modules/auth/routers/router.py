@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, Request, Response
 from app.core.config import Settings, get_settings
 from app.modules.auth.cookies import clear_session_cookie, set_session_cookie
 from app.modules.auth.dependencies import get_auth_service, validate_origin
-from app.modules.auth.schemas import (
+from app.modules.auth.routers.gitee import router as gitee_router
+from app.modules.auth.schemas.auth import (
     AccountResponse,
     EmailCodeRequest,
     LoginRequest,
@@ -14,9 +15,10 @@ from app.modules.auth.schemas import (
     RegisterRequest,
     SessionResponse,
 )
-from app.modules.auth.service import AuthService
+from app.modules.auth.services.auth import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+router.include_router(gitee_router)
 
 
 @router.post(
@@ -98,7 +100,7 @@ def get_session(
     return SessionResponse(
         authenticated=user is not None,
         account=user.account if user is not None else None,
-        **({"is_guest": True} if user is not None and user.is_guest else {}),
+        **({"is_guest": user.is_guest} if user is not None else {}),
     )
 
 

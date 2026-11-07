@@ -8,7 +8,7 @@ from app.core.config import Settings, get_settings
 from app.modules.auth.cookies import clear_session_cookie
 from app.modules.auth.dependencies import get_auth_service, validate_origin
 from app.modules.auth.schemas import MessageResponse, PasswordChangeRequest
-from app.modules.auth.service import AuthService
+from app.modules.auth.services.auth import AuthService
 from app.modules.users.constants import MAX_AVATAR_UPLOAD_BYTES
 from app.modules.users.dependencies import CurrentUser, RegisteredUser, UsersServiceDependency
 from app.modules.users.schemas import UpdateUserProfileRequest, UserProfileResponse

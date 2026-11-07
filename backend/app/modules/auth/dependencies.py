@@ -11,8 +11,8 @@ from app.core.config import Settings, get_settings
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.redis.auth_state import RedisAuthStateStore
 from app.infrastructure.redis.client import get_redis_client
-from app.modules.auth.models import User
-from app.modules.auth.service import AuthService
+from app.modules.auth.models.user import User
+from app.modules.auth.services.auth import AuthService
 
 
 def get_auth_service(

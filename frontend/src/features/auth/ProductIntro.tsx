@@ -29,14 +29,29 @@ const capabilities: {
   },
 ];
 
-export function ProductIntro() {
+interface ProductIntroProps {
+  onLogoClick: () => void;
+}
+
+/** 展示登录页产品介绍；输入：可选 Logo 点击回调；输出：产品介绍区域；调用方：认证页。 */
+export function ProductIntro({ onLogoClick }: ProductIntroProps) {
   return (
     <aside aria-labelledby="product-title" className="product-panel">
       <div className="product-content">
-        <div className="brand-lockup">
-          <BrandMark />
+        <button
+          aria-label={t("显示测试账号")}
+          className="brand-lockup brand-lockup-button"
+          onClick={onLogoClick}
+          type="button"
+        >
+          <span className="brand-lockup-icon">
+            <BrandMark />
+          </span>
           <span>OrionAI</span>
-        </div>
+          <svg aria-hidden="true" className="brand-lockup-sparkle" viewBox="0 0 12 12">
+            <path d="M6 0.5 7.35 4.65 11.5 6 7.35 7.35 6 11.5 4.65 7.35.5 6 4.65 4.65 6 .5Z" />
+          </svg>
+        </button>
 
         <div className="product-copy">
           <span className="product-kicker">{t("一站式 AI 智能体与工具平台")}</span>
