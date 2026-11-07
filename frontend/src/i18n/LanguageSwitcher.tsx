@@ -47,7 +47,7 @@ function ProfileMenuLanguageSwitcher({ className, icon }: LanguageSwitcherProps)
       type="button"
     >
       {icon}
-      {locale === "zh-CN" ? "EN" : t("中文")}
+      {t(locale === "zh-CN" ? "简体中文" : "English")}
     </button>
   );
 }

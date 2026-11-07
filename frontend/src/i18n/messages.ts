@@ -50,6 +50,8 @@ const catalogs: Record<string, MessageMap> = {
     "你可以帮我完成哪些事情？": "What can you help me with?",
     EN: "EN",
     中文: "中文",
+    English: "English",
+    简体中文: "Simplified Chinese",
     切换到英文: "Switch to English",
     切换到简体中文: "Switch to Simplified Chinese",
     切换语言: "Switch language",
