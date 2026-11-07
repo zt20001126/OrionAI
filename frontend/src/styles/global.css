@@ -230,18 +230,124 @@ button {
   align-items: center;
   gap: var(--space-3);
   margin-bottom: calc(-1 * var(--space-1));
-  font-size: var(--font-size-xl);
+  font-size: clamp(30px, 3.1vw, 40px);
   font-weight: 700;
+  letter-spacing: -0.025em;
 }
 
 .brand-lockup-button {
+  position: relative;
+  isolation: isolate;
   padding: 0;
   border: 0;
   color: inherit;
   background: transparent;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
   text-align: left;
+  transition: transform 200ms ease-out;
+}
+
+.brand-lockup-button::before {
+  position: absolute;
+  z-index: -1;
+  inset: -12px -17px;
+  border-radius: 50%;
+  padding: 1.5px;
+  background: conic-gradient(
+    from 215deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--color-accent) 82%, transparent) 55deg,
+    color-mix(in srgb, var(--color-brand) 88%, transparent) 125deg,
+    color-mix(in srgb, var(--color-secondary) 90%, transparent) 205deg,
+    transparent 270deg,
+    color-mix(in srgb, var(--color-accent) 72%, transparent) 325deg,
+    transparent 360deg
+  );
+  content: "";
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-accent) 55%, transparent));
+  opacity: 0.72;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: brand-lockup-orbit 3s ease-in-out infinite;
+}
+
+.brand-lockup-button::after {
+  position: absolute;
+  z-index: 1;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    transparent 25%,
+    color-mix(in srgb, var(--color-surface) 62%, transparent) 50%,
+    color-mix(in srgb, var(--color-brand-soft) 26%, transparent) 70%,
+    transparent 100%
+  );
+  content: "";
+  opacity: 0;
+  transform: translateX(-120%) skewX(-18deg);
+  animation: brand-lockup-shimmer 5s ease-in-out infinite;
+}
+
+.brand-lockup-icon {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+}
+
+.brand-lockup-icon::before {
+  position: absolute;
+  z-index: -1;
+  inset: -10px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-accent) 50%, transparent) 0%,
+    color-mix(in srgb, var(--color-secondary) 38%, transparent) 42%,
+    color-mix(in srgb, var(--color-secondary) 0%, transparent) 76%
+  );
+  content: "";
+  filter: blur(9px);
+  opacity: 0.34;
+  pointer-events: none;
+  animation: brand-lockup-glow 3s ease-in-out infinite;
+}
+
+.brand-lockup-sparkle {
+  position: absolute;
+  z-index: 2;
+  top: -8px;
+  right: -13px;
+  width: 12px;
+  height: 12px;
+  fill: var(--color-secondary);
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.55);
+  transform-origin: center;
+  animation: brand-lockup-sparkle 4s ease-in-out infinite;
+}
+
+.brand-lockup-button:hover {
+  transform: scale(1.03);
+}
+
+.brand-lockup-button:hover .brand-lockup-icon::before {
+  opacity: 0.48;
+}
+
+.brand-lockup-button:hover::before {
+  opacity: 0.95;
 }
 
 .brand-lockup-button:focus-visible {
@@ -251,8 +357,66 @@ button {
 }
 
 .brand-lockup .brand-mark {
-  width: 44px;
-  height: 44px;
+  width: 56px;
+  height: 56px;
+}
+
+@keyframes brand-lockup-glow {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes brand-lockup-orbit {
+  0%,
+  100% {
+    opacity: 0.52;
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent) 42%, transparent));
+  }
+  50% {
+    opacity: 0.9;
+    filter: drop-shadow(0 0 9px color-mix(in srgb, var(--color-secondary) 58%, transparent));
+  }
+}
+
+@keyframes brand-lockup-shimmer {
+  0%,
+  72% {
+    opacity: 0;
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  75% {
+    opacity: 0.55;
+  }
+  91% {
+    opacity: 0.35;
+    transform: translateX(120%) skewX(-18deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(120%) skewX(-18deg);
+  }
+}
+
+@keyframes brand-lockup-sparkle {
+  0%,
+  72%,
+  100% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  79% {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  88% {
+    opacity: 0.35;
+    transform: scale(0.72);
+  }
 }
 
 .product-copy {
@@ -1303,6 +1467,10 @@ button {
     font-size: clamp(28px, 3.1vw, 34px);
   }
 
+  .brand-lockup {
+    font-size: clamp(28px, 3.1vw, 34px);
+  }
+
   .product-copy p {
     font-size: var(--font-size-sm);
   }
@@ -1342,6 +1510,10 @@ button {
   }
 
   .product-copy h1 {
+    font-size: clamp(26px, 4.6vw, 32px);
+  }
+
+  .brand-lockup {
     font-size: clamp(26px, 4.6vw, 32px);
   }
 
@@ -1386,8 +1558,8 @@ button {
   }
 
   .brand-lockup .brand-mark {
-    width: 32px;
-    height: 32px;
+    width: 40px;
+    height: 40px;
   }
 
   .product-kicker {
@@ -1400,6 +1572,10 @@ button {
   }
 
   .product-copy h1 {
+    font-size: clamp(25px, 7vw, 30px);
+  }
+
+  .brand-lockup {
     font-size: clamp(25px, 7vw, 30px);
   }
 
