@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     auth_session_ttl_seconds: int = Field(default=60 * 60 * 24 * 7, gt=0)
     auth_cookie_secure: bool | None = None
     gnews_api_key: SecretStr = SecretStr("")
+    openalex_api_key: SecretStr = SecretStr("")
     smtp_host: str = ""
     smtp_port: int = 465
     smtp_username: str = ""
