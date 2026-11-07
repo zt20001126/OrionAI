@@ -408,6 +408,9 @@ export function AuthPage({
         </button>
       </section>
       <AuthAssistantShowcase onRequireAuth={returnToLoginCard} />
+      <footer className="auth-homepage-footer">
+        <span>{t("ICP备案信息：审核中")}</span>
+      </footer>
       {view === "login" && isDemoDialogOpen && (
         <DemoAccountDialog onClose={closeDemoDialog} restoreFocus={restoreAuthFocus} />
       )}

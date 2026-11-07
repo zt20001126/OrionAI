@@ -137,6 +137,7 @@ const catalogs: Record<string, MessageMap> = {
       "Type a message. Press Enter to send or Shift + Enter for a new line.",
   },
   auth: {
+    "ICP备案信息：审核中": "ICP filing information: under review",
     "登录 OrionAI": "Sign in to OrionAI",
     "注册 OrionAI": "Create an OrionAI account",
     重置密码: "Reset password",

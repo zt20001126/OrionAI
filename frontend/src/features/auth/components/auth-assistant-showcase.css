@@ -3,6 +3,18 @@
   background: var(--auth-page-base);
 }
 
+.auth-homepage-footer {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
 .auth-home-screen {
   min-height: 100vh;
   min-height: 100dvh;
