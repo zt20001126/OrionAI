@@ -19,6 +19,7 @@ from app.modules.resume.errors import (
     ResumePhotoStorageError,
     ResumeUnavailableError,
 )
+from app.modules.resume.example import example_resume
 from app.modules.resume.models import Resume
 from app.modules.resume.pdf_renderer import PlaywrightResumePdfRenderer
 from app.modules.resume.photo_storage import ResumePhotoStorage
@@ -52,11 +53,12 @@ class ResumeApplicationService:
         self._pdf_renderer = pdf_renderer or PlaywrightResumePdfRenderer()
 
     def get_resume(self, user_id: int) -> ResumeResponse:
+        """读取用户简历；无记录时返回未保存的示例；调用方：简历 API。"""
         row = self._get_resume(user_id)
         if row is None:
             return ResumeResponse(
                 exists=False,
-                content=ResumeContent(),
+                content=example_resume(),
                 style_config=ResumeStyleConfig(),
             )
         try:

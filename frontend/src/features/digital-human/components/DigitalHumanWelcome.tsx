@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { t } from "../../../i18n/localeStore";
 import { PlatformIcon, type PlatformIconName } from "../../platform/PlatformIcon";
 
@@ -6,9 +7,32 @@ const suggestions: { title: string; prompt: string; icon: PlatformIconName }[] =
   { title: "发送邮件", prompt: "帮我发送一封邮件", icon: "send" },
   { title: "设置提醒", prompt: "提醒我明天下午开会", icon: "bell" },
   { title: "查询股票数据", prompt: "帮我查询 A 股指数", icon: "data" },
+  { title: "简历修改", prompt: "帮我修改求职意向", icon: "document" },
+  { title: "生成视频", prompt: "帮我生成一个视频", icon: "camera" },
+  { title: "查询文献", prompt: "帮我查找关于目标检测的文献", icon: "search" },
+  { title: "查询天气", prompt: "帮我查一下北京今天的天气", icon: "cloud" },
   { title: "互动聊天", prompt: "陪我聊聊天", icon: "message" },
   { title: "了解我的能力", prompt: "你都有哪些能力？", icon: "assistant" },
 ];
+
+/** 在点击位置显示短暂波纹；输入：卡片点击事件；输出：无；调用方：能力引导卡片。 */
+function showClickRipple(event: MouseEvent<HTMLButtonElement>) {
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+
+  const card = event.currentTarget;
+  const bounds = card.getBoundingClientRect();
+  const ripple = document.createElement("span");
+  const diameter = Math.hypot(bounds.width, bounds.height) * 2;
+  const x = event.detail === 0 ? bounds.width / 2 : event.clientX - bounds.left;
+  const y = event.detail === 0 ? bounds.height / 2 : event.clientY - bounds.top;
+  ripple.className = "digital-human-welcome__ripple";
+  ripple.style.width = `${diameter}px`;
+  ripple.style.height = `${diameter}px`;
+  ripple.style.left = `${x}px`;
+  ripple.style.top = `${y}px`;
+  card.appendChild(ripple);
+  ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+}
 
 /** 展示新会话的能力示例；选择后填入提示词，调用方：数字人页面。 */
 export function DigitalHumanWelcome({
@@ -38,7 +62,10 @@ export function DigitalHumanWelcome({
               aria-pressed={draft === t(prompt)}
               className="digital-human-welcome__item"
               key={title}
-              onClick={() => onSelect(t(prompt))}
+              onClick={(event) => {
+                showClickRipple(event);
+                onSelect(t(prompt));
+              }}
               type="button"
             >
               <span className="digital-human-welcome__icon">
@@ -48,7 +75,9 @@ export function DigitalHumanWelcome({
                 <strong>{t(title)}</strong>
                 <span>{t(prompt)}</span>
               </span>
-              <PlatformIcon name="chevron" size={18} />
+              <span className="digital-human-welcome__arrow" aria-hidden="true">
+                <PlatformIcon name="chevron" size={18} />
+              </span>
             </button>
           ))}
         </div>

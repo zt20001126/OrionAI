@@ -2,7 +2,7 @@
 
 import json
 import logging
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from typing import Any
 
 from langchain_core.messages import HumanMessage, ToolMessage
@@ -33,6 +33,7 @@ from app.modules.digital_human.agent.graph import (
     create_digital_human_graph,
 )
 from app.modules.digital_human.agent.state import DigitalHumanState
+from app.modules.resume.schemas import ResumeResponse, ResumeSaveRequest
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +45,17 @@ class DigitalHumanRuntime(AgentRuntime):
         self,
         *,
         chat_model: Any,
+        resume_reader: Callable[[int], ResumeResponse] | None = None,
+        resume_writer: Callable[[int, ResumeSaveRequest], ResumeResponse] | None = None,
         checkpointer: BaseCheckpointSaver[Any] | None = None,
     ) -> None:
-        """构造数字人专属图；输入模型和检查点，供应用生命周期创建 Runtime。"""
+        """构造数字人图；输入模型、简历读写服务和检查点，供应用生命周期创建。"""
         self._checkpointer = checkpointer
         self._graph: CompiledStateGraph[DigitalHumanState, object, object, object] = (
             create_digital_human_graph(
                 chat_model=chat_model,
+                resume_reader=resume_reader,
+                resume_writer=resume_writer,
                 checkpointer=checkpointer,
             )
         )

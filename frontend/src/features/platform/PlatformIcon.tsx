@@ -9,6 +9,7 @@ export type PlatformIconName =
   | "logout"
   | "search"
   | "bell"
+  | "cloud"
   | "crown"
   | "check"
   | "more"
@@ -109,6 +110,9 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
           <path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Z" />
           <path d="M10 21h4" />
         </>
+      )}
+      {name === "cloud" && (
+        <path d="M7.2 18.5h9.6a4.2 4.2 0 0 0 .5-8.4 5.5 5.5 0 0 0-10.6-1.3 4.9 4.9 0 0 0 .5 9.7Z" />
       )}
       {name === "crown" && (
         <>
