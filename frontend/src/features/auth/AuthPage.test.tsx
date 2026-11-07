@@ -14,6 +14,9 @@ vi.mock("./authApi", async (importOriginal) => {
     register: vi.fn(),
   };
 });
+vi.mock("../digital-human/components/DigitalHumanAvatar3D", () => ({
+  DigitalHumanAvatar3D: () => <div data-testid="auth-avatar" />,
+}));
 
 afterEach(() => {
   cleanup();
@@ -32,6 +35,28 @@ describe("AuthPage", () => {
       "href",
       "/api/v1/auth/gitee/login",
     );
+  });
+
+  it("returns protected showcase actions to the existing login card without clearing input", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("邮箱"), { target: { value: "orion@example.com" } });
+    fireEvent.click(screen.getByRole("textbox", { name: "请先登录后开始对话" }));
+
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(document.querySelector(".auth-card")).toHaveClass("is-auth-highlighted");
+    expect(screen.getByLabelText("邮箱")).toHaveValue("orion@example.com");
+    expect(screen.getByRole("tab", { name: "登录" })).toHaveAttribute("aria-selected", "true");
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   });
 
   it("shows the demo account dialog on login without an inline notice", () => {

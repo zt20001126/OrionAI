@@ -44,15 +44,28 @@ export function DigitalHumanAvatar3D({
   const [canvasError, setCanvasError] = useState<Error | null>(null);
   const [canvasVersion, setCanvasVersion] = useState(0);
   const reportedErrorRef = useRef<Error | null>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<ThreePerspectiveCamera>(null);
   const [isDocumentVisible, setIsDocumentVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState === "visible",
   );
+  const [isInViewport, setIsInViewport] = useState(true);
 
   useEffect(() => {
     const updateVisibility = () => setIsDocumentVisible(document.visibilityState === "visible");
     document.addEventListener("visibilitychange", updateVisibility);
     return () => document.removeEventListener("visibilitychange", updateVisibility);
+  }, []);
+
+  useEffect(() => {
+    const avatarElement = avatarRef.current;
+    if (!avatarElement || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(([entry]) => setIsInViewport(entry.isIntersecting), {
+      threshold: 0.05,
+    });
+    observer.observe(avatarElement);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -66,6 +79,7 @@ export function DigitalHumanAvatar3D({
     <div
       aria-busy={presentation === "assistant" ? !frameReady && !error && !canvasError : undefined}
       className={`digital-human-avatar${presentation === "home" ? " digital-human-avatar--home" : ""}`}
+      ref={avatarRef}
     >
       {presentation === "assistant" && (
         <div aria-hidden="true" className="digital-human-stage__glow" />
@@ -85,7 +99,7 @@ export function DigitalHumanAvatar3D({
               aria-label={t("3D数字人形象")}
               dpr={getRenderPixelRatio()}
               fallback={null}
-              frameloop={isDocumentVisible ? "always" : "never"}
+              frameloop={isDocumentVisible && isInViewport ? "always" : "never"}
               gl={{ alpha: true, antialias: false, powerPreference: "low-power" }}
             >
               <ambientLight intensity={1.2} />

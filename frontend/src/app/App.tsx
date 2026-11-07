@@ -540,16 +540,8 @@ function AppContent() {
 
   return (
     <MembershipStatusProvider isGuest={isGuest}>
-      <PlatformLayout
-        account={account ?? (isGuest ? t("访客用户") : userProfile?.nickname ?? t("个人用户"))}
-        avatarUrl={userProfile?.avatar_url}
-        isGuest={isGuest}
-        isLoggingOut={isLoggingOut}
-        nickname={userProfile?.nickname}
-        onLogout={() => void handleLogout()}
-        onNavigate={navigate}
-        pathname={safePathname}
-      >
+      {safePathname === platformPaths.membership ||
+      safePathname === platformPaths.membershipOrders ? (
         <Suspense
           fallback={
             <div className="membership-route-loading" role="status">
@@ -559,7 +551,28 @@ function AppContent() {
         >
           {page}
         </Suspense>
-      </PlatformLayout>
+      ) : (
+        <PlatformLayout
+          account={account ?? (isGuest ? t("访客用户") : (userProfile?.nickname ?? t("个人用户")))}
+          avatarUrl={userProfile?.avatar_url}
+          isGuest={isGuest}
+          isLoggingOut={isLoggingOut}
+          nickname={userProfile?.nickname}
+          onLogout={() => void handleLogout()}
+          onNavigate={navigate}
+          pathname={safePathname}
+        >
+          <Suspense
+            fallback={
+              <div className="membership-route-loading" role="status">
+                {t("正在打开页面…")}
+              </div>
+            }
+          >
+            {page}
+          </Suspense>
+        </PlatformLayout>
+      )}
     </MembershipStatusProvider>
   );
 }

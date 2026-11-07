@@ -24,6 +24,9 @@ export function MembershipPlanCard({
         (isCurrent ? " membership-plan-card--current" : "")
       }
     >
+      <span className="membership-plan-card__icon">
+        <PlatformIcon name="calendar" size={26} />
+      </span>
       <div className="membership-plan-card__labels">
         {isRecommended && <span className="membership-plan-card__recommend">{t("推荐")}</span>}
         {isCurrent && <span className="membership-plan-card__current">{t("当前套餐")}</span>}
@@ -34,7 +37,6 @@ export function MembershipPlanCard({
         <span>¥</span>
         {plan.price}
       </p>
-      <p className="membership-plan-card__note">{t("所有套餐享受相同的会员身份")}</p>
       <button
         className="button button--primary membership-plan-card__action"
         onClick={onSelect}

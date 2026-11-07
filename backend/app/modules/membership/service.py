@@ -312,9 +312,14 @@ class MembershipService:
             raise MembershipUnavailableError from None
 
     def list_orders(
-        self, *, user_id: int, page: int, page_size: int
+        self,
+        *,
+        user_id: int,
+        page: int,
+        page_size: int,
+        status: MembershipOrderStatus | None = None,
     ) -> MembershipOrderPageResponse:
-        """读取当前用户的会员订单分页列表。"""
+        """读取本人订单分页；输入：用户、分页范围及可选状态；输出：订单页；调用方：会员订单 API。"""
 
         try:
             items = repository.list_orders(
@@ -322,8 +327,9 @@ class MembershipService:
                 user_id,
                 limit=page_size,
                 offset=(page - 1) * page_size,
+                status=status,
             )
-            total = repository.count_orders(self._session, user_id)
+            total = repository.count_orders(self._session, user_id, status)
             return MembershipOrderPageResponse(
                 items=[_order_response(order, plan) for order, plan in items],
                 total=total,

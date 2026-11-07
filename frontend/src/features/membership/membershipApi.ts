@@ -75,8 +75,10 @@ export function listMembershipOrders(
   page: number,
   pageSize: number,
   signal?: AbortSignal,
+  status?: string,
 ): Promise<MembershipOrderPage> {
   const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (status) query.set("status", status);
   return request<MembershipOrderPage>("/api/v1/users/me/membership/orders?" + query, { signal });
 }
 

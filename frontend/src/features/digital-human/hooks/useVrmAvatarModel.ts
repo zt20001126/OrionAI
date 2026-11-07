@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { VRM } from "@pixiv/three-vrm";
 
-import { disposeVrmAvatar, loadVrmAvatar } from "../vrm/vrmAvatarLoader";
+import { disposeVrmAvatar, downloadVrmAvatar, parseVrmAvatar } from "../vrm/vrmAvatarLoader";
 
 interface VrmAvatarModelState {
   error: Error | null;
@@ -12,8 +12,7 @@ interface VrmAvatarModelState {
   retry: () => void;
 }
 
-let modelPromise: Promise<VRM> | null = null;
-let loadedModel: VRM | null = null;
+let modelAssetPromise: Promise<ArrayBuffer> | null = null;
 let modelController: AbortController | null = null;
 let modelConsumers = 0;
 let sharedPhase: "loading" | "initializing" = "loading";
@@ -21,52 +20,44 @@ let sharedProgress: number | null = null;
 const listeners = new Set<() => void>();
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
 
-function acquireModel(): { promise: Promise<VRM>; release: () => void } {
+function acquireModel(): {
+  promise: Promise<ArrayBuffer>;
+  release: (consumerModel: VRM | null) => void;
+} {
   if (releaseTimer) {
     clearTimeout(releaseTimer);
     releaseTimer = null;
   }
   modelConsumers += 1;
 
-  if (!modelPromise) {
+  if (!modelAssetPromise) {
     const controller = new AbortController();
     modelController = controller;
     sharedPhase = "loading";
     sharedProgress = null;
     const notify = () => listeners.forEach((listener) => listener());
-    const sharedPromise = loadVrmAvatar(
-      controller.signal,
-      (progress) => {
-        if (sharedProgress !== progress) {
-          sharedProgress = progress;
-          notify();
-        }
-      },
-      () => {
-        sharedPhase = "initializing";
+    const sharedPromise = downloadVrmAvatar(controller.signal, (progress) => {
+      if (sharedProgress !== progress) {
+        sharedProgress = progress;
         notify();
-      },
-    )
-      .then((vrm) => {
-        if (modelPromise === sharedPromise) loadedModel = vrm;
-        return vrm;
-      })
-      .catch((error: unknown) => {
-        if (modelPromise === sharedPromise) {
-          modelPromise = null;
-          modelController = null;
-        }
-        throw error;
-      });
-    modelPromise = sharedPromise;
+      }
+    }).catch((error: unknown) => {
+      if (modelAssetPromise === sharedPromise) {
+        modelAssetPromise = null;
+        modelController = null;
+      }
+      throw error;
+    });
+    modelAssetPromise = sharedPromise;
   }
 
   let released = false;
   return {
-    promise: modelPromise,
-    release: () => {
+    promise: modelAssetPromise,
+    release: (consumerModel) => {
       if (released) return;
       released = true;
+      if (consumerModel) disposeVrmAvatar(consumerModel);
       modelConsumers = Math.max(0, modelConsumers - 1);
       if (modelConsumers > 0) return;
 
@@ -76,15 +67,13 @@ function acquireModel(): { promise: Promise<VRM>; release: () => void } {
         if (modelConsumers > 0) return;
         modelController?.abort();
         modelController = null;
-        modelPromise = null;
-        if (loadedModel) disposeVrmAvatar(loadedModel);
-        loadedModel = null;
+        modelAssetPromise = null;
       }, 0);
     },
   };
 }
 
-/** 多个渲染周期共享一次下载，最后一个使用者卸载后释放 GPU 资源。 */
+/** 多个 Canvas 共用文件下载、独立解析场景；最后一个使用者卸载后释放缓存和 GPU 资源。 */
 export function useVrmAvatarModel(): VrmAvatarModelState {
   const [version, setVersion] = useState(0);
   const [state, setState] = useState<Omit<VrmAvatarModelState, "retry">>({
@@ -97,6 +86,7 @@ export function useVrmAvatarModel(): VrmAvatarModelState {
 
   useEffect(() => {
     let mounted = true;
+    let consumerModel: VRM | null = null;
     const model = acquireModel();
     const updateProgress = () => {
       if (mounted)
@@ -106,15 +96,24 @@ export function useVrmAvatarModel(): VrmAvatarModelState {
     updateProgress();
 
     void model.promise
-      .then((vrm) => {
-        if (mounted)
-          setState({
-            error: null,
-            isLoading: false,
-            vrm,
-            phase: "initializing",
-            progress: sharedProgress,
-          });
+      .then(async (modelAsset) => {
+        if (!mounted) return;
+        const vrm = await parseVrmAvatar(modelAsset, () => {
+          sharedPhase = "initializing";
+          listeners.forEach((listener) => listener());
+        });
+        if (!mounted) {
+          disposeVrmAvatar(vrm);
+          return;
+        }
+        consumerModel = vrm;
+        setState({
+          error: null,
+          isLoading: false,
+          vrm,
+          phase: "initializing",
+          progress: sharedProgress,
+        });
       })
       .catch((loadError: unknown) => {
         if (!mounted) return;
@@ -130,7 +129,7 @@ export function useVrmAvatarModel(): VrmAvatarModelState {
     return () => {
       mounted = false;
       listeners.delete(updateProgress);
-      model.release();
+      model.release(consumerModel);
     };
   }, [version]);
 

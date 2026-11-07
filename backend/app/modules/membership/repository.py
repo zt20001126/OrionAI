@@ -157,13 +157,17 @@ def list_orders(
     *,
     limit: int,
     offset: int,
+    status: MembershipOrderStatus | None = None,
 ) -> list[tuple[MembershipOrder, MembershipPlan]]:
-    """按创建时间倒序分页读取本人订单及套餐名称。"""
+    """按创建时间倒序分页读取本人订单并关联套餐；输入：状态和分页范围；输出：订单及套餐。"""
 
+    conditions = [MembershipOrder.user_id == user_id]
+    if status is not None:
+        conditions.append(MembershipOrder.status == status)
     statement = (
         select(MembershipOrder, MembershipPlan)
         .join(MembershipPlan, MembershipPlan.id == MembershipOrder.plan_id)
-        .where(MembershipOrder.user_id == user_id)
+        .where(*conditions)
         .order_by(MembershipOrder.created_at.desc(), MembershipOrder.id.desc())
         .limit(limit)
         .offset(offset)
@@ -171,11 +175,16 @@ def list_orders(
     return list(session.execute(statement))
 
 
-def count_orders(session: Session, user_id: int) -> int:
-    """统计本人会员订单总数。"""
+def count_orders(
+    session: Session, user_id: int, status: MembershipOrderStatus | None = None
+) -> int:
+    """统计本人订单数量；输入：用户及可选状态；输出：符合条件的总数；调用方：会员 Service。"""
 
     statement = (
-        select(func.count()).select_from(MembershipOrder).where(MembershipOrder.user_id == user_id)
+        select(func.count()).select_from(MembershipOrder).where(
+            MembershipOrder.user_id == user_id,
+            *([MembershipOrder.status == status] if status is not None else []),
+        )
     )
     return session.scalar(statement) or 0
 

@@ -9,6 +9,7 @@ from app.modules.membership.constants import (
     DEFAULT_ORDER_PAGE_SIZE,
     MAX_ORDER_PAGE_SIZE,
     MIN_ORDER_PAGE,
+    MembershipOrderStatus,
 )
 from app.modules.membership.dependencies import (
     MembershipAccessServiceDependency,
@@ -103,7 +104,8 @@ def list_my_membership_orders(
     service: MembershipServiceDependency,
     page: PageNumber = 1,
     page_size: PageSize = DEFAULT_ORDER_PAGE_SIZE,
+    status: Annotated[MembershipOrderStatus | None, Query(description="按订单状态筛选")] = None,
 ) -> MembershipOrderPageResponse:
     """分页读取当前注册用户的会员订单历史。"""
 
-    return service.list_orders(user_id=user.id, page=page, page_size=page_size)
+    return service.list_orders(user_id=user.id, page=page, page_size=page_size, status=status)
