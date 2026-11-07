@@ -10,6 +10,8 @@ export type PlatformIconName =
   | "search"
   | "bell"
   | "cloud"
+  | "taobao"
+  | "package"
   | "crown"
   | "check"
   | "more"
@@ -113,6 +115,29 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
       )}
       {name === "cloud" && (
         <path d="M7.2 18.5h9.6a4.2 4.2 0 0 0 .5-8.4 5.5 5.5 0 0 0-10.6-1.3 4.9 4.9 0 0 0 .5 9.7Z" />
+      )}
+      {name === "taobao" && (
+        <>
+          <rect x="3" y="3" width="18" height="18" rx="5" fill="#ff5000" stroke="none" />
+          <text
+            x="12"
+            y="16"
+            fill="#ffffff"
+            fontFamily="Arial, sans-serif"
+            fontSize="11"
+            fontWeight="700"
+            stroke="none"
+            textAnchor="middle"
+          >
+            淘
+          </text>
+        </>
+      )}
+      {name === "package" && (
+        <>
+          <path d="M5 8h14l1 12H4L5 8Z" />
+          <path d="M9 9V6a3 3 0 0 1 6 0v3" />
+        </>
       )}
       {name === "crown" && (
         <>

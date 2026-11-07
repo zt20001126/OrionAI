@@ -11,6 +11,8 @@ const suggestions: { title: string; prompt: string; icon: PlatformIconName }[] =
   { title: "生成视频", prompt: "帮我生成一个视频", icon: "camera" },
   { title: "查询文献", prompt: "帮我查找关于目标检测的文献", icon: "search" },
   { title: "查询天气", prompt: "帮我查一下北京今天的天气", icon: "cloud" },
+  { title: "查询商品", prompt: "给我查找商品 男款羽绒服", icon: "taobao" },
+  { title: "商品详情", prompt: "查询商品 2205695 的详情", icon: "package" },
   { title: "互动聊天", prompt: "陪我聊聊天", icon: "message" },
   { title: "了解我的能力", prompt: "你都有哪些能力？", icon: "assistant" },
 ];

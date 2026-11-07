@@ -345,6 +345,8 @@
 .digital-human-welcome__item:nth-child(8) { --card-index: 7; --icon-start: #f0a8de; --icon-end: #a892ed; }
 .digital-human-welcome__item:nth-child(9) { --card-index: 8; --icon-start: #efb4cf; --icon-end: #b79ce9; }
 .digital-human-welcome__item:nth-child(10) { --card-index: 9; --icon-start: #a1b9ef; --icon-end: #9993e8; }
+.digital-human-welcome__item:nth-child(11) { --card-index: 10; --icon-start: #efb4cf; --icon-end: #b79ce9; }
+.digital-human-welcome__item:nth-child(12) { --card-index: 11; --icon-start: #a1b9ef; --icon-end: #9993e8; }
 
 .digital-human-welcome__item:focus-visible,
 .digital-human-welcome__skip:focus-visible {
