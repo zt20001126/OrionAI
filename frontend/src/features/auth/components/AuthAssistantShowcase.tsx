@@ -17,7 +17,6 @@ interface AssistantFeature {
   description: string;
   example: string;
   icon: PlatformIconName;
-  tone: string;
 }
 
 const assistantFeatures: AssistantFeature[] = [
@@ -27,7 +26,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "把想法变成一张图片",
     example: "帮我生成一张晴天海边的插画",
     icon: "camera",
-    tone: "pink",
   },
   {
     id: "email",
@@ -35,7 +33,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "快速起草并发送邮件",
     example: "帮我给团队发送本周进度邮件",
     icon: "send",
-    tone: "blue",
   },
   {
     id: "reminder",
@@ -43,7 +40,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "重要安排准时提醒",
     example: "提醒我明天下午三点开会",
     icon: "bell",
-    tone: "orange",
   },
   {
     id: "stocks",
@@ -51,7 +47,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "获取市场与股票信息",
     example: "查询今天沪深 300 指数表现",
     icon: "data",
-    tone: "teal",
   },
   {
     id: "resume",
@@ -59,7 +54,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "让简历表达更清楚",
     example: "帮我优化这段项目经历",
     icon: "document",
-    tone: "blue",
   },
   {
     id: "video",
@@ -67,7 +61,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "将创意整理成短视频",
     example: "为这段产品介绍生成一个短视频",
     icon: "camera",
-    tone: "pink",
   },
   {
     id: "literature",
@@ -75,7 +68,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "查找并梳理相关研究",
     example: "查找大模型智能体的相关论文",
     icon: "search",
-    tone: "purple",
   },
   {
     id: "weather",
@@ -83,7 +75,20 @@ const assistantFeatures: AssistantFeature[] = [
     description: "了解城市天气与预报",
     example: "查一下明天北京的天气",
     icon: "cloud",
-    tone: "purple",
+  },
+  {
+    id: "products",
+    title: "查询商品",
+    description: "给我查找商品 男款羽绒服",
+    example: "给我查找商品 男款羽绒服",
+    icon: "taobao",
+  },
+  {
+    id: "product-detail",
+    title: "商品详情",
+    description: "给我查询2205695这个商品的商品详情。",
+    example: "给我查询2205695这个商品的商品详情。",
+    icon: "package",
   },
   {
     id: "chat",
@@ -91,7 +96,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "随时开启自然对话",
     example: "和我聊聊最近的学习计划",
     icon: "sessions",
-    tone: "pink",
   },
   {
     id: "capabilities",
@@ -99,7 +103,6 @@ const assistantFeatures: AssistantFeature[] = [
     description: "探索 Orion 助手能做什么",
     example: "你可以帮我完成哪些事情？",
     icon: "assistant",
-    tone: "blue",
   },
 ];
 
@@ -171,7 +174,7 @@ export function AuthAssistantShowcase({ onRequireAuth }: AuthAssistantShowcasePr
                       onClick={() => setExpandedFeature(isExpanded ? null : feature.id)}
                       type="button"
                     >
-                      <span className={`auth-assistant-feature__icon is-${feature.tone}`}>
+                      <span className="auth-assistant-feature__icon">
                         <PlatformIcon name={feature.icon} size={20} />
                       </span>
                       <span className="auth-assistant-feature__copy">
