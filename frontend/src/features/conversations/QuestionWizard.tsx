@@ -1,5 +1,6 @@
 import type { QuestionContentPart } from "./conversationApi";
 import { t } from "../../i18n/localeStore";
+import { PlatformIcon } from "../platform/PlatformIcon";
 import "./question-cards.css";
 
 export interface QuestionWizardProps {
@@ -36,7 +37,10 @@ export function QuestionWizard({
   return (
     <section aria-label={t("问题答题卡")} className="question-card">
       <header className="question-card__header">
-        <strong>{t("需要你的回答")}</strong>
+        <span className="question-card__title">
+          <span className="question-card__title-icon"><PlatformIcon name="assistant" size={19} /></span>
+          <strong>{t("需要你的回答")}</strong>
+        </span>
         {hasSteps && (
           <span>
             {t("第")} {currentIndex + 1} / {questions.length} {t("题")}
@@ -114,7 +118,7 @@ export function QuestionWizard({
             onClick={onSubmit}
             type="button"
           >
-            {isSubmitting ? t("正在提交…") : t("提交答案")}
+            {isSubmitting ? t("正在提交…") : <>{t("提交答案")}<PlatformIcon name="arrow" size={17} /></>}
           </button>
         ) : (
           <button
