@@ -47,7 +47,7 @@ const catalogs: Record<string, MessageMap> = {
     查询商品: "Search products",
     "给我查找商品 男款羽绒服": "Find men's down jackets",
     商品详情: "Product details",
-    "给我查询2205695这个商品的商品详情。": "Show me the details for product 2205695",
+    "查询商品 2205695 的详情": "Show me details for product 2205695",
     随时开启自然对话: "Start a natural conversation anytime",
     和我聊聊最近的学习计划: "Talk with me about my recent study plan",
     "探索 Orion 助手能做什么": "Explore what Orion Assistant can do",

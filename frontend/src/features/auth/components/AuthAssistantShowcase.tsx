@@ -86,8 +86,8 @@ const assistantFeatures: AssistantFeature[] = [
   {
     id: "product-detail",
     title: "商品详情",
-    description: "给我查询2205695这个商品的商品详情。",
-    example: "给我查询2205695这个商品的商品详情。",
+    description: "查询商品 2205695 的详情",
+    example: "查询商品 2205695 的详情",
     icon: "package",
   },
   {
