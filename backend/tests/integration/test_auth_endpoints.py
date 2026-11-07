@@ -17,11 +17,11 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.infrastructure.email.email_sender import EmailDeliveryError
 from app.infrastructure.redis.auth_state import AuthSession
-from app.modules.auth import service as auth_service_module
 from app.modules.auth.dependencies import get_current_user
 from app.modules.auth.models import User
-from app.modules.auth.router import get_auth_service
-from app.modules.auth.service import GENERIC_RESET_CODE_MESSAGE, AuthService
+from app.modules.auth.routers.router import get_auth_service
+from app.modules.auth.services import auth as auth_service_module
+from app.modules.auth.services.auth import GENERIC_RESET_CODE_MESSAGE, AuthService
 
 
 class InMemoryAuthStateStore:
@@ -204,6 +204,7 @@ def test_register_creates_one_user_and_uses_httponly_cookie(
     assert session_response.json() == {
         "authenticated": True,
         "account": "person@example.com",
+        "is_guest": False,
     }
 
     columns = {
@@ -213,6 +214,7 @@ def test_register_creates_one_user_and_uses_httponly_cookie(
     assert columns == {
         "id",
         "account",
+        "gitee_id",
         "password_hash",
         "is_guest",
         "created_at",

@@ -36,6 +36,7 @@ const viewContent: Record<AuthView, { title: string; subtitle?: string }> = {
   password_reset: { title: "重置密码", subtitle: "通过邮箱验证码设置新密码。" },
 };
 
+/** 渲染邮箱认证和第三方登录入口；输入认证回调与提示；调用方：应用认证路由。 */
 export function AuthPage({
   initialMessage,
   initialSuccessMessage,
@@ -205,7 +206,7 @@ export function AuthPage({
               </label>
               <input
                 autoComplete="email"
-                className="form-input"
+                className="form-input auth-input-icon-space"
                 id="email"
                 maxLength={254}
                 onChange={(event) => setEmail(event.target.value)}
@@ -215,6 +216,7 @@ export function AuthPage({
                 type="email"
                 value={email}
               />
+              <MailIcon />
             </div>
 
             {needsCode && (
@@ -304,7 +306,12 @@ export function AuthPage({
                   )}
                 </>
               ) : view === "login" ? (
-                t("登录")
+                <>
+                  {t("登录")}{" "}
+                  <span className="auth-submit-arrow">
+                    <ArrowRightIcon />
+                  </span>
+                </>
               ) : view === "register" ? (
                 t("创建账号")
               ) : (
@@ -315,6 +322,16 @@ export function AuthPage({
 
           {view === "login" && (
             <div className="auth-guest-option">
+              <div className="auth-method-divider" aria-hidden="true">
+                <span>{t("或使用其他方式登录")}</span>
+              </div>
+              <a
+                className="button button--outline auth-guest-button"
+                href="/api/v1/auth/gitee/login"
+              >
+                <GiteeIcon />
+                {t("使用 Gitee 登录")}
+              </a>
               <button
                 className="button button--outline auth-guest-button"
                 disabled={isSubmitting || isGuestSubmitting}
@@ -327,7 +344,10 @@ export function AuthPage({
                     {t("正在进入访客模式…")}
                   </>
                 ) : (
-                  t("访客登录")
+                  <>
+                    <UserRoundIcon />
+                    {t("访客登录")}
+                  </>
                 )}
               </button>
             </div>
@@ -369,10 +389,11 @@ function PasswordField({
       <label className="form-label" htmlFor={id}>
         {label}
       </label>
-      <div className="password-field">
+      <div className="password-field auth-password-field">
+        <LockIcon />
         <input
           autoComplete={autoComplete}
-          className="form-input"
+          className="form-input auth-input-icon-space"
           id={id}
           maxLength={maxLength}
           minLength={minLength}
@@ -410,6 +431,53 @@ function ChevronLeftIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="m12.5 4.5-5.5 5.5 5.5 5.5" />
+    </svg>
+  );
+}
+
+/** 绘制 Gitee 品牌图标；调用方：认证页第三方登录入口。 */
+function GiteeIcon() {
+  return (
+    <svg aria-hidden="true" className="auth-provider-icon" viewBox="0 0 24 24">
+      <path
+        fill="var(--auth-gitee-red)"
+        d="M11.984 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12 12 12 0 0 0-12.016-12zm6.09 5.333c.328 0 .593.266.592.593v1.482a.594.594 0 0 1-.593.592H9.777c-.982 0-1.778.796-1.778 1.778v5.63c0 .327.266.592.593.592h5.63c.982 0 1.778-.796 1.778-1.778v-.296a.593.593 0 0 0-.592-.593h-4.15a.592.592 0 0 1-.592-.592v-1.482a.593.593 0 0 1 .593-.592h6.815c.327 0 .593.265.593.592v3.408a4 4 0 0 1-4 4H5.926a.593.593 0 0 1-.593-.593V9.778a4.444 4.444 0 0 1 4.445-4.444h8.296Z"
+      />
+    </svg>
+  );
+}
+
+function MailIcon() {
+  return (
+    <svg aria-hidden="true" className="auth-input-icon" viewBox="0 0 24 24">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m4 7 8 6 8-6" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg aria-hidden="true" className="auth-input-icon" viewBox="0 0 24 24">
+      <rect x="4" y="10" width="16" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M4 12h15m-6-6 6 6-6 6" />
+    </svg>
+  );
+}
+
+function UserRoundIcon() {
+  return (
+    <svg aria-hidden="true" className="auth-provider-icon auth-user-icon" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
     </svg>
   );
 }

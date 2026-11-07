@@ -1,6 +1,16 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Integer, String, func, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.base import Base
@@ -15,10 +25,12 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint(
-            "(is_guest AND account IS NULL AND password_hash IS NULL) "
-            "OR (NOT is_guest AND account IS NOT NULL AND password_hash IS NOT NULL)",
+            "(is_guest AND account IS NULL AND password_hash IS NULL AND gitee_id IS NULL) "
+            "OR (NOT is_guest AND ((account IS NOT NULL AND password_hash IS NOT NULL) "
+            "OR (account IS NULL AND password_hash IS NULL AND gitee_id IS NOT NULL)))",
             name="ck_users_identity_credentials",
         ),
+        UniqueConstraint("gitee_id", name="uq_users_gitee_id"),
     )
 
     id: Mapped[int] = mapped_column(
@@ -28,6 +40,9 @@ class User(Base):
         comment="用户 Snowflake ID",
     )
     account: Mapped[str | None] = mapped_column(String(254), unique=True, nullable=True)
+    gitee_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, comment="Gitee 用户唯一 ID"
+    )
     password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
     is_guest: Mapped[bool] = mapped_column(
         Boolean,

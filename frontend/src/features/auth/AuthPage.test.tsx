@@ -21,6 +21,19 @@ afterEach(() => {
 });
 
 describe("AuthPage", () => {
+  it("offers Gitee sign in from the login view", () => {
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "使用 Gitee 登录" })).toHaveAttribute(
+      "href",
+      "/api/v1/auth/gitee/login",
+    );
+  });
+
   it("shows the demo account dialog on login without an inline notice", () => {
     render(
       <ToastProvider>

@@ -1,7 +1,8 @@
 from fastapi import APIRouter
 
 from app.api.health import router as health_router
-from app.modules.auth.router import router as auth_router
+from app.modules.auth.routers.gitee import router as gitee_oauth_router
+from app.modules.auth.routers.router import router as auth_router
 from app.modules.conversations.router.router import router as conversations_router
 from app.modules.digital_human.router.router import router as digital_human_router
 from app.modules.feedback.router import router as feedback_router
@@ -20,6 +21,7 @@ from app.modules.users.router import router as users_router
 api_router = APIRouter()
 api_router.include_router(health_router)
 api_router.include_router(auth_router)
+api_router.include_router(gitee_oauth_router, prefix="/v1/auth")
 api_router.include_router(conversations_router)
 api_router.include_router(digital_human_router)
 api_router.include_router(feedback_router)

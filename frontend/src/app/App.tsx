@@ -96,6 +96,7 @@ export default function App() {
   );
 }
 
+/** 管理全局会话和页面路由，并消费 OAuth 回调结果；输出认证页或平台页面。 */
 function AppContent() {
   useLocale();
   const { confirm, showToast } = useToast();
@@ -115,6 +116,31 @@ function AppContent() {
   const pendingNavigationRef = useRef(false);
   const pendingPopNavigationRef = useRef<PendingPopNavigation | null>(null);
   const skipNextPopStateRef = useRef(false);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const oauthError = query.get("oauth_error");
+    const oauthSuccess = query.get("oauth_success");
+    if (oauthError) {
+      const messages: Record<string, string> = {
+        email_conflict: "该邮箱已注册，请先使用邮箱登录，再绑定 Gitee 账号。",
+        account_conflict: "该 Gitee 账号已被其他用户绑定，或当前账号已经绑定 Gitee。",
+        denied: "你已取消 Gitee 授权。",
+        invalid: "Gitee 授权失败或已过期，请重试。",
+      };
+      showToast("error", t(messages[oauthError] ?? messages.invalid));
+    }
+    if (oauthSuccess === "gitee_bound") {
+      showToast("success", t("Gitee 账号绑定成功。"));
+    }
+    if (oauthError || oauthSuccess) {
+      query.delete("oauth_error");
+      query.delete("oauth_success");
+      const queryString = query.toString();
+      const nextUrl = `${window.location.pathname}${queryString ? `?${queryString}` : ""}`;
+      window.history.replaceState(window.history.state, "", nextUrl);
+    }
+  }, [showToast]);
 
   useEffect(() => {
     const initialIndex = getHistoryIndex(window.history.state) ?? 0;
@@ -459,12 +485,7 @@ function AppContent() {
       return <MemoryTrainingPage onNavigate={navigate} />;
     }
     if (isDigitalHumanPath(safePathname)) {
-      return (
-        <DigitalHumanPage
-          conversationId={digitalHumanConversationId}
-          onNavigate={navigate}
-        />
-      );
+      return <DigitalHumanPage conversationId={digitalHumanConversationId} onNavigate={navigate} />;
     }
     if (isTourismInsightPath(safePathname)) {
       return <TourismInsightPage conversationId={tourismConversationId ?? ""} />;
@@ -520,7 +541,7 @@ function AppContent() {
   return (
     <MembershipStatusProvider isGuest={isGuest}>
       <PlatformLayout
-        account={account ?? t("访客用户")}
+        account={account ?? (isGuest ? t("访客用户") : userProfile?.nickname ?? t("个人用户"))}
         avatarUrl={userProfile?.avatar_url}
         isGuest={isGuest}
         isLoggingOut={isLoggingOut}

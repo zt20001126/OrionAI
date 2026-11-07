@@ -6,7 +6,7 @@ import { changePassword, sendPasswordChangeCode } from "./profileApi";
 import { t } from "../../i18n/localeStore";
 
 interface SecuritySettingsPageProps {
-  account: string;
+  account: string | null;
   hidden?: boolean;
   onDirtyChange?: (isDirty: boolean) => void;
   onPasswordChanged: (message: string) => void;
@@ -64,7 +64,10 @@ export function SecuritySettingsPage({
     try {
       const result = await sendPasswordChangeCode();
       setCountdown(60);
-      showToast("success", result.message || t("验证码已发送至 {account}。", { account }));
+      showToast(
+        "success",
+        result.message || t("验证码已发送至 {account}。", { account: account ?? "" }),
+      );
     } catch (error) {
       showToast("error", getPasswordSettingsErrorMessage(error, "验证码发送失败，请稍后重试。"));
     } finally {
@@ -122,130 +125,145 @@ export function SecuritySettingsPage({
         </header>
 
         <div className="security-settings__intro">
-          <h2>{t("修改登录密码")}</h2>
-          <p>{t("为了保障账号安全，修改密码前需要验证账号绑定的邮箱。")}</p>
+          <h2>{t("第三方账号")}</h2>
+          <p>{t("绑定 Gitee 后，可使用该账号登录 OrionAI。")}</p>
+          <a className="button button--outline" href="/api/v1/auth/gitee/bind">
+            {t("绑定 Gitee")}
+          </a>
         </div>
 
-        <div className="security-settings__fields">
-          <label className="profile-settings__field">
-            <span>{t("绑定邮箱")}</span>
-            <input className="form-input" readOnly value={account} />
-          </label>
+        {account && (
+          <>
+            <div className="security-settings__intro">
+              <h2>{t("修改登录密码")}</h2>
+              <p>{t("为了保障账号安全，修改密码前需要验证账号绑定的邮箱。")}</p>
+            </div>
 
-          <label className="profile-settings__field">
-            <span>{t("新密码")}</span>
-            <span className="password-field">
-              <input
-                aria-label={t("新密码")}
-                autoComplete="new-password"
-                className="form-input"
-                disabled={isSubmitting}
-                minLength={8}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  if (Array.from(value).length <= 64) setNewPassword(value);
-                  clearFeedback();
-                }}
-                required
-                type={showNewPassword ? "text" : "password"}
-                value={newPassword}
-              />
+            <div className="security-settings__fields">
+              <label className="profile-settings__field">
+                <span>{t("绑定邮箱")}</span>
+                <input className="form-input" readOnly value={account} />
+              </label>
+
+              <label className="profile-settings__field">
+                <span>{t("新密码")}</span>
+                <span className="password-field">
+                  <input
+                    aria-label={t("新密码")}
+                    autoComplete="new-password"
+                    className="form-input"
+                    disabled={isSubmitting}
+                    minLength={8}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      if (Array.from(value).length <= 64) setNewPassword(value);
+                      clearFeedback();
+                    }}
+                    required
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                  />
+                  <button
+                    aria-label={showNewPassword ? t("隐藏新密码") : t("显示新密码")}
+                    className="password-toggle security-settings__password-toggle"
+                    onClick={() => setShowNewPassword((visible) => !visible)}
+                    type="button"
+                  >
+                    {showNewPassword ? t("隐藏") : t("显示")}
+                  </button>
+                </span>
+                <small>{t("8–64 个字符，不能仅使用空格。")}</small>
+              </label>
+
+              <label className="profile-settings__field">
+                <span>{t("确认新密码")}</span>
+                <span className="password-field">
+                  <input
+                    aria-label={t("确认新密码")}
+                    autoComplete="new-password"
+                    className="form-input"
+                    disabled={isSubmitting}
+                    minLength={8}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      if (Array.from(value).length <= 64) setPasswordConfirmation(value);
+                      clearFeedback();
+                    }}
+                    required
+                    type={showPasswordConfirmation ? "text" : "password"}
+                    value={passwordConfirmation}
+                  />
+                  <button
+                    aria-label={showPasswordConfirmation ? t("隐藏确认密码") : t("显示确认密码")}
+                    className="password-toggle security-settings__password-toggle"
+                    onClick={() => setShowPasswordConfirmation((visible) => !visible)}
+                    type="button"
+                  >
+                    {showPasswordConfirmation ? t("隐藏") : t("显示")}
+                  </button>
+                </span>
+              </label>
+
+              <label className="profile-settings__field">
+                <span>{t("邮箱验证码")}</span>
+                <span className="code-row security-settings__code-row">
+                  <input
+                    aria-label={t("邮箱验证码")}
+                    autoComplete="one-time-code"
+                    className="form-input"
+                    disabled={isSubmitting}
+                    inputMode="numeric"
+                    maxLength={6}
+                    onChange={(event) => {
+                      setCode(event.currentTarget.value.replace(/\D/g, "").slice(0, 6));
+                      clearFeedback();
+                    }}
+                    pattern="[0-9]{6}"
+                    required
+                    value={code}
+                  />
+                  <button
+                    className="button button--outline code-button"
+                    disabled={countdown > 0 || isSendingCode || isSubmitting}
+                    onClick={() => void sendCode()}
+                    type="button"
+                  >
+                    {isSendingCode
+                      ? t("发送中…")
+                      : countdown > 0
+                        ? t("{seconds} 秒后重发", { seconds: countdown })
+                        : t("发送验证码")}
+                  </button>
+                </span>
+              </label>
+            </div>
+
+            <div aria-live="polite" className="profile-settings__feedback">
+              {errorMessage && (
+                <p
+                  className="profile-settings__message profile-settings__message--error"
+                  role="alert"
+                >
+                  {errorMessage}
+                </p>
+              )}
+            </div>
+
+            <footer className="profile-settings__actions">
               <button
-                aria-label={showNewPassword ? t("隐藏新密码") : t("显示新密码")}
-                className="password-toggle security-settings__password-toggle"
-                onClick={() => setShowNewPassword((visible) => !visible)}
+                className="button button--outline"
+                disabled={!isDirty || isSubmitting}
+                onClick={cancelChanges}
                 type="button"
               >
-                {showNewPassword ? t("隐藏") : t("显示")}
+                {t("取消")}
               </button>
-            </span>
-            <small>{t("8–64 个字符，不能仅使用空格。")}</small>
-          </label>
-
-          <label className="profile-settings__field">
-            <span>{t("确认新密码")}</span>
-            <span className="password-field">
-              <input
-                aria-label={t("确认新密码")}
-                autoComplete="new-password"
-                className="form-input"
-                disabled={isSubmitting}
-                minLength={8}
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  if (Array.from(value).length <= 64) setPasswordConfirmation(value);
-                  clearFeedback();
-                }}
-                required
-                type={showPasswordConfirmation ? "text" : "password"}
-                value={passwordConfirmation}
-              />
-              <button
-                aria-label={showPasswordConfirmation ? t("隐藏确认密码") : t("显示确认密码")}
-                className="password-toggle security-settings__password-toggle"
-                onClick={() => setShowPasswordConfirmation((visible) => !visible)}
-                type="button"
-              >
-                {showPasswordConfirmation ? t("隐藏") : t("显示")}
+              <button className="button button--primary" disabled={isSubmitting} type="submit">
+                {isSubmitting ? t("正在修改…") : t("确认修改")}
               </button>
-            </span>
-          </label>
-
-          <label className="profile-settings__field">
-            <span>{t("邮箱验证码")}</span>
-            <span className="code-row security-settings__code-row">
-              <input
-                aria-label={t("邮箱验证码")}
-                autoComplete="one-time-code"
-                className="form-input"
-                disabled={isSubmitting}
-                inputMode="numeric"
-                maxLength={6}
-                onChange={(event) => {
-                  setCode(event.currentTarget.value.replace(/\D/g, "").slice(0, 6));
-                  clearFeedback();
-                }}
-                pattern="[0-9]{6}"
-                required
-                value={code}
-              />
-              <button
-                className="button button--outline code-button"
-                disabled={countdown > 0 || isSendingCode || isSubmitting}
-                onClick={() => void sendCode()}
-                type="button"
-              >
-                {isSendingCode
-                  ? t("发送中…")
-                  : countdown > 0
-                    ? t("{seconds} 秒后重发", { seconds: countdown })
-                    : t("发送验证码")}
-              </button>
-            </span>
-          </label>
-        </div>
-
-        <div aria-live="polite" className="profile-settings__feedback">
-          {errorMessage && (
-            <p className="profile-settings__message profile-settings__message--error" role="alert">
-              {errorMessage}
-            </p>
-          )}
-        </div>
-
-        <footer className="profile-settings__actions">
-          <button
-            className="button button--outline"
-            disabled={!isDirty || isSubmitting}
-            onClick={cancelChanges}
-            type="button"
-          >
-            {t("取消")}
-          </button>
-          <button className="button button--primary" disabled={isSubmitting} type="submit">
-            {isSubmitting ? t("正在修改…") : t("确认修改")}
-          </button>
-        </footer>
+            </footer>
+          </>
+        )}
       </form>
     </section>
   );

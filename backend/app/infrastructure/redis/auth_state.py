@@ -26,6 +26,13 @@ end
 redis.call('DEL', KEYS[1])
 return 3
 """
+CONSUME_OAUTH_STATE_SCRIPT = """
+local value = redis.call('GET', KEYS[1])
+if value then
+    redis.call('DEL', KEYS[1])
+end
+return value
+"""
 
 
 @dataclass(frozen=True)
@@ -126,9 +133,21 @@ class RedisAuthStateStore:
     def delete_session(self, token_digest: str) -> None:
         self._client.delete(self._session_key(token_digest))
 
+    def save_oauth_state(self, state: str, context: str, ttl_seconds: int) -> None:
+        """保存一次性 OAuth 上下文；调用方：第三方登录 Service。"""
+        self._client.set(self._oauth_state_key(state), context, ex=ttl_seconds)
+
+    def consume_oauth_state(self, state: str) -> str | None:
+        """原子读取并删除 OAuth state，避免回调重放。"""
+        result = self._client.eval(CONSUME_OAUTH_STATE_SCRIPT, 1, self._oauth_state_key(state))
+        return result.decode() if isinstance(result, bytes) else result
+
     def _code_key(self, key_type: str, account: str, purpose: str) -> str:
         account_digest = hashlib.sha256(account.encode("utf-8")).hexdigest()
         return f"{self._key_prefix}:{key_type}:{purpose}:{account_digest}"
 
     def _session_key(self, token_digest: str) -> str:
         return f"{self._key_prefix}:session:{token_digest}"
+
+    def _oauth_state_key(self, state: str) -> str:
+        return f"{self._key_prefix}:oauth-state:{state}"
