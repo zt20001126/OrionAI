@@ -24,6 +24,18 @@ afterEach(() => {
 });
 
 describe("AuthPage", () => {
+  it("keeps the demo account hidden until the product logo is clicked", () => {
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
+    expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
+  });
+
   it("offers Gitee sign in from the login view", () => {
     render(
       <ToastProvider>
@@ -59,13 +71,14 @@ describe("AuthPage", () => {
     Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   });
 
-  it("shows the demo account dialog on login without an inline notice", () => {
+  it("shows the demo account dialog on demand without an inline notice", () => {
     render(
       <ToastProvider>
         <AuthPage onAuthenticated={vi.fn()} />
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
     expect(screen.getByText("admin@admin.com")).toBeInTheDocument();
     expect(screen.getByText("admin")).toBeInTheDocument();
@@ -86,6 +99,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("邮箱")).toHaveFocus());
@@ -106,6 +120,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
 
     expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
@@ -118,6 +133,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     const closeButton = screen.getByRole("button", { name: "关闭测试账号弹窗" });
     const acknowledgeButton = screen.getByRole("button", { name: "我知道了" });
     expect(closeButton).toHaveFocus();
@@ -134,6 +150,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.click(screen.getByRole("button", { name: "关闭测试账号弹窗" }));
 
     expect(screen.queryByRole("dialog", { name: "测试账号" })).not.toBeInTheDocument();
@@ -152,6 +169,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     fireEvent.click(screen.getByRole("button", { name: "复制账号" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("admin@admin.com"));
@@ -175,6 +193,7 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: "显示测试账号" }));
     expect(screen.getByRole("dialog", { name: "测试账号" })).toBeInTheDocument();
     act(() => setLocale("en"));
 
@@ -192,7 +211,6 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
     fireEvent.click(screen.getByRole("tab", { name: "注册" }));
 
     expect(screen.getByLabelText("邮箱")).toHaveAttribute("type", "email");
@@ -208,7 +226,6 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
     fireEvent.change(screen.getByLabelText("邮箱"), {
       target: { value: "member@example.com" },
     });
@@ -233,7 +250,6 @@ describe("AuthPage", () => {
       </ToastProvider>,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "我知道了" }));
     fireEvent.click(screen.getByRole("tab", { name: "注册" }));
     fireEvent.change(screen.getByLabelText("邮箱"), {
       target: { value: "new-member@example.com" },

@@ -228,6 +228,7 @@ const catalogs: Record<string, MessageMap> = {
     隐藏确认密码: "Hide confirmation password",
     显示确认密码: "Show confirmation password",
     测试账号: "Test Account",
+    显示测试账号: "Show test account",
     复制账号: "Copy email",
     复制密码: "Copy password",
     "复制成功。": "Copied to clipboard.",

@@ -163,10 +163,9 @@
 .membership-orders-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: 48px minmax(130px, 0.85fr) minmax(250px, 1.5fr) minmax(
-      100px,
-      0.7fr
-    ) 100px 120px;
+  grid-template-columns:
+    48px minmax(130px, 0.85fr) minmax(250px, 1.5fr) minmax(100px, 0.7fr)
+    100px 120px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -208,8 +207,28 @@
   white-space: nowrap;
 }
 .membership-orders-action {
-  min-height: 36px;
+  min-width: 112px;
+  min-height: 40px;
+  justify-self: end;
+  border-radius: var(--radius-pill);
+  font-weight: 600;
   white-space: nowrap;
+}
+.membership-orders-row > .membership-order-status {
+  grid-column: auto;
+  justify-self: center;
+}
+.membership-orders-row > .membership-orders-action {
+  grid-column: -2;
+}
+.membership-orders-action.button--outline {
+  color: var(--color-brand-active);
+  border-color: var(--color-brand-line);
+  background: var(--color-surface);
+}
+.membership-orders-action.button--outline:hover {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
 }
 .membership-orders-empty {
   display: grid;
@@ -1002,13 +1021,22 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .membership-orders-row {
-    grid-template-columns: 44px minmax(0, 1fr) auto auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
   }
   .membership-orders-meta {
-    grid-column: 2 / -1;
+    grid-column: 1 / -1;
   }
-  .membership-orders-action {
-    grid-column: 4;
+  .membership-orders-amount {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .membership-orders-row > .membership-order-status {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .membership-orders-row > .membership-orders-action {
+    grid-column: 3;
+    grid-row: 3;
   }
 }
 
@@ -1118,13 +1146,15 @@
     grid-column: 1;
     grid-row: 3;
   }
-  .membership-order-status {
+  .membership-orders-row > .membership-order-status {
     grid-column: 2;
     grid-row: 3;
   }
   .membership-orders-action {
     grid-column: 3;
     grid-row: 3;
+    width: 100%;
+    min-width: 0;
   }
   .membership-order-pagination {
     align-items: flex-start;

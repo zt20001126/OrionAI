@@ -45,7 +45,7 @@ export function AuthPage({
 }: AuthPageProps) {
   const { showToast } = useToast();
   const [view, setView] = useState<AuthView>("login");
-  const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(true);
+  const [isDemoDialogOpen, setIsDemoDialogOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
@@ -180,7 +180,7 @@ export function AuthPage({
     <main className="auth-homepage">
       <section className="auth-layout auth-home-screen">
         <AmbientBackground mode="auth" />
-        <ProductIntro />
+        <ProductIntro onLogoClick={() => setIsDemoDialogOpen(true)} />
         <Suspense fallback={null}>
           <HomeDigitalHuman />
         </Suspense>

@@ -160,7 +160,7 @@ export function MembershipOrdersPage({
                   {getOrderStatusLabel(order.status, order.order_type)}
                 </span>
                 <button
-                  className="button button--outline membership-orders-action"
+                  className={`button ${order.status === "pending" ? "button--primary" : "button--outline"} membership-orders-action`}
                   onClick={() =>
                     onNavigate(
                       order.status === "pending"

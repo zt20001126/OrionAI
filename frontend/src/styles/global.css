@@ -226,10 +226,28 @@ button {
 }
 
 .brand-lockup {
+  display: inline-flex;
+  align-items: center;
   gap: var(--space-3);
   margin-bottom: calc(-1 * var(--space-1));
   font-size: var(--font-size-xl);
   font-weight: 700;
+}
+
+.brand-lockup-button {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.brand-lockup-button:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline-offset: var(--space-1);
+  border-radius: var(--radius-control);
 }
 
 .brand-lockup .brand-mark {
