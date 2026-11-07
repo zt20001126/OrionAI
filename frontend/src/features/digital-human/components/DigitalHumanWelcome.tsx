@@ -9,6 +9,8 @@ const suggestions: { title: string; prompt: string; icon: PlatformIconName }[] =
   { title: "查询股票数据", prompt: "帮我查询 A 股指数", icon: "data" },
   { title: "简历修改", prompt: "帮我修改求职意向", icon: "document" },
   { title: "生成视频", prompt: "帮我生成一个视频", icon: "camera" },
+  { title: "查询文献", prompt: "帮我查找关于目标检测的文献", icon: "search" },
+  { title: "查询天气", prompt: "帮我查一下北京今天的天气", icon: "cloud" },
   { title: "互动聊天", prompt: "陪我聊聊天", icon: "message" },
   { title: "了解我的能力", prompt: "你都有哪些能力？", icon: "assistant" },
 ];
