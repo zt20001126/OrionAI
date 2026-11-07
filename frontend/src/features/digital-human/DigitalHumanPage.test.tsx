@@ -76,6 +76,15 @@ describe("数字人能力引导", () => {
     const input = screen.getByRole("textbox");
     fireEvent.click(screen.getByRole("button", { name: /生成图片/ }));
     expect(input).toHaveValue("帮我生成一张图片");
+    const suggestions = document.querySelectorAll(".digital-human-welcome__item");
+    expect(suggestions[4]).toHaveTextContent("简历修改");
+    expect(suggestions[5]).toHaveTextContent("生成视频");
+    expect(suggestions[6]).toHaveTextContent("互动聊天");
+    expect(suggestions[7]).toHaveTextContent("了解我的能力");
+    fireEvent.click(screen.getByRole("button", { name: /简历修改/ }));
+    expect(input).toHaveValue("帮我修改求职意向");
+    fireEvent.click(screen.getByRole("button", { name: /生成视频/ }));
+    expect(input).toHaveValue("帮我生成一个视频");
     fireEvent.click(screen.getByRole("button", { name: /了解我的能力/ }));
     expect(input).toHaveValue("你都有哪些能力？");
     expect(streamDigitalHumanReply).not.toHaveBeenCalled();

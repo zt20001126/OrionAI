@@ -229,6 +229,7 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-5);
+  animation: welcome-header-in 500ms ease-out both;
 }
 
 .digital-human-welcome__header h1 {
@@ -258,6 +259,8 @@
 }
 
 .digital-human-welcome__item {
+  position: relative;
+  isolation: isolate;
   display: flex;
   min-width: 0;
   min-height: 68px;
@@ -267,6 +270,12 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
+  border-color: rgb(255 255 255 / 65%);
+  box-shadow: 0 5px 18px rgb(100 99 200 / 10%);
+  transition: transform 300ms ease, box-shadow 300ms ease, background 300ms ease;
+  animation: welcome-card-in 450ms ease-out backwards;
+  animation-delay: calc(var(--card-index, 0) * 70ms);
 }
 
 .digital-human-welcome__item:hover,
@@ -274,6 +283,60 @@
   border-color: var(--digital-human-composer-focus-border);
   background: var(--digital-human-voice-hover-background);
 }
+
+.digital-human-welcome__item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgb(100 99 200 / 22%);
+}
+
+/* 边框和光波均位于内容下方，不参与命中测试。 */
+.digital-human-welcome__item::before,
+.digital-human-welcome__item::after {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+}
+
+.digital-human-welcome__item::before {
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(110deg, #c5a7f5, #a2c9fa, #a9e6ee, #dcb4f3, #c5a7f5);
+  background-size: 300% 100%;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.45;
+  animation: welcome-border-flow 7s linear infinite;
+  animation-delay: calc(var(--card-index, 0) * -300ms);
+  transition: opacity 300ms ease;
+}
+
+.digital-human-welcome__item::after {
+  right: -20%;
+  bottom: -35px;
+  width: 80%;
+  height: 58px;
+  border-radius: 50%;
+  background: linear-gradient(110deg, rgb(202 172 248 / 35%), rgb(164 226 244 / 35%), rgb(239 188 234 / 35%));
+  filter: blur(5px);
+  opacity: 0.55;
+  animation: welcome-wave 6s ease-in-out infinite alternate;
+  animation-delay: calc(var(--card-index, 0) * -300ms);
+  transition: opacity 300ms ease;
+}
+
+.digital-human-welcome__item:hover::before { opacity: 1; }
+.digital-human-welcome__item:hover::after { opacity: 0.9; }
+
+.digital-human-welcome__item:nth-child(1) { --card-index: 0; --icon-start: #a487ed; --icon-end: #e699dd; }
+.digital-human-welcome__item:nth-child(2) { --card-index: 1; --icon-start: #8ebaf2; --icon-end: #a295ed; }
+.digital-human-welcome__item:nth-child(3) { --card-index: 2; --icon-start: #f4b69f; --icon-end: #e795c4; }
+.digital-human-welcome__item:nth-child(4) { --card-index: 3; --icon-start: #8adbdc; --icon-end: #79b8eb; }
+.digital-human-welcome__item:nth-child(5) { --card-index: 4; --icon-start: #a2c8f5; --icon-end: #8199e9; }
+.digital-human-welcome__item:nth-child(6) { --card-index: 5; --icon-start: #ad8eea; --icon-end: #d498e6; }
+.digital-human-welcome__item:nth-child(7) { --card-index: 6; --icon-start: #c19ced; --icon-end: #9d8be5; }
+.digital-human-welcome__item:nth-child(8) { --card-index: 7; --icon-start: #a1b9ef; --icon-end: #9993e8; }
 
 .digital-human-welcome__item:focus-visible,
 .digital-human-welcome__skip:focus-visible {
@@ -288,9 +351,40 @@
   flex: 0 0 36px;
   place-items: center;
   border-radius: var(--radius-card);
-  color: var(--digital-human-voice-text);
-  background: var(--digital-human-voice-background);
+  color: white;
+  background: linear-gradient(135deg, var(--icon-start), var(--icon-end));
+  box-shadow: 0 4px 12px rgb(135 120 218 / 25%);
+  animation: welcome-icon-glow 3.6s ease-in-out infinite alternate;
+  animation-delay: calc(var(--card-index, 0) * -300ms);
+  transition: filter 300ms ease;
 }
+
+.digital-human-welcome__item:hover .digital-human-welcome__icon { filter: brightness(1.12); }
+.digital-human-welcome__arrow { display: flex; transition: transform 300ms ease; }
+.digital-human-welcome__item:hover .digital-human-welcome__arrow { transform: translateX(3px); }
+
+.digital-human-welcome__ripple {
+  position: absolute;
+  z-index: 0;
+  border-radius: 50%;
+  background: rgb(169 137 232 / 20%);
+  pointer-events: none;
+  animation: welcome-ripple 500ms ease-out forwards;
+}
+
+.digital-human-welcome__icon,
+.digital-human-welcome__text,
+.digital-human-welcome__arrow {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes welcome-header-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes welcome-card-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes welcome-border-flow { to { background-position: 300% 0; } }
+@keyframes welcome-wave { from { transform: translateX(-15%); } to { transform: translateX(15%); } }
+@keyframes welcome-icon-glow { from { box-shadow: 0 3px 9px rgb(135 120 218 / 18%); } to { box-shadow: 0 5px 16px rgb(135 120 218 / 38%); } }
+@keyframes welcome-ripple { from { opacity: 0.7; transform: translate(-50%, -50%) scale(0); } to { opacity: 0; transform: translate(-50%, -50%) scale(1); } }
 
 .digital-human-welcome__text {
   display: grid;
@@ -825,6 +919,24 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .digital-human-welcome__header,
+  .digital-human-welcome__item,
+  .digital-human-welcome__item::before,
+  .digital-human-welcome__item::after,
+  .digital-human-welcome__icon,
+  .digital-human-welcome__arrow,
+  .digital-human-welcome__ripple {
+    animation: none;
+    transition: none;
+  }
+
+  .digital-human-welcome__item:hover,
+  .digital-human-welcome__item:hover .digital-human-welcome__arrow {
+    transform: none;
+  }
+
+  .digital-human-welcome__ripple { display: none; }
+
   .digital-human-avatar__loader {
     animation: none;
   }
