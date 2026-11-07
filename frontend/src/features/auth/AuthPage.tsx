@@ -307,7 +307,7 @@ export function AuthPage({
                 </>
               ) : view === "login" ? (
                 <>
-                  {t("登录")}{" "}
+                  {t("登录")}
                   <span className="auth-submit-arrow">
                     <ArrowRightIcon />
                   </span>

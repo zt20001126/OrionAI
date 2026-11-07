@@ -1033,18 +1033,20 @@ button {
 .auth-form .form-options {
   justify-content: flex-end;
   margin-top: -4px;
-  margin-bottom: var(--space-3);
+  margin-bottom: 0;
   font-size: var(--font-size-md);
 }
 
 .auth-layout .submit-button {
+  width: 100%;
   min-height: 52px;
   margin-top: 0;
   border-radius: 12px;
   background: var(--auth-submit-gradient-reference);
   box-shadow: var(--auth-submit-shadow);
-  font-size: var(--font-size-lg);
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 600;
+  gap: 10px;
   transition:
     background-color 200ms ease,
     border-color 200ms ease,
@@ -1053,7 +1055,7 @@ button {
 }
 
 .auth-layout .submit-button:hover:not(:disabled) {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: var(--auth-submit-shadow-hover);
   filter: brightness(1.06);
 }
@@ -1069,8 +1071,8 @@ button {
 }
 
 .auth-submit-arrow svg {
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -1083,15 +1085,15 @@ button {
 }
 
 .auth-guest-option {
-  gap: var(--space-4);
-  margin-top: var(--space-6);
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .auth-method-divider {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: var(--space-2);
+  margin-bottom: 8px;
   color: var(--color-text-tertiary);
   font-size: var(--font-size-sm);
   white-space: nowrap;
@@ -1106,9 +1108,14 @@ button {
 }
 
 .auth-guest-button {
-  min-height: 52px;
+  width: 100%;
+  min-height: 48px;
   border-radius: 12px;
-  font-size: var(--font-size-lg);
+  padding-inline: var(--space-3);
+  font-size: 16px;
+  font-weight: 600;
+  gap: 10px;
+  white-space: nowrap;
   transition:
     background-color 200ms ease,
     border-color 200ms ease,
@@ -1147,11 +1154,6 @@ button {
   box-shadow: none;
 }
 
-.auth-provider-icon {
-  width: 22px;
-  height: 22px;
-}
-
 .auth-user-icon {
   fill: none;
   stroke: currentColor;
@@ -1161,9 +1163,9 @@ button {
 }
 
 .auth-provider-icon {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
 }
 
 .button-spinner,
