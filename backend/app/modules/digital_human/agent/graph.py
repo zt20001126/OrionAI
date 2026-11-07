@@ -34,6 +34,7 @@ from app.modules.digital_human.agent.tools.generate_video import generate_video
 from app.modules.digital_human.agent.tools.index_quote import get_index_quote
 from app.modules.digital_human.agent.tools.literature import search_literature
 from app.modules.digital_human.agent.tools.news import get_news
+from app.modules.digital_human.agent.tools.products import get_product_detail, search_products
 from app.modules.digital_human.agent.tools.reminder import (
     create_reminder,
     get_reminder,
@@ -118,6 +119,8 @@ def create_digital_human_graph(
         get_reminder,
         get_news,
         search_literature,
+        search_products,
+        get_product_detail,
     ]
     if resume_reader is not None and resume_writer is not None:
         tools.extend(create_resume_tools(resume_reader, resume_writer))

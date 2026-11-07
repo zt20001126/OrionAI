@@ -52,6 +52,8 @@ class Settings(BaseSettings):
     auth_frontend_base_url: str = "http://localhost:5173"
     gnews_api_key: SecretStr = SecretStr("")
     openalex_api_key: SecretStr = SecretStr("")
+    tky_api_token: SecretStr = SecretStr("")
+    tky_api_base_url: str = "https://www.tky.com/openapi/v1"
     smtp_host: str = ""
     smtp_port: int = 465
     smtp_username: str = ""
