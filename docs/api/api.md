@@ -19,7 +19,7 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `GET` | `/api/resume` | 获取简历；尚未保存时返回默认空内容和 `exists: false`。 |
+| `GET` | `/api/resume` | 获取简历；尚未保存时返回算法工程师示例内容和 `exists: false`，不创建记录。 |
 | `PUT` | `/api/resume` | 校验并保存完整简历及排版设置；已有简历需携带 `expected_updated_at`，版本不匹配返回 `409`。 |
 | `POST` | `/api/resume/photo` | 上传 PNG/JPEG 照片，最大 5 MiB，返回暂存 `photo_id`。 |
 | `GET` | `/api/resume/photo` | 读取当前用户已保存简历引用的私有照片。 |

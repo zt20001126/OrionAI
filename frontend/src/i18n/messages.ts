@@ -467,6 +467,7 @@ const catalogs: Record<string, MessageMap> = {
     "整理经历，实时预览并导出一份清晰的简历。": "Organize your experience, preview changes, and export a polished resume.",
     "有未保存的修改": "Unsaved changes",
     "尚未保存": "Not saved",
+    "当前为示例简历，请替换为自己的信息后保存。": "This is a sample resume. Replace it with your own information before saving.",
     "已保存": "Saved",
     "收起 AI 简历助手": "Hide AI resume assistant",
     "展开 AI 简历助手": "Show AI resume assistant",

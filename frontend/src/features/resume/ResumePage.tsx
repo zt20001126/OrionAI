@@ -24,6 +24,8 @@ import {
 import "./resume.css";
 import { t } from "../../i18n/localeStore";
 
+const DEFAULT_RESUME_AVATAR = "/avatar/default_avatar.png";
+
 export function ResumePage({
   onNavigate,
   onDirtyChange,
@@ -38,6 +40,7 @@ export function ResumePage({
   const [resumeVersion, setResumeVersion] = useState<string | null>(null);
   const [exists, setExists] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -56,7 +59,7 @@ export function ResumePage({
     uploadedPhotoUrl ??
     (draft.content.basic_info.photo_id
       ? `/api/resume/photo?v=${encodeURIComponent(resumeVersion ?? "saved")}`
-      : null);
+      : DEFAULT_RESUME_AVATAR);
 
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
 
@@ -66,6 +69,7 @@ export function ResumePage({
       .then((response) => {
         if (!active) return;
         applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
+        setLoaded(true);
         setError(null);
       })
       .catch((requestError: unknown) => {
@@ -224,6 +228,7 @@ export function ResumePage({
     try {
       const response = await getResume();
       applyLoadedResume(response, setDraft, setBaseline, setExists, setResumeVersion);
+      setLoaded(true);
       setError(null);
     } catch (requestError) {
       showToast("error", messageOf(requestError, t("重新加载简历失败，请稍后重试。")));
@@ -296,7 +301,7 @@ export function ResumePage({
           </button>
           <button
             className="button button--primary"
-            disabled={loading || saving || uploading || exporting || !dirty}
+            disabled={loading || !loaded || saving || uploading || exporting || (exists && !dirty)}
             onClick={() => void handleSave()}
             type="button"
           >
@@ -304,6 +309,10 @@ export function ResumePage({
           </button>
         </div>
       </header>
+
+      {loaded && !exists && (
+        <p>{t("当前为示例简历，请替换为自己的信息后保存。")}</p>
+      )}
 
       {error && (
         <div className="resume-alert" role="alert">
