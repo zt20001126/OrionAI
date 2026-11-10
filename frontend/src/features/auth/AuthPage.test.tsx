@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "../../components/ToastProvider";
@@ -24,6 +24,24 @@ afterEach(() => {
 });
 
 describe("AuthPage", () => {
+  it("shows only the centered brand lockup and title in the left product area", () => {
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    const productPanel = screen.getByRole("complementary", { name: "探索 AI 的更多可能" });
+    expect(productPanel).toHaveTextContent("OrionAI");
+    expect(
+      within(productPanel).getByRole("heading", { name: "探索 AI 的更多可能" }),
+    ).toBeInTheDocument();
+    expect(within(productPanel).getByRole("button", { name: "显示测试账号" })).toBeInTheDocument();
+    expect(productPanel).not.toHaveTextContent("一站式 AI 智能体与工具平台");
+    expect(productPanel).not.toHaveTextContent("丰富的智能体");
+    expect(productPanel).not.toHaveTextContent("探索技能市场");
+  });
+
   it("keeps the demo account hidden until the product logo is clicked", () => {
     render(
       <ToastProvider>
