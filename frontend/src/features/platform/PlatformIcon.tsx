@@ -236,16 +236,10 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
       )}
       {name === "plus" && <path d="M12 5v14M5 12h14" />}
       {name === "collapse" && (
-        <>
-          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-          <path d="M9 5v14m3-4 3-3-3-3" />
-        </>
+        <path d="m14 6-6 6 6 6M20 6l-6 6 6 6" />
       )}
       {name === "expand" && (
-        <>
-          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-          <path d="M9 5v14m6-4-3-3 3-3" />
-        </>
+        <path d="m10 6 6 6-6 6M4 6l6 6-6 6" />
       )}
       {name === "message" && (
         <>
