@@ -50,9 +50,11 @@ from app.modules.conversations.repository import repository
 from app.modules.conversations.schemas.schemas import (
     AgentTurnResponse,
     ConversationCreateResponse,
+    ConversationKlineChartEvent,
     ConversationListResponse,
     ConversationQuestionEvent,
     ConversationTextDeltaEvent,
+    KlineChartContentPart,
     MessageContent,
     MessageListResponse,
     MessageResponse,
@@ -320,7 +322,7 @@ class ConversationService:
         *,
         save_partial_on_cancel: bool = False,
     ) -> AsyncIterator[StreamEvent]:
-        """将 Agent 文本增量转为 SSE 消息，并在成功或指定的中断场景下保存结果。"""
+        """将 Agent 文本和K线图转为 SSE 消息，并在成功或指定中断场景下保存结果。"""
 
         if prepared.cached_response_message is not None:
             cached_message = self._message_response(prepared.cached_response_message)
@@ -332,6 +334,15 @@ class ConversationService:
                     )
                 elif isinstance(part, QuestionContentPart):
                     payload = ConversationQuestionEvent(message=cached_message)
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data=payload.model_dump(mode="json"),
+                    )
+                elif isinstance(part, KlineChartContentPart):
+                    payload = ConversationKlineChartEvent(
+                        type="kline_chart",
+                        content=part.content,
+                    )
                     yield StreamEvent(
                         event_type=EventType.MESSAGE,
                         data=payload.model_dump(mode="json"),
@@ -409,6 +420,15 @@ class ConversationService:
             payload = ConversationQuestionEvent(
                 type="question",
                 message=persisted_turn.message,
+            )
+            yield StreamEvent(
+                event_type=EventType.MESSAGE,
+                data=payload.model_dump(mode="json"),
+            )
+        elif agent_response is not None and agent_response.kline_chart is not None:
+            payload = ConversationKlineChartEvent(
+                type="kline_chart",
+                content=agent_response.kline_chart,
             )
             yield StreamEvent(
                 event_type=EventType.MESSAGE,
@@ -1059,6 +1079,13 @@ class ConversationService:
                             f"/api/digital-human/task-results/{response.video_result_id}/video"
                         ),
                     }
+                )
+            if response.kline_chart is not None:
+                parts.append(
+                    KlineChartContentPart(
+                        type="kline_chart",
+                        content=response.kline_chart,
+                    ).model_dump(mode="json")
                 )
             content: dict[str, object] = {"parts": parts}
         else:

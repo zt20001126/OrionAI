@@ -41,6 +41,7 @@ from app.modules.digital_human.agent.tools.reminder import (
     list_reminders,
 )
 from app.modules.digital_human.agent.tools.resume import create_resume_tools
+from app.modules.digital_human.agent.tools.stock_kline import get_stock_kline
 from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
 from app.modules.digital_human.agent.tools.weather import get_current_weather
 from app.modules.resume.schemas import ResumeResponse, ResumeSaveRequest
@@ -112,6 +113,7 @@ def create_digital_human_graph(
         generate_image,
         generate_video,
         get_stock_quote,
+        get_stock_kline,
         get_index_quote,
         prepare_email,
         create_reminder,

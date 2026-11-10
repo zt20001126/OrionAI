@@ -25,6 +25,7 @@ from app.agent.schemas import (
     AgentStreamEvent,
     AgentStreamResult,
     AgentTextDelta,
+    KlineChartPayload,
     QuestionPayload,
 )
 from app.modules.digital_human.agent.graph import (
@@ -196,7 +197,38 @@ class DigitalHumanRuntime(AgentRuntime):
             answer=answer,
             image_result_id=_image_result_id_from_current_turn(messages),
             video_result_id=_video_result_id_from_current_turn(messages),
+            kline_chart=_kline_chart_from_current_turn(messages),
         )
+
+
+def _kline_chart_from_current_turn(messages: list[Any]) -> KlineChartPayload | None:
+    """提取并校验本轮成功的K线工具结果；调用方：数字人 Runtime。"""
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], HumanMessage)
+        ),
+        -1,
+    )
+    for message in reversed(messages[latest_user_index + 1 :]):
+        if not isinstance(message, ToolMessage) or message.name != "get_stock_kline":
+            continue
+        if not isinstance(message.content, str):
+            return None
+        try:
+            result = json.loads(message.content)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(result, dict) or result.get("status") != "ok":
+            return None
+        try:
+            return KlineChartPayload.model_validate(result["chart"])
+        except (ValidationError, KeyError, TypeError):
+            raise AgentExecutionError(
+                "数字人生成的K线数据格式无效。", code="invalid_kline_tool_result"
+            ) from None
+    return None
 
 
 def _image_result_id_from_current_turn(messages: list[Any]) -> str | None:

@@ -13,7 +13,12 @@ from app.agent.tools.registry import ToolRegistry
 from app.modules.digital_human.agent import graph
 from app.modules.digital_human.agent.capabilities import build_capabilities_prompt
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
-from app.modules.digital_human.agent.tools import current_date, index_quote, stock_quote
+from app.modules.digital_human.agent.tools import (
+    current_date,
+    index_quote,
+    stock_kline,
+    stock_quote,
+)
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -58,6 +63,10 @@ def test_capabilities_require_all_registered_tools() -> None:
     assert "天气查询" in complete_prompt
     assert "A 股行情查询" in complete_prompt
     assert "互动提问" in complete_prompt
+    assert "A 股K线查询" not in complete_prompt
+    assert "A 股K线查询" in build_capabilities_prompt(
+        names | {"ask_user_questions", "get_stock_kline"}
+    )
 
 
 @pytest.mark.anyio
@@ -236,6 +245,60 @@ async def test_stock_question_continues_to_registered_tool(
         message.type == "tool" and message.name == "get_stock_quote" and "600519" in message.content
         for message in state.values["messages"]
     )
+
+
+@pytest.mark.anyio
+async def test_stock_kline_tool_result_is_attached_to_agent_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chart = {
+        "code": "600519",
+        "name": "贵州茅台",
+        "period": "daily",
+        "adjust": "qfq",
+        "start_date": "2026-11-10",
+        "end_date": "2026-11-10",
+        "source": "AKShare",
+        "candles": [
+            {
+                "date": "2026-11-10",
+                "open": 10,
+                "close": 11,
+                "high": 12,
+                "low": 9,
+                "volume": 100,
+            }
+        ],
+    }
+    monkeypatch.setattr(
+        stock_kline,
+        "_query_kline",
+        lambda *_args: {"status": "ok", "chart": chart},
+    )
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_stock_kline",
+                "args": {"stock": "600519", "period": "daily"},
+                "id": "kline-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel([tool_call, AIMessage(content="这是近期日K走势。")]),
+        checkpointer=MemorySaver(),
+    )
+
+    response = await runtime.ainvoke(
+        "查询贵州茅台的日K线",
+        runnable_config={"configurable": {"thread_id": "kline-test"}},
+    )
+
+    assert response.kline_chart is not None
+    assert response.kline_chart.code == "600519"
+    assert response.kline_chart.candles[0].close == 11
 
 
 @pytest.mark.anyio

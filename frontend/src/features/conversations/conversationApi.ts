@@ -73,12 +73,38 @@ export interface VideoResultContentPart {
   video_url: string;
 }
 
+export interface KlineCandle {
+  date: string;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number | null;
+}
+
+export interface KlineChartPayload {
+  code: string;
+  name: string;
+  period: "daily" | "weekly" | "monthly";
+  adjust: "qfq";
+  start_date: string;
+  end_date: string;
+  source: string;
+  candles: KlineCandle[];
+}
+
+export interface KlineChartContentPart {
+  type: "kline_chart";
+  content: KlineChartPayload;
+}
+
 export type MessageContentPart =
   | TextContentPart
   | QuestionContentPart
   | QuestionAnswersContentPart
   | ImageResultContentPart
-  | VideoResultContentPart;
+  | VideoResultContentPart
+  | KlineChartContentPart;
 
 export interface ConversationMessage {
   id: string;
@@ -114,7 +140,13 @@ export interface ConversationQuestionEvent {
   message: ConversationMessage;
 }
 
-export type ConversationStreamMessageData = ConversationTextDeltaEvent | ConversationQuestionEvent;
+export interface ConversationKlineChartEvent {
+  type: "kline_chart";
+  content: KlineChartPayload;
+}
+
+export type ConversationStreamMessageData =
+  ConversationTextDeltaEvent | ConversationQuestionEvent | ConversationKlineChartEvent;
 
 interface ConversationStreamEnvelope {
   event_type: "start" | "message" | "heartbeat" | "end";
@@ -320,6 +352,7 @@ export async function listenConversationRun(
   onQuestion: (message: ConversationMessage) => void,
   onStatus: (status: string) => void,
   signal: AbortSignal,
+  onKlineChart?: (chart: KlineChartPayload) => void,
 ): Promise<void> {
   let response: Response;
   try {
@@ -356,6 +389,8 @@ export async function listenConversationRun(
       onTextDelta(event.content);
     if (event.type === "question" && event.message)
       onQuestion(event.message as ConversationMessage);
+    if (event.type === "kline_chart" && event.content && onKlineChart)
+      onKlineChart(event.content as KlineChartPayload);
     if (event.type === "run_status" && typeof event.status === "string") onStatus(event.status);
   };
   try {
@@ -425,6 +460,7 @@ export async function streamDigitalHumanReply(
   onAudio: (event: DigitalHumanAudioEvent) => void | Promise<void>,
   signal: AbortSignal,
   idempotencyKey?: string,
+  onKlineChart?: (chart: KlineChartPayload) => void,
 ): Promise<void> {
   const response = await fetch(
     `/api/conversations/${conversationId}/${endpoint}/stream?voice=true`,
@@ -462,6 +498,8 @@ export async function streamDigitalHumanReply(
       completed = event.status === "completed";
     } else if (envelope.event_type === "message") {
       if (event.type === "text_delta" && typeof event.content === "string") onText(event.content);
+      if (event.type === "kline_chart" && event.content && onKlineChart)
+        onKlineChart(event.content as KlineChartPayload);
       if (
         (event.type === "audio_segment" ||
           event.type === "audio_done" ||

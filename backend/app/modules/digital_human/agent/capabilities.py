@@ -131,6 +131,14 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "不推断停牌或编造价格。",
     ),
     DigitalHumanCapability(
+        "A 股K线查询",
+        "查询单只 A 股的日K、周K或月K，并在对话中展示走势图",
+        frozenset({"get_stock_kline", "ask_user_questions"}),
+        "用户询问个股历史走势或K线时调用 get_stock_kline；缺少股票名称或代码时使用 Text 题卡追问，"
+        "匹配到多个候选时列出代码并请用户确认；未指定周期时使用 daily，未指定日期时查询最近 60 根；"
+        "仅依据工具返回的K线数据总结，不得称为实时数据或提供未经请求的投资建议。",
+    ),
+    DigitalHumanCapability(
         "淘宝商品查询",
         "按关键词、分类和价格条件搜索商品，并查看淘客易商品记录详情",
         frozenset({"search_products", "get_product_detail"}),

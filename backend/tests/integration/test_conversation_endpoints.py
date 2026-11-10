@@ -17,6 +17,7 @@ from app.agent.schemas import (
     AgentStreamEvent,
     AgentStreamResult,
     AgentTextDelta,
+    KlineChartPayload,
     Question,
     QuestionOption,
     QuestionPayload,
@@ -435,6 +436,59 @@ def test_streaming_message_persists_the_complete_answer(
     stored_messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
     assert [message["role"] for message in stored_messages] == ["user", "assistant"]
     assert stored_messages[-1]["content"] == {"parts": [{"type": "text", "text": answer}]}
+
+
+def test_streaming_kline_sends_chart_message_and_persists_same_payload(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, agent, _title_generator, _session_factory = conversation_client
+    payload = KlineChartPayload.model_validate(
+        {
+            "code": "600519",
+            "name": "贵州茅台",
+            "period": "daily",
+            "adjust": "qfq",
+            "start_date": "2026-11-10",
+            "end_date": "2026-11-10",
+            "source": "AKShare",
+            "candles": [
+                {
+                    "date": "2026-11-10",
+                    "open": 10,
+                    "close": 11,
+                    "high": 12,
+                    "low": 9,
+                    "volume": 100,
+                }
+            ],
+        }
+    )
+    agent.responses[0] = AgentResponse(
+        agent=BASIC_CONVERSATION_AGENT,
+        status="completed",
+        answer="贵州茅台最新日K收盘价为 11 元。",
+        kline_chart=payload,
+    )
+    conversation_id = client.post("/api/conversations").json()["id"]
+
+    response = client.post(
+        f"/api/conversations/{conversation_id}/messages/stream",
+        json={"message": "查询贵州茅台日K"},
+    )
+
+    events = _decode_sse_events(response.content)
+    chart_event = next(
+        event["data"] for event in events if event["data"].get("type") == "kline_chart"
+    )
+    assert chart_event["content"]["candles"][0]["close"] == 11
+    saved = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"][-1]
+    assert saved["content"]["parts"][-1] == chart_event
 
 
 def test_stream_idempotency_replays_completed_turn_without_running_agent_twice(

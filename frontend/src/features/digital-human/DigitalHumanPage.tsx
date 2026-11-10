@@ -10,6 +10,7 @@ import {
 } from "../conversations/conversationApi";
 import type {
   ConversationMessage,
+  KlineChartPayload,
   MessageListResponse,
   QuestionContentPart,
 } from "../conversations/conversationApi";
@@ -83,6 +84,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     index: number;
   }>({ conversationId: null, messageId: null, index: 0 });
   const [streamedAssistantText, setStreamedAssistantText] = useState("");
+  const [streamedKlineChart, setStreamedKlineChart] = useState<{
+    conversationId: string;
+    chart: KlineChartPayload;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const audioTurnRef = useRef<string | null>(null);
   const nextSegmentRef = useRef(1);
@@ -284,6 +289,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     setPendingMessage(message);
     setDraft("");
     setStreamedAssistantText("");
+    setStreamedKlineChart(null);
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
@@ -295,6 +301,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       idempotencyRef.current = { key: requestKey, text: message };
       activeConversationId = activeConversationId ?? (await startNewConversation(true));
       if (!activeConversationId) return;
+      const streamConversationId = activeConversationId;
       await streamDigitalHumanReply(
         activeConversationId,
         "messages",
@@ -306,10 +313,12 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         (event) => receiveAudio(event, controller.signal),
         controller.signal,
         requestKey,
+        (chart) => setStreamedKlineChart({ conversationId: streamConversationId, chart }),
       );
       await refreshMessages(activeConversationId);
       // 持久化消息已加载，移除临时流式气泡，避免 TTS 期间重复展示同一回复。
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
       setIsSubmitting(false);
       setPendingMessage(null);
@@ -330,6 +339,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setIsSubmitting(false);
       setPendingMessage(null);
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
     }
   }
@@ -356,6 +366,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     setIsSubmitting(true);
     setPendingMessage(submittedText);
     setStreamedAssistantText("");
+    setStreamedKlineChart(null);
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
@@ -371,6 +382,8 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         },
         (event) => receiveAudio(event, controller.signal),
         controller.signal,
+        undefined,
+        (chart) => setStreamedKlineChart({ conversationId: targetConversationId, chart }),
       );
       await refreshMessages(targetConversationId);
       if (activeConversationRef.current !== targetConversationId) return;
@@ -378,6 +391,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setQuestionStep({ conversationId: null, messageId: null, index: 0 });
       setPendingMessage(null);
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
       setIsSubmitting(false);
     } catch (submitError) {
@@ -391,6 +405,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setIsSubmitting(false);
       setPendingMessage(null);
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
     }
   }
@@ -468,6 +483,11 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
               pendingQuestionMessageId={pendingQuestion?.messageId ?? null}
               selectedAnswers={selectedAnswers}
               streamedAssistantText={streamedAssistantText}
+              streamedKlineChart={
+                streamedKlineChart?.conversationId === conversationId
+                  ? streamedKlineChart.chart
+                  : null
+              }
             />
           )}
           <DigitalHumanComposer
