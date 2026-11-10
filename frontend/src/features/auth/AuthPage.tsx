@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "../../i18n/LanguageSwitcher";
 import { t } from "../../i18n/localeStore";
 import { DemoAccountDialog } from "./DemoAccountDialog";
 import { AuthAssistantShowcase } from "./components/AuthAssistantShowcase";
+import { HomeCapabilitiesSection } from "./components/HomeCapabilitiesSection";
 import {
   ApiError,
   guestLogin,
@@ -162,6 +163,12 @@ export function AuthPage({
       setIsAuthCardHighlighted(false);
       authHighlightTimerRef.current = null;
     }, 1200);
+  }
+
+  /** 将第三屏 CTA 返回到认证卡片并聚焦邮箱输入框；由首页能力展示区调用。 */
+  function focusLoginFromCapabilities() {
+    returnToLoginCard();
+    emailInputRef.current?.focus({ preventScroll: true });
   }
 
   /** 滚动到公开功能介绍屏，并遵循系统的减少动态效果设置。 */
@@ -408,6 +415,7 @@ export function AuthPage({
         </button>
       </section>
       <AuthAssistantShowcase onRequireAuth={returnToLoginCard} />
+      <HomeCapabilitiesSection onRequireAuth={focusLoginFromCapabilities} />
       <footer className="auth-homepage-footer">
         <span>{t("ICP备案信息：审核中")}</span>
       </footer>

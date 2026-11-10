@@ -89,6 +89,25 @@ describe("AuthPage", () => {
     Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
   });
 
+  it("returns the third screen CTA to the login card and focuses the email field", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    render(
+      <ToastProvider>
+        <AuthPage onAuthenticated={vi.fn()} />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "开启你的 AI 探索之旅" }));
+
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("邮箱")).toHaveFocus();
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  });
+
   it("shows the demo account dialog on demand without an inline notice", () => {
     render(
       <ToastProvider>
