@@ -79,6 +79,7 @@ it("delivers audio before the stream ends and preserves text events", async () =
     new AbortController().signal,
     undefined,
     onKlineChart,
+    false,
   );
   await vi.waitFor(() => expect(onAudio).toHaveBeenCalledOnce());
   expect(onText).toHaveBeenCalledWith("你好");
@@ -90,4 +91,8 @@ it("delivers audio before the stream ends and preserves text events", async () =
   );
   release?.();
   await request;
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/conversations/12/messages/stream?voice=false",
+    expect.any(Object),
+  );
 });

@@ -457,7 +457,7 @@ export interface DigitalHumanAudioEvent {
   audio?: string;
 }
 
-/** 读取数字人请求内语音流；输入消息或题卡答案，输出文字与有序音频事件。 */
+/** 读取数字人回复流；输入会话、请求内容和播报状态，输出文字与有序音频事件；调用方：数字人页面。 */
 export async function streamDigitalHumanReply(
   conversationId: string,
   endpoint: "messages" | "answers",
@@ -467,9 +467,10 @@ export async function streamDigitalHumanReply(
   signal: AbortSignal,
   idempotencyKey?: string,
   onKlineChart?: (chart: KlineChartPayload) => void,
+  voiceEnabled = true,
 ): Promise<void> {
   const response = await fetch(
-    `/api/conversations/${conversationId}/${endpoint}/stream?voice=true`,
+    `/api/conversations/${conversationId}/${endpoint}/stream?voice=${voiceEnabled}`,
     {
       method: "POST",
       credentials: "include",
