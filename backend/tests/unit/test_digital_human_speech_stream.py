@@ -182,6 +182,7 @@ async def test_closed_conversation_stream_saves_partial_text(monkeypatch):
         message_id=3,
         message_text="你好",
         should_generate_title=False,
+        client_ip=None,
         resume_answers=None,
     )
     stream = service.stream_turn(prepared, save_partial_on_cancel=True)

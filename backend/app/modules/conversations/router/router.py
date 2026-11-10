@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 
 from app.modules.auth.dependencies import validate_origin
 from app.modules.conversations.dependencies.dependencies import (
+    ClientIp,
     ConversationRunCoordinatorDependency,
     ConversationServiceDependency,
     CurrentUser,
@@ -46,12 +47,17 @@ async def start_message_run(
     user: CurrentUser,
     service: ConversationServiceDependency,
     coordinator: ConversationRunCoordinatorDependency,
+    client_ip: ClientIp,
     idempotency_key: IdempotencyKey = None,
 ) -> ConversationRunResponse:
-    """保存用户消息并启动独立于监听连接的 Agent 生成任务。"""
+    """保存用户消息并启动 Agent 任务；输入 IP 来自可信 ASGI 请求上下文。"""
     coordinator.ensure_available(user.id, conversation_id)
     prepared = service.prepare_message_stream(
-        user, conversation_id, payload.message, idempotency_key=idempotency_key
+        user,
+        conversation_id,
+        payload.message,
+        idempotency_key=idempotency_key,
+        client_ip=client_ip,
     )
     return ConversationRunResponse(run_id=coordinator.start(service, prepared))
 
@@ -67,10 +73,11 @@ async def start_answer_run(
     user: CurrentUser,
     service: ConversationServiceDependency,
     coordinator: ConversationRunCoordinatorDependency,
+    client_ip: ClientIp,
 ) -> ConversationRunResponse:
-    """保存题卡答案并启动可重连的 Agent 恢复任务。"""
+    """保存题卡答案并启动 Agent 恢复任务；IP 仅用于本轮数字人运行。"""
     coordinator.ensure_available(user.id, conversation_id)
-    prepared = service.prepare_answer_stream(user, conversation_id, payload)
+    prepared = service.prepare_answer_stream(user, conversation_id, payload, client_ip=client_ip)
     return ConversationRunResponse(run_id=coordinator.start(service, prepared))
 
 
@@ -171,16 +178,18 @@ def stream_message(
     user: CurrentUser,
     service: ConversationServiceDependency,
     speech_service: DigitalHumanServiceDependency,
+    client_ip: ClientIp,
     idempotency_key: IdempotencyKey = None,
     voice: bool = False,
 ) -> StreamingResponse:
-    """先完成消息预检，再以 SSE 返回 Agent 的逐段回答。"""
+    """先完成消息预检，再以 SSE 返回 Agent 回答；客户端地址仅随本轮运行传递。"""
 
     prepared = service.prepare_message_stream(
         user,
         conversation_id,
         payload.message,
         idempotency_key=idempotency_key,
+        client_ip=client_ip,
     )
     use_voice = voice and prepared.conversation.skill_code == "digital_human"
     events = service.stream_turn(prepared, save_partial_on_cancel=use_voice)
@@ -199,10 +208,11 @@ def send_message(
     payload: MessageCreateRequest,
     user: CurrentUser,
     service: ConversationServiceDependency,
+    client_ip: ClientIp,
 ) -> AgentTurnResponse:
-    """存储用户文本并同步返回助手回答或题卡。"""
+    """存储用户文本并同步返回回答；客户端地址仅供本轮数字人定位使用。"""
 
-    return service.send_message(user, conversation_id, payload.message)
+    return service.send_message(user, conversation_id, payload.message, client_ip=client_ip)
 
 
 @router.post(
@@ -215,10 +225,11 @@ def answer_questions(
     payload: QuestionAnswersRequest,
     user: CurrentUser,
     service: ConversationServiceDependency,
+    client_ip: ClientIp,
 ) -> AgentTurnResponse:
-    """校验当前待答题卡选项并恢复原对话线程。"""
+    """校验题卡答案并恢复 Agent；客户端地址仅用于本轮数字人定位。"""
 
-    return service.answer_questions(user, conversation_id, payload)
+    return service.answer_questions(user, conversation_id, payload, client_ip=client_ip)
 
 
 @router.post(
@@ -231,11 +242,12 @@ def stream_answers(
     user: CurrentUser,
     service: ConversationServiceDependency,
     speech_service: DigitalHumanServiceDependency,
+    client_ip: ClientIp,
     voice: bool = False,
 ) -> StreamingResponse:
-    """预检并保存题卡答案，再以 SSE 返回恢复后的 Agent 回答。"""
+    """预检并保存题卡答案，再以 SSE 返回回答；IP 仅随本轮运行传递。"""
 
-    prepared = service.prepare_answer_stream(user, conversation_id, payload)
+    prepared = service.prepare_answer_stream(user, conversation_id, payload, client_ip=client_ip)
     use_voice = voice and prepared.conversation.skill_code == "digital_human"
     events = service.stream_turn(prepared, save_partial_on_cancel=use_voice)
     if use_voice:

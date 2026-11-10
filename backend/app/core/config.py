@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     auth_frontend_base_url: str = "http://localhost:5173"
     gnews_api_key: SecretStr = SecretStr("")
     openalex_api_key: SecretStr = SecretStr("")
+    amap_api_key: SecretStr = Field(
+        default=SecretStr(""), description="高德 Web 服务 API 密钥，不得写入日志。"
+    )
     tky_api_token: SecretStr = SecretStr("")
     tky_api_base_url: str = "https://www.tky.com/openapi/v1"
     smtp_host: str = ""

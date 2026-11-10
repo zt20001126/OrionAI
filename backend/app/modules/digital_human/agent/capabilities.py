@@ -78,6 +78,15 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "与当前日期无关的问题无需调用。",
     ),
     DigitalHumanCapability(
+        "当前位置查询",
+        "根据当前对话用户的公网 IP 估计省份和城市",
+        frozenset({"get_user_location"}),
+        "仅当用户询问自己当前所在的城市、省份或位置时调用 get_user_location；普通聊天、"
+        "其他意图或用户询问他人位置时不调用。工具只能定位当前请求用户，不能查询任意 IP。"
+        "回答时说明位置是根据公网 IP 估计的，不能获取精确街道或门牌；只使用工具返回的字段，"
+        "城市为空时不得猜测城市。定位失败时明确告知用户，不得用服务器所在地或常识补全。",
+    ),
+    DigitalHumanCapability(
         "天气查询",
         "根据地点查询当前天气",
         frozenset({"get_current_date", "get_current_weather", "ask_user_questions"}),

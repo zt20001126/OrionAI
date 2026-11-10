@@ -16,9 +16,11 @@ from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
 from app.modules.digital_human.agent.tools import (
     current_date,
     index_quote,
+    location,
     stock_kline,
     stock_quote,
 )
+from app.modules.digital_human.providers.amap import AmapIpLocation, AmapProviderError
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -195,6 +197,97 @@ async def test_digital_human_calls_date_tool_and_returns_answer() -> None:
         message.type == "tool" and "北京时间：" in message.content
         for message in state.values["messages"]
     )
+
+
+@pytest.mark.anyio
+async def test_digital_human_location_tool_receives_current_ip_and_returns_estimate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_user_location",
+                "args": {},
+                "id": "location-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    received_ips: list[str | None] = []
+
+    async def locate(_client: object, client_ip: str | None) -> AmapIpLocation:
+        received_ips.append(client_ip)
+        return AmapIpLocation(province="北京市", city="北京市", adcode="110000")
+
+    monkeypatch.setattr(location.AmapIpLocationClient, "locate", locate)
+    model = ScriptedChatModel([tool_call, AIMessage(content="你大致在北京市，位置由 IP 估计。")])
+    runtime = DigitalHumanRuntime(chat_model=model, checkpointer=MemorySaver())
+    thread_id = "digital-human-location-checkpoint"
+
+    response = await runtime.ainvoke(
+        "我现在在哪个城市？",
+        runnable_config={"configurable": {"thread_id": thread_id, "client_ip": "114.247.50.2"}},
+    )
+    state = await runtime.compiled_graph.aget_state({"configurable": {"thread_id": thread_id}})
+
+    assert received_ips == ["114.247.50.2"]
+    assert response.answer == "你大致在北京市，位置由 IP 估计。"
+    assert any(
+        message.type == "tool" and "北京市" in message.content
+        for message in model._received_messages
+    )
+    assert "client_ip" not in state.config["configurable"]
+    assert all("114.247.50.2" not in str(message.content) for message in state.values["messages"])
+
+
+@pytest.mark.anyio
+async def test_digital_human_can_answer_when_location_provider_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_user_location",
+                "args": {},
+                "id": "location-failure-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+
+    async def fail_lookup(_client: object, _client_ip: str | None) -> AmapIpLocation:
+        raise AmapProviderError("IP 定位请求超时，请稍后重试。")
+
+    monkeypatch.setattr(location.AmapIpLocationClient, "locate", fail_lookup)
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel(
+            [tool_call, AIMessage(content="暂时无法根据 IP 判断你所在的城市。")]
+        )
+    )
+
+    response = await runtime.ainvoke(
+        "我现在在哪？",
+        runnable_config={"configurable": {"client_ip": "114.247.50.2"}},
+    )
+
+    assert response.answer == "暂时无法根据 IP 判断你所在的城市。"
+
+
+@pytest.mark.anyio
+async def test_digital_human_does_not_call_location_tool_for_ordinary_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def unexpected_location(_client: object, _client_ip: str | None) -> AmapIpLocation:
+        pytest.fail("普通聊天不应调用定位工具")
+
+    monkeypatch.setattr(location.AmapIpLocationClient, "locate", unexpected_location)
+    runtime = DigitalHumanRuntime(chat_model=ScriptedChatModel([AIMessage(content="你好。")]))
+
+    response = await runtime.ainvoke("你好")
+
+    assert response.answer == "你好。"
 
 
 @pytest.mark.anyio

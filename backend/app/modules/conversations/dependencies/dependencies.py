@@ -30,6 +30,13 @@ def get_optional_idempotency_store(request: Request) -> Iterator[IdempotencyStor
         redis_client.close()
 
 
+def get_request_client_ip(request: Request) -> str | None:
+    """读取 ASGI 已解析的客户端地址；调用方：对话 Router，不直接信任转发请求头。"""
+    if request.client is None:
+        return None
+    return request.client.host
+
+
 def get_conversation_service(
     session: Annotated[Session, Depends(get_db_session)],
     request: Request,
@@ -66,6 +73,7 @@ async def get_conversation_run_coordinator(request: Request) -> ConversationRunC
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+ClientIp = Annotated[str | None, Depends(get_request_client_ip)]
 ConversationServiceDependency = Annotated[
     ConversationService,
     Depends(get_conversation_service),

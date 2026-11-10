@@ -35,6 +35,15 @@ def test_settings_reads_tokenhub_environment_variable_aliases(
     assert settings.tokenhub_configured
 
 
+def test_settings_reads_amap_api_key_as_a_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("AMAP_API_KEY", "test-amap-key")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.amap_api_key.get_secret_value() == "test-amap-key"
+    assert "test-amap-key" not in repr(settings.amap_api_key)
+
+
 def test_database_urls_use_compose_service_address_only_in_container() -> None:
     database_url = "postgresql+psycopg://orionai:orionai@localhost:5434/orionai"
     checkpoint_url = "postgresql://orionai:orionai@localhost:5434/checkpoint"
