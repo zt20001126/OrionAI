@@ -50,9 +50,11 @@ from app.modules.conversations.repository import repository
 from app.modules.conversations.schemas.schemas import (
     AgentTurnResponse,
     ConversationCreateResponse,
+    ConversationKlineChartEvent,
     ConversationListResponse,
     ConversationQuestionEvent,
     ConversationTextDeltaEvent,
+    KlineChartContentPart,
     MessageContent,
     MessageListResponse,
     MessageResponse,
@@ -83,13 +85,14 @@ IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 
 @dataclass(frozen=True)
 class PreparedConversationTurn:
-    """流式响应开始前已校验并保存用户消息的一轮对话。"""
+    """流式响应开始前准备的一轮对话；客户端 IP 仅保留于本轮内存上下文。"""
 
     user_id: int
     conversation: Conversation
     message_text: str
     message_id: int
     should_generate_title: bool
+    client_ip: str | None = None
     resume_answers: dict[str, str] | None = None
     idempotency_key: str | None = None
     idempotency_token: str | None = None
@@ -197,10 +200,14 @@ class ConversationService:
         user: User,
         conversation_id: int,
         message_text: str,
+        *,
+        client_ip: str | None = None,
     ) -> AgentTurnResponse:
-        """保存用户文本，运行 Agent，并保存助手文本或题卡。"""
+        """保存用户文本并运行 Agent；client_ip 仅传给当前数字人运行配置。"""
 
-        prepared = self._prepare_message_turn(user, conversation_id, message_text)
+        prepared = self._prepare_message_turn(
+            user, conversation_id, message_text, client_ip=client_ip
+        )
         if prepared.should_generate_title:
             agent_response = self._invoke_agent_and_title(
                 user_id=prepared.user_id,
@@ -208,6 +215,7 @@ class ConversationService:
                 message_text=prepared.message_text,
                 message_id=prepared.message_id,
                 resume_answers=prepared.resume_answers,
+                client_ip=prepared.client_ip,
             )
         else:
             agent_response = self._invoke_agent(
@@ -217,6 +225,7 @@ class ConversationService:
                 message_id=prepared.message_id,
                 skill_code=prepared.conversation.skill_code,
                 resume_answers=prepared.resume_answers,
+                client_ip=prepared.client_ip,
             )
         return self._save_agent_response(prepared.conversation, agent_response)
 
@@ -225,10 +234,12 @@ class ConversationService:
         user: User,
         conversation_id: int,
         request: QuestionAnswersRequest,
+        *,
+        client_ip: str | None = None,
     ) -> AgentTurnResponse:
-        """验证当前待答题卡并在原 Checkpointer 线程继续运行。"""
+        """验证题卡答案并恢复 Agent；client_ip 仅传给当前数字人运行配置。"""
 
-        prepared = self._prepare_answer_turn(user, conversation_id, request)
+        prepared = self._prepare_answer_turn(user, conversation_id, request, client_ip=client_ip)
         agent_response = self._invoke_agent(
             user_id=prepared.user_id,
             conversation_id=prepared.conversation.id,
@@ -236,6 +247,7 @@ class ConversationService:
             message_id=prepared.message_id,
             skill_code=prepared.conversation.skill_code,
             resume_answers=prepared.resume_answers,
+            client_ip=prepared.client_ip,
         )
         return self._save_agent_response(prepared.conversation, agent_response)
 
@@ -246,11 +258,14 @@ class ConversationService:
         message_text: str,
         *,
         idempotency_key: str | None = None,
+        client_ip: str | None = None,
     ) -> PreparedConversationTurn:
-        """在 SSE 响应头发送前完成普通消息的业务校验和用户消息写入。"""
+        """在 SSE 响应头发送前保存消息；client_ip 仅作为本轮内存上下文。"""
 
         if idempotency_key is None:
-            return self._prepare_message_turn(user, conversation_id, message_text)
+            return self._prepare_message_turn(
+                user, conversation_id, message_text, client_ip=client_ip
+            )
         try:
             UUID(idempotency_key)
         except ValueError:
@@ -271,6 +286,7 @@ class ConversationService:
                 message_text=message_text,
                 message_id=cached_message.id,
                 should_generate_title=False,
+                client_ip=client_ip,
                 idempotency_key=idempotency_key,
                 cached_response_message=cached_message,
             )
@@ -282,12 +298,15 @@ class ConversationService:
                 message_text=message_text,
                 message_id=retry_message.id,
                 should_generate_title=False,
+                client_ip=client_ip,
                 idempotency_key=idempotency_key,
                 idempotency_token=token,
             )
 
         try:
-            prepared = self._prepare_message_turn(user, conversation_id, message_text)
+            prepared = self._prepare_message_turn(
+                user, conversation_id, message_text, client_ip=client_ip
+            )
         except Exception:
             self._release_idempotency_key(
                 user_id=user.id,
@@ -309,10 +328,12 @@ class ConversationService:
         user: User,
         conversation_id: int,
         request: QuestionAnswersRequest,
+        *,
+        client_ip: str | None = None,
     ) -> PreparedConversationTurn:
-        """在 SSE 响应头发送前校验题卡并保存用户答案。"""
+        """校验题卡并保存答案；client_ip 仅保留在当前 Agent 运行上下文。"""
 
-        return self._prepare_answer_turn(user, conversation_id, request)
+        return self._prepare_answer_turn(user, conversation_id, request, client_ip=client_ip)
 
     async def stream_turn(
         self,
@@ -320,7 +341,7 @@ class ConversationService:
         *,
         save_partial_on_cancel: bool = False,
     ) -> AsyncIterator[StreamEvent]:
-        """将 Agent 文本增量转为 SSE 消息，并在成功或指定的中断场景下保存结果。"""
+        """将 Agent 文本和K线图转为 SSE 消息，并在成功或指定中断场景下保存结果。"""
 
         if prepared.cached_response_message is not None:
             cached_message = self._message_response(prepared.cached_response_message)
@@ -332,6 +353,15 @@ class ConversationService:
                     )
                 elif isinstance(part, QuestionContentPart):
                     payload = ConversationQuestionEvent(message=cached_message)
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data=payload.model_dump(mode="json"),
+                    )
+                elif isinstance(part, KlineChartContentPart):
+                    payload = ConversationKlineChartEvent(
+                        type="kline_chart",
+                        content=part.content,
+                    )
                     yield StreamEvent(
                         event_type=EventType.MESSAGE,
                         data=payload.model_dump(mode="json"),
@@ -414,6 +444,15 @@ class ConversationService:
                 event_type=EventType.MESSAGE,
                 data=payload.model_dump(mode="json"),
             )
+        elif agent_response is not None and agent_response.kline_chart is not None:
+            payload = ConversationKlineChartEvent(
+                type="kline_chart",
+                content=agent_response.kline_chart,
+            )
+            yield StreamEvent(
+                event_type=EventType.MESSAGE,
+                data=payload.model_dump(mode="json"),
+            )
 
     async def execute_background_run(
         self,
@@ -488,8 +527,10 @@ class ConversationService:
         user: User,
         conversation_id: int,
         message_text: str,
+        *,
+        client_ip: str | None = None,
     ) -> PreparedConversationTurn:
-        """校验普通消息并按现有顺序先提交用户消息。"""
+        """校验并保存普通消息；client_ip 仅供本轮数字人运行使用。"""
 
         conversation = self._get_conversation_safely(
             user.id,
@@ -512,6 +553,7 @@ class ConversationService:
             message_text=message_text,
             message_id=user_message.id,
             should_generate_title=should_generate_title,
+            client_ip=client_ip,
         )
 
     def _reserve_idempotency_key(
@@ -721,8 +763,10 @@ class ConversationService:
         user: User,
         conversation_id: int,
         request: QuestionAnswersRequest,
+        *,
+        client_ip: str | None = None,
     ) -> PreparedConversationTurn:
-        """校验题卡答案并按现有顺序先提交用户选择。"""
+        """校验并保存题卡答案；client_ip 仅供恢复后的本轮数字人运行使用。"""
 
         conversation = self._get_conversation_safely(user.id, conversation_id)
         self._require_skill(user.id, conversation.skill_code)
@@ -762,6 +806,7 @@ class ConversationService:
             message_text=answer_text,
             message_id=user_message.id,
             should_generate_title=False,
+            client_ip=client_ip,
             resume_answers=request.answers,
         )
 
@@ -870,8 +915,9 @@ class ConversationService:
         message_id: int,
         skill_code: str,
         resume_answers: dict[str, str] | None,
+        client_ip: str | None = None,
     ) -> AgentResponse:
-        """通过技能对应的 Runtime 调度 LangGraph，并映射运行错误。"""
+        """调度技能 Runtime；client_ip 只进入本轮数字人配置并映射运行错误。"""
 
         agent = self._agents.get(skill_code)
         if agent is None:
@@ -888,6 +934,8 @@ class ConversationService:
             )
             if resume_answers is not None:
                 configurable["resume_answers"] = resume_answers
+        if skill_code == "digital_human" and client_ip is not None:
+            configurable["client_ip"] = client_ip
         try:
             return invoke_agent_from_worker_thread(
                 agent,
@@ -912,8 +960,9 @@ class ConversationService:
         message_text: str,
         message_id: int,
         resume_answers: dict[str, str] | None = None,
+        client_ip: str | None = None,
     ) -> AgentResponse:
-        """并行运行首轮标题与 Agent；标题失败不改变对话结果。"""
+        """并行生成首轮标题与 Agent；client_ip 仅传给本轮数字人运行。"""
 
         agent = self._runtime_for(conversation)
         if agent is None:
@@ -938,6 +987,8 @@ class ConversationService:
             )
             if resume_answers is not None:
                 configurable["resume_answers"] = resume_answers
+        if conversation.skill_code == "digital_human" and client_ip is not None:
+            configurable["client_ip"] = client_ip
         runnable_config = {"configurable": configurable}
 
         async def invoke_concurrently() -> tuple[
@@ -1059,6 +1110,13 @@ class ConversationService:
                             f"/api/digital-human/task-results/{response.video_result_id}/video"
                         ),
                     }
+                )
+            if response.kline_chart is not None:
+                parts.append(
+                    KlineChartContentPart(
+                        type="kline_chart",
+                        content=response.kline_chart,
+                    ).model_dump(mode="json")
                 )
             content: dict[str, object] = {"parts": parts}
         else:
@@ -1242,6 +1300,7 @@ class ConversationService:
         prepared: PreparedConversationTurn,
         thread_id: str,
     ) -> dict[str, object]:
+        """构造单轮 Agent 配置；仅数字人配置携带当前 HTTP 请求 IP。"""
         configurable: dict[str, object] = {"thread_id": thread_id}
         if prepared.conversation.skill_code in {
             "image_agent",
@@ -1258,4 +1317,6 @@ class ConversationService:
             )
             if prepared.resume_answers is not None:
                 configurable["resume_answers"] = prepared.resume_answers
+        if prepared.conversation.skill_code == "digital_human" and prepared.client_ip is not None:
+            configurable["client_ip"] = prepared.client_ip
         return {"configurable": configurable}

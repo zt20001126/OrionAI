@@ -6,6 +6,9 @@ import { t } from "../../../i18n/localeStore";
 import type {
   ConversationMessage,
   ImageResultContentPart,
+  KlineChartContentPart,
+  KlineChartPayload,
+  KlineMovingAverage,
   QuestionAnswersContentPart,
   QuestionContentPart,
   VideoResultContentPart,
@@ -20,6 +23,7 @@ interface DigitalHumanConversationProps {
   currentQuestionIndex: number;
   selectedAnswers: Record<string, string>;
   streamedAssistantText: string;
+  streamedKlineChart: KlineChartPayload | null;
   onQuestionAnswerSelect: (questionId: string, answer: string) => void;
   onQuestionNext: () => void;
   onQuestionPrevious: () => void;
@@ -49,6 +53,142 @@ function getImageResults(message: ConversationMessage): ImageResultContentPart[]
 function getVideoResults(message: ConversationMessage): VideoResultContentPart[] {
   return message.content.parts.filter(
     (part): part is VideoResultContentPart => part.type === "video_result",
+  );
+}
+
+/** 从消息中读取K线数据，供历史展示与流式完成态图表绘制。 */
+function getKlineChart(message: ConversationMessage): KlineChartContentPart | null {
+  return (
+    message.content.parts.find(
+      (part): part is KlineChartContentPart => part.type === "kline_chart",
+    ) ?? null
+  );
+}
+
+/** 绘制 OHLC 蜡烛及用户请求的均线；输入图表 payload；输出 SVG 图表；调用方：数字人对话消息。 */
+function KlineChart({ chart }: { chart: KlineChartPayload }) {
+  const width = 600;
+  const plotTop = 18;
+  const plotBottom = 185;
+  const movingAverages = chart.moving_averages ?? [];
+  const movingAverageValues = movingAverages.flatMap((series) =>
+    series.values.filter((value): value is number => value !== null),
+  );
+  const lows = [...chart.candles.map((candle) => candle.low), ...movingAverageValues];
+  const highs = [...chart.candles.map((candle) => candle.high), ...movingAverageValues];
+  let minPrice = Math.min(...lows);
+  let maxPrice = Math.max(...highs);
+  if (minPrice === maxPrice) {
+    const padding = maxPrice * 0.01;
+    minPrice -= padding;
+    maxPrice += padding;
+  }
+  const y = (price: number) =>
+    plotBottom - ((price - minPrice) / (maxPrice - minPrice)) * (plotBottom - plotTop);
+  const step = (width - 48) / chart.candles.length;
+  const candleWidth = Math.min(6, step * 0.7);
+  const periodLabel = { daily: "日K", weekly: "周K", monthly: "月K" }[chart.period];
+  const movingAverageClasses: Record<KlineMovingAverage["period"], string> = {
+    5: "digital-human-kline__moving-average--5",
+    10: "digital-human-kline__moving-average--10",
+    20: "digital-human-kline__moving-average--20",
+    60: "digital-human-kline__moving-average--60",
+  };
+
+  return (
+    <figure className="digital-human-kline">
+      <figcaption>
+        <strong>
+          {chart.name}（{chart.code}）
+        </strong>
+        <span>{periodLabel} · 前复权</span>
+      </figcaption>
+      <svg
+        aria-label={`${chart.name} ${periodLabel} K线图，${chart.start_date} 至 ${chart.end_date}，前复权`}
+        className="digital-human-kline__chart"
+        role="img"
+        viewBox={`0 0 ${width} 220`}
+      >
+        {[0, 0.5, 1].map((ratio) => {
+          const gridY = plotTop + (plotBottom - plotTop) * ratio;
+          const price = maxPrice - (maxPrice - minPrice) * ratio;
+          return (
+            <g key={ratio}>
+              <line className="digital-human-kline__grid" x1="42" x2="598" y1={gridY} y2={gridY} />
+              <text className="digital-human-kline__axis-label" x="0" y={gridY + 4}>
+                {price.toFixed(2)}
+              </text>
+            </g>
+          );
+        })}
+        {chart.candles.map((candle, index) => {
+          const centerX = 44 + step * (index + 0.5);
+          const rising = candle.close >= candle.open;
+          const bodyTop = Math.min(y(candle.open), y(candle.close));
+          const bodyHeight = Math.max(1, Math.abs(y(candle.open) - y(candle.close)));
+          return (
+            <g
+              className={
+                rising ? "digital-human-kline__candle--up" : "digital-human-kline__candle--down"
+              }
+              key={candle.date}
+            >
+              <line x1={centerX} x2={centerX} y1={y(candle.high)} y2={y(candle.low)} />
+              <rect
+                height={bodyHeight}
+                width={candleWidth}
+                x={centerX - candleWidth / 2}
+                y={bodyTop}
+              />
+            </g>
+          );
+        })}
+        {movingAverages.map((series) => {
+          const points = series.values.flatMap((value, index) =>
+            value === null ? [] : [{ x: 44 + step * (index + 0.5), y: y(value) }],
+          );
+          const className = `digital-human-kline__moving-average ${movingAverageClasses[series.period]}`;
+          if (points.length === 0) return null;
+          if (points.length === 1) {
+            return (
+              <circle
+                className={className}
+                cx={points[0].x}
+                cy={points[0].y}
+                key={series.period}
+                r="2"
+              />
+            );
+          }
+          return (
+            <polyline
+              className={className}
+              fill="none"
+              key={series.period}
+              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+            />
+          );
+        })}
+      </svg>
+      {movingAverages.length > 0 && (
+        <div aria-label="均线图例" className="digital-human-kline__legend" role="group">
+          {movingAverages.map((series) => (
+            <span className="digital-human-kline__legend-item" key={series.period}>
+              <span
+                aria-hidden="true"
+                className={`digital-human-kline__legend-line ${movingAverageClasses[series.period]}`}
+              />
+              MA{series.period}
+            </span>
+          ))}
+        </div>
+      )}
+      <div aria-hidden="true" className="digital-human-kline__dates">
+        <span>{chart.start_date}</span>
+        <span>{chart.end_date}</span>
+      </div>
+      <p className="digital-human-kline__source">数据来源：{chart.source}</p>
+    </figure>
   );
 }
 
@@ -118,7 +258,10 @@ function getQuestionAnswersPart(message: ConversationMessage): QuestionAnswersCo
   );
 }
 
-/** 展示当前会话的消息流，只保留消息加载反馈，不在聊天区重复显示智能体状态。 */
+/**
+ * 渲染会话历史和当前流式回复；输入消息、流式文本／图表、题卡状态及操作回调和加载状态；
+ * 输出会话消息区域；调用方：数字人会话页面。
+ */
 export function DigitalHumanConversation({
   messages,
   pendingMessage,
@@ -126,6 +269,7 @@ export function DigitalHumanConversation({
   currentQuestionIndex,
   selectedAnswers,
   streamedAssistantText,
+  streamedKlineChart,
   onQuestionAnswerSelect,
   onQuestionNext,
   onQuestionPrevious,
@@ -136,11 +280,23 @@ export function DigitalHumanConversation({
   const messageListRef = useRef<HTMLDivElement>(null);
   const showPendingMessage =
     pendingMessage !== null && !hasPersistedPendingMessage(messages, pendingMessage);
+  const streamedChartAlreadySaved = streamedKlineChart
+    ? messages.some((message) => {
+        const savedChart = getKlineChart(message)?.content;
+        return (
+          savedChart?.code === streamedKlineChart.code &&
+          savedChart.period === streamedKlineChart.period &&
+          savedChart.start_date === streamedKlineChart.start_date &&
+          savedChart.end_date === streamedKlineChart.end_date
+        );
+      })
+    : false;
+  const visibleStreamedChart = streamedChartAlreadySaved ? null : streamedKlineChart;
 
   useLayoutEffect(() => {
     const messageList = messageListRef.current;
     if (messageList) messageList.scrollTop = messageList.scrollHeight;
-  }, [isLoading, messages, pendingMessage, streamedAssistantText]);
+  }, [isLoading, messages, pendingMessage, streamedAssistantText, visibleStreamedChart]);
 
   return (
     <div
@@ -154,6 +310,7 @@ export function DigitalHumanConversation({
         const text = getText(message);
         const imageResults = getImageResults(message);
         const videoResults = getVideoResults(message);
+        const klineChart = getKlineChart(message);
         const questionPart = getQuestionPart(message);
         const questionAnswersPart = getQuestionAnswersPart(message);
         const isPendingQuestion = pendingQuestionMessageId === message.id;
@@ -167,6 +324,7 @@ export function DigitalHumanConversation({
           !text &&
           imageResults.length === 0 &&
           videoResults.length === 0 &&
+          !klineChart &&
           !questionPart &&
           !questionAnswersPart
         )
@@ -187,6 +345,7 @@ export function DigitalHumanConversation({
             {videoResults.map((part) => (
               <DigitalHumanVideoResult key={part.task_result_id} part={part} />
             ))}
+            {klineChart && <KlineChart chart={klineChart.content} />}
             {questionAnswersPart && <QuestionAnswerCard items={questionAnswersPart.items} />}
             {questionPart && isPendingQuestion && (
               <QuestionWizard
@@ -223,7 +382,7 @@ export function DigitalHumanConversation({
           </div>
         </article>
       )}
-      {streamedAssistantText && (
+      {(streamedAssistantText || visibleStreamedChart) && (
         <article
           aria-label={t("助手回答")}
           className="digital-human-message digital-human-message--assistant digital-human-message--streaming"
@@ -231,6 +390,7 @@ export function DigitalHumanConversation({
           <div className="digital-human-markdown">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedAssistantText}</ReactMarkdown>
           </div>
+          {visibleStreamedChart && <KlineChart chart={visibleStreamedChart} />}
         </article>
       )}
       {isLoading && (

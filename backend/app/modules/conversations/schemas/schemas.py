@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-from app.agent.schemas import QuestionPayload
+from app.agent.schemas import KlineChartPayload, QuestionPayload
 
 NonEmptyText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)
@@ -131,12 +131,22 @@ class VideoResultContentPart(BaseModel):
     video_url: str
 
 
+class KlineChartContentPart(BaseModel):
+    """持久化K线图数据，历史消息与流式事件共用同一 payload。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["kline_chart"]
+    content: KlineChartPayload
+
+
 MessageContentPart = Annotated[
     TextContentPart
     | QuestionContentPart
     | QuestionAnswersContentPart
     | ImageResultContentPart
-    | VideoResultContentPart,
+    | VideoResultContentPart
+    | KlineChartContentPart,
     Field(discriminator="type"),
 ]
 
@@ -193,3 +203,12 @@ class ConversationQuestionEvent(BaseModel):
 
     type: Literal["question"] = Field(description="题卡事件。")
     message: MessageResponse = Field(description="已持久化的题卡助手消息。")
+
+
+class ConversationKlineChartEvent(BaseModel):
+    """SSE 中完整传输一份K线图数据；调用方：会话流服务。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["kline_chart"]
+    content: KlineChartPayload

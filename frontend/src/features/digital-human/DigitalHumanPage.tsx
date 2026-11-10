@@ -10,6 +10,7 @@ import {
 } from "../conversations/conversationApi";
 import type {
   ConversationMessage,
+  KlineChartPayload,
   MessageListResponse,
   QuestionContentPart,
 } from "../conversations/conversationApi";
@@ -19,6 +20,7 @@ import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractio
 import { DigitalHumanWelcome } from "./components/DigitalHumanWelcome";
 import { DigitalHumanComposer } from "./components/DigitalHumanComposer";
 import { DigitalHumanConversation } from "./components/DigitalHumanConversation";
+import { DigitalHumanVoiceToggle } from "./components/DigitalHumanVoiceToggle";
 import { VoiceRecordingOverlay } from "./components/VoiceRecordingOverlay";
 import { DigitalHumanApiError } from "./digitalHumanApi";
 import { useAssistantAudio } from "./hooks/useAssistantAudio";
@@ -56,10 +58,31 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+const VOICE_ENABLED_STORAGE_KEY = "orionai:digital-human:voice-enabled";
+
+/** 从本地偏好同步初始化播报状态；存储不可用时默认开启。 */
+function readVoiceEnabledPreference(): boolean {
+  try {
+    return window.localStorage.getItem(VOICE_ENABLED_STORAGE_KEY) !== "false";
+  } catch {
+    return true;
+  }
+}
+
+/** 保存播报偏好；输入布尔状态；存储被浏览器禁用时静默降级。 */
+function saveVoiceEnabledPreference(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(VOICE_ENABLED_STORAGE_KEY, String(enabled));
+  } catch {
+    // 隐私模式或浏览器策略禁用存储时，当前页面状态仍可使用。
+  }
+}
+
 /** 数字人交互页面：串联会话消息、语音识别、语音合成和数字人播放状态。 */
 export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPageProps) {
   const { showToast } = useToast();
   const [showWelcome, setShowWelcome] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(readVoiceEnabledPreference);
   const [previousConversationId, setPreviousConversationId] = useState(conversationId);
   // 返回新会话时重新展示引导，打开历史会话则继续展示原消息。
   if (previousConversationId !== conversationId) {
@@ -83,6 +106,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     index: number;
   }>({ conversationId: null, messageId: null, index: 0 });
   const [streamedAssistantText, setStreamedAssistantText] = useState("");
+  const [streamedKlineChart, setStreamedKlineChart] = useState<{
+    conversationId: string;
+    chart: KlineChartPayload;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const audioTurnRef = useRef<string | null>(null);
   const nextSegmentRef = useRef(1);
@@ -262,9 +289,16 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     stopAudio();
   }
 
+  /** 更新后续回复的播报偏好；当前已发送请求继续使用发送时的设置。 */
+  function handleVoiceEnabledChange(enabled: boolean) {
+    setVoiceEnabled(enabled);
+    saveVoiceEnabledPreference(enabled);
+  }
+
   /** 提交当前草稿并流式接收回复；发送后立即清空，失败时在原会话恢复草稿。 */
   async function handleSend() {
     const message = draft.trim();
+    const voiceEnabledForTurn = voiceEnabled;
     if (
       !message ||
       submitLockRef.current ||
@@ -284,17 +318,18 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     setPendingMessage(message);
     setDraft("");
     setStreamedAssistantText("");
+    setStreamedKlineChart(null);
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
     let activeConversationId = conversationId;
-
     try {
       const requestKey =
         idempotencyRef.current?.text === message ? idempotencyRef.current.key : createRequestKey();
       idempotencyRef.current = { key: requestKey, text: message };
       activeConversationId = activeConversationId ?? (await startNewConversation(true));
       if (!activeConversationId) return;
+      const streamConversationId = activeConversationId;
       await streamDigitalHumanReply(
         activeConversationId,
         "messages",
@@ -306,10 +341,13 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         (event) => receiveAudio(event, controller.signal),
         controller.signal,
         requestKey,
+        (chart) => setStreamedKlineChart({ conversationId: streamConversationId, chart }),
+        voiceEnabledForTurn,
       );
       await refreshMessages(activeConversationId);
       // 持久化消息已加载，移除临时流式气泡，避免 TTS 期间重复展示同一回复。
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
       setIsSubmitting(false);
       setPendingMessage(null);
@@ -330,11 +368,13 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setIsSubmitting(false);
       setPendingMessage(null);
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
     }
   }
 
   async function handleQuestionAnswerSubmit() {
+    const voiceEnabledForTurn = voiceEnabled;
     if (
       !conversationId ||
       !pendingQuestion ||
@@ -356,10 +396,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     setIsSubmitting(true);
     setPendingMessage(submittedText);
     setStreamedAssistantText("");
+    setStreamedKlineChart(null);
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
-
     try {
       await streamDigitalHumanReply(
         targetConversationId,
@@ -371,6 +411,9 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         },
         (event) => receiveAudio(event, controller.signal),
         controller.signal,
+        undefined,
+        (chart) => setStreamedKlineChart({ conversationId: targetConversationId, chart }),
+        voiceEnabledForTurn,
       );
       await refreshMessages(targetConversationId);
       if (activeConversationRef.current !== targetConversationId) return;
@@ -378,6 +421,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setQuestionStep({ conversationId: null, messageId: null, index: 0 });
       setPendingMessage(null);
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
       setIsSubmitting(false);
     } catch (submitError) {
@@ -391,6 +435,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setIsSubmitting(false);
       setPendingMessage(null);
       setStreamedAssistantText("");
+      setStreamedKlineChart(null);
       assistantStreamRef.current = "";
     }
   }
@@ -410,6 +455,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     <section aria-label={t("Orion 助手")} className="digital-human-page">
       <div className="digital-human-layout">
         <section aria-label={t("数字人展示区域")} className="digital-human-stage">
+          <DigitalHumanVoiceToggle enabled={voiceEnabled} onChange={handleVoiceEnabledChange} />
           <DigitalHumanAvatarHost
             audioRef={audioRef}
             isSpeaking={isSpeaking}
@@ -468,6 +514,11 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
               pendingQuestionMessageId={pendingQuestion?.messageId ?? null}
               selectedAnswers={selectedAnswers}
               streamedAssistantText={streamedAssistantText}
+              streamedKlineChart={
+                streamedKlineChart?.conversationId === conversationId
+                  ? streamedKlineChart.chart
+                  : null
+              }
             />
           )}
           <DigitalHumanComposer

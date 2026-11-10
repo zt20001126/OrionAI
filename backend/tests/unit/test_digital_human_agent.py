@@ -13,7 +13,14 @@ from app.agent.tools.registry import ToolRegistry
 from app.modules.digital_human.agent import graph
 from app.modules.digital_human.agent.capabilities import build_capabilities_prompt
 from app.modules.digital_human.agent.runtime import DigitalHumanRuntime
-from app.modules.digital_human.agent.tools import current_date, index_quote, stock_quote
+from app.modules.digital_human.agent.tools import (
+    current_date,
+    index_quote,
+    location,
+    stock_kline,
+    stock_quote,
+)
+from app.modules.digital_human.providers.amap import AmapIpLocation, AmapProviderError
 
 
 class ScriptedChatModel(BaseChatModel):
@@ -58,6 +65,14 @@ def test_capabilities_require_all_registered_tools() -> None:
     assert "天气查询" in complete_prompt
     assert "A 股行情查询" in complete_prompt
     assert "互动提问" in complete_prompt
+    assert "A 股K线查询" not in complete_prompt
+    assert "A 股K线查询" in build_capabilities_prompt(
+        names | {"ask_user_questions", "get_stock_kline"}
+    )
+    kline_prompt = build_capabilities_prompt(names | {"ask_user_questions", "get_stock_kline"})
+    assert "仅在用户明确要求 MA 或均线时" in kline_prompt
+    assert "ma_periods" in kline_prompt
+    assert "文字回答中说明所请求周期的最新有效均线值" in kline_prompt
 
 
 @pytest.mark.anyio
@@ -185,6 +200,97 @@ async def test_digital_human_calls_date_tool_and_returns_answer() -> None:
 
 
 @pytest.mark.anyio
+async def test_digital_human_location_tool_receives_current_ip_and_returns_estimate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_user_location",
+                "args": {},
+                "id": "location-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    received_ips: list[str | None] = []
+
+    async def locate(_client: object, client_ip: str | None) -> AmapIpLocation:
+        received_ips.append(client_ip)
+        return AmapIpLocation(province="北京市", city="北京市", adcode="110000")
+
+    monkeypatch.setattr(location.AmapIpLocationClient, "locate", locate)
+    model = ScriptedChatModel([tool_call, AIMessage(content="你大致在北京市，位置由 IP 估计。")])
+    runtime = DigitalHumanRuntime(chat_model=model, checkpointer=MemorySaver())
+    thread_id = "digital-human-location-checkpoint"
+
+    response = await runtime.ainvoke(
+        "我现在在哪个城市？",
+        runnable_config={"configurable": {"thread_id": thread_id, "client_ip": "114.247.50.2"}},
+    )
+    state = await runtime.compiled_graph.aget_state({"configurable": {"thread_id": thread_id}})
+
+    assert received_ips == ["114.247.50.2"]
+    assert response.answer == "你大致在北京市，位置由 IP 估计。"
+    assert any(
+        message.type == "tool" and "北京市" in message.content
+        for message in model._received_messages
+    )
+    assert "client_ip" not in state.config["configurable"]
+    assert all("114.247.50.2" not in str(message.content) for message in state.values["messages"])
+
+
+@pytest.mark.anyio
+async def test_digital_human_can_answer_when_location_provider_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_user_location",
+                "args": {},
+                "id": "location-failure-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+
+    async def fail_lookup(_client: object, _client_ip: str | None) -> AmapIpLocation:
+        raise AmapProviderError("IP 定位请求超时，请稍后重试。")
+
+    monkeypatch.setattr(location.AmapIpLocationClient, "locate", fail_lookup)
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel(
+            [tool_call, AIMessage(content="暂时无法根据 IP 判断你所在的城市。")]
+        )
+    )
+
+    response = await runtime.ainvoke(
+        "我现在在哪？",
+        runnable_config={"configurable": {"client_ip": "114.247.50.2"}},
+    )
+
+    assert response.answer == "暂时无法根据 IP 判断你所在的城市。"
+
+
+@pytest.mark.anyio
+async def test_digital_human_does_not_call_location_tool_for_ordinary_chat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def unexpected_location(_client: object, _client_ip: str | None) -> AmapIpLocation:
+        pytest.fail("普通聊天不应调用定位工具")
+
+    monkeypatch.setattr(location.AmapIpLocationClient, "locate", unexpected_location)
+    runtime = DigitalHumanRuntime(chat_model=ScriptedChatModel([AIMessage(content="你好。")]))
+
+    response = await runtime.ainvoke("你好")
+
+    assert response.answer == "你好。"
+
+
+@pytest.mark.anyio
 async def test_stock_question_continues_to_registered_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -236,6 +342,62 @@ async def test_stock_question_continues_to_registered_tool(
         message.type == "tool" and message.name == "get_stock_quote" and "600519" in message.content
         for message in state.values["messages"]
     )
+
+
+@pytest.mark.anyio
+async def test_stock_kline_tool_result_is_attached_to_agent_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    chart = {
+        "code": "600519",
+        "name": "贵州茅台",
+        "period": "daily",
+        "adjust": "qfq",
+        "start_date": "2026-11-10",
+        "end_date": "2026-11-10",
+        "source": "AKShare",
+        "candles": [
+            {
+                "date": "2026-11-10",
+                "open": 10,
+                "close": 11,
+                "high": 12,
+                "low": 9,
+                "volume": 100,
+            }
+        ],
+        "moving_averages": [{"period": 5, "values": [10.5]}],
+    }
+    monkeypatch.setattr(
+        stock_kline,
+        "_query_kline",
+        lambda *_args: {"status": "ok", "chart": chart},
+    )
+    tool_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "get_stock_kline",
+                "args": {"stock": "600519", "period": "daily"},
+                "id": "kline-1",
+                "type": "tool_call",
+            }
+        ],
+    )
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel([tool_call, AIMessage(content="这是近期日K走势。")]),
+        checkpointer=MemorySaver(),
+    )
+
+    response = await runtime.ainvoke(
+        "查询贵州茅台的日K线",
+        runnable_config={"configurable": {"thread_id": "kline-test"}},
+    )
+
+    assert response.kline_chart is not None
+    assert response.kline_chart.code == "600519"
+    assert response.kline_chart.candles[0].close == 11
+    assert response.kline_chart.moving_averages[0].values == [10.5]
 
 
 @pytest.mark.anyio

@@ -34,7 +34,9 @@ export type PlatformIconName =
   | "microphone"
   | "flask"
   | "lock"
-  | "copy";
+  | "copy"
+  | "speaker"
+  | "speakerMuted";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -234,16 +236,10 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
       )}
       {name === "plus" && <path d="M12 5v14M5 12h14" />}
       {name === "collapse" && (
-        <>
-          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-          <path d="M9 5v14m3-4 3-3-3-3" />
-        </>
+        <path d="m14 6-6 6 6 6M20 6l-6 6 6 6" />
       )}
       {name === "expand" && (
-        <>
-          <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
-          <path d="M9 5v14m6-4-3-3 3-3" />
-        </>
+        <path d="m10 6 6 6-6 6M4 6l6 6-6 6" />
       )}
       {name === "message" && (
         <>
@@ -252,6 +248,18 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
         </>
       )}
       {name === "send" && <path d="m21 3-7.2 18-3.7-7.1L3 10.2 21 3Zm0 0L10.1 13.9" />}
+      {name === "speaker" && (
+        <>
+          <path d="M4 10v4h3l5 4V6l-5 4H4Z" />
+          <path d="M15 9a4 4 0 0 1 0 6m2.5-8.5a7.5 7.5 0 0 1 0 11" />
+        </>
+      )}
+      {name === "speakerMuted" && (
+        <>
+          <path d="M4 10v4h3l5 4V6l-5 4H4Z" />
+          <path d="m16 9 5 6m0-6-5 6" />
+        </>
+      )}
     </svg>
   );
 }

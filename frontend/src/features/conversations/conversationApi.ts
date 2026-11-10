@@ -73,12 +73,44 @@ export interface VideoResultContentPart {
   video_url: string;
 }
 
+export interface KlineCandle {
+  date: string;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number | null;
+}
+
+export interface KlineMovingAverage {
+  period: 5 | 10 | 20 | 60;
+  values: (number | null)[];
+}
+
+export interface KlineChartPayload {
+  code: string;
+  name: string;
+  period: "daily" | "weekly" | "monthly";
+  adjust: "qfq";
+  start_date: string;
+  end_date: string;
+  source: string;
+  candles: KlineCandle[];
+  moving_averages?: KlineMovingAverage[];
+}
+
+export interface KlineChartContentPart {
+  type: "kline_chart";
+  content: KlineChartPayload;
+}
+
 export type MessageContentPart =
   | TextContentPart
   | QuestionContentPart
   | QuestionAnswersContentPart
   | ImageResultContentPart
-  | VideoResultContentPart;
+  | VideoResultContentPart
+  | KlineChartContentPart;
 
 export interface ConversationMessage {
   id: string;
@@ -114,7 +146,13 @@ export interface ConversationQuestionEvent {
   message: ConversationMessage;
 }
 
-export type ConversationStreamMessageData = ConversationTextDeltaEvent | ConversationQuestionEvent;
+export interface ConversationKlineChartEvent {
+  type: "kline_chart";
+  content: KlineChartPayload;
+}
+
+export type ConversationStreamMessageData =
+  ConversationTextDeltaEvent | ConversationQuestionEvent | ConversationKlineChartEvent;
 
 interface ConversationStreamEnvelope {
   event_type: "start" | "message" | "heartbeat" | "end";
@@ -320,6 +358,7 @@ export async function listenConversationRun(
   onQuestion: (message: ConversationMessage) => void,
   onStatus: (status: string) => void,
   signal: AbortSignal,
+  onKlineChart?: (chart: KlineChartPayload) => void,
 ): Promise<void> {
   let response: Response;
   try {
@@ -356,6 +395,8 @@ export async function listenConversationRun(
       onTextDelta(event.content);
     if (event.type === "question" && event.message)
       onQuestion(event.message as ConversationMessage);
+    if (event.type === "kline_chart" && event.content && onKlineChart)
+      onKlineChart(event.content as KlineChartPayload);
     if (event.type === "run_status" && typeof event.status === "string") onStatus(event.status);
   };
   try {
@@ -416,7 +457,7 @@ export interface DigitalHumanAudioEvent {
   audio?: string;
 }
 
-/** 读取数字人请求内语音流；输入消息或题卡答案，输出文字与有序音频事件。 */
+/** 读取数字人回复流；输入会话、请求内容和播报状态，输出文字与有序音频事件；调用方：数字人页面。 */
 export async function streamDigitalHumanReply(
   conversationId: string,
   endpoint: "messages" | "answers",
@@ -425,9 +466,11 @@ export async function streamDigitalHumanReply(
   onAudio: (event: DigitalHumanAudioEvent) => void | Promise<void>,
   signal: AbortSignal,
   idempotencyKey?: string,
+  onKlineChart?: (chart: KlineChartPayload) => void,
+  voiceEnabled = true,
 ): Promise<void> {
   const response = await fetch(
-    `/api/conversations/${conversationId}/${endpoint}/stream?voice=true`,
+    `/api/conversations/${conversationId}/${endpoint}/stream?voice=${voiceEnabled}`,
     {
       method: "POST",
       credentials: "include",
@@ -462,6 +505,8 @@ export async function streamDigitalHumanReply(
       completed = event.status === "completed";
     } else if (envelope.event_type === "message") {
       if (event.type === "text_delta" && typeof event.content === "string") onText(event.content);
+      if (event.type === "kline_chart" && event.content && onKlineChart)
+        onKlineChart(event.content as KlineChartPayload);
       if (
         (event.type === "audio_segment" ||
           event.type === "audio_done" ||

@@ -17,6 +17,7 @@ from app.agent.schemas import (
     AgentStreamEvent,
     AgentStreamResult,
     AgentTextDelta,
+    KlineChartPayload,
     Question,
     QuestionOption,
     QuestionPayload,
@@ -230,7 +231,14 @@ def conversation_client() -> Iterator[
             type="agent",
             status="published",
         )
-        session.add_all([general_chat, image_agent])
+        digital_human = Skill(
+            code="digital_human",
+            name="数字人助手",
+            description="数字人对话助手",
+            type="agent",
+            status="published",
+        )
+        session.add_all([general_chat, image_agent, digital_human])
         session.flush()
         session.add_all(
             [
@@ -248,6 +256,11 @@ def conversation_client() -> Iterator[
                     user_id=owner.id,
                     skill_id=image_agent.id,
                     skill_name=image_agent.name,
+                ),
+                UserSkill(
+                    user_id=owner.id,
+                    skill_id=digital_human.id,
+                    skill_name=digital_human.name,
                 ),
             ]
         )
@@ -317,7 +330,11 @@ def conversation_client() -> Iterator[
     run_coordinator = FakeConversationRunCoordinator()
     test_app.dependency_overrides[get_conversation_run_coordinator] = lambda: run_coordinator
     test_app.state.conversation_agent = agent
-    test_app.state.agent_registry = {"general_chat": agent, "image_agent": agent}
+    test_app.state.agent_registry = {
+        "general_chat": agent,
+        "image_agent": agent,
+        "digital_human": agent,
+    }
     test_app.state.conversation_title_generator = title_generator
     try:
         with TestClient(test_app) as client:
@@ -357,6 +374,31 @@ def test_async_message_route_returns_run_id_and_persists_user_message(
     messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
     assert messages[-1]["content"]["parts"][0]["text"] == "后台运行的消息"
     assert agent.calls == []
+
+
+def test_digital_human_uses_asgi_client_ip_and_ignores_spoofed_forwarded_header(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, agent, _title_generator, _session_factory = conversation_client
+    conversation_id = client.post(
+        "/api/conversations", json={"skill_code": "digital_human"}
+    ).json()["id"]
+
+    response = client.post(
+        f"/api/conversations/{conversation_id}/messages",
+        json={"message": "我现在在哪个城市？"},
+        headers={"X-Forwarded-For": "203.0.113.10"},
+    )
+
+    assert response.status_code == 200
+    configurable = agent.calls[-1]["runnable_config"]["configurable"]
+    assert configurable["client_ip"] == "testclient"
 
 
 def test_conversation_list_returns_user_scoped_total_and_stable_pages(
@@ -435,6 +477,61 @@ def test_streaming_message_persists_the_complete_answer(
     stored_messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
     assert [message["role"] for message in stored_messages] == ["user", "assistant"]
     assert stored_messages[-1]["content"] == {"parts": [{"type": "text", "text": answer}]}
+
+
+def test_streaming_kline_sends_chart_message_and_persists_same_payload(
+    conversation_client: tuple[
+        TestClient,
+        dict[str, User],
+        ScriptedAgent,
+        FixedTitleGenerator,
+        sessionmaker[Session],
+    ],
+) -> None:
+    client, _users, agent, _title_generator, _session_factory = conversation_client
+    payload = KlineChartPayload.model_validate(
+        {
+            "code": "600519",
+            "name": "贵州茅台",
+            "period": "daily",
+            "adjust": "qfq",
+            "start_date": "2026-11-10",
+            "end_date": "2026-11-10",
+            "source": "AKShare",
+            "candles": [
+                {
+                    "date": "2026-11-10",
+                    "open": 10,
+                    "close": 11,
+                    "high": 12,
+                    "low": 9,
+                    "volume": 100,
+                }
+            ],
+            "moving_averages": [{"period": 5, "values": [10.5]}],
+        }
+    )
+    agent.responses[0] = AgentResponse(
+        agent=BASIC_CONVERSATION_AGENT,
+        status="completed",
+        answer="贵州茅台最新日K收盘价为 11 元。",
+        kline_chart=payload,
+    )
+    conversation_id = client.post("/api/conversations").json()["id"]
+
+    response = client.post(
+        f"/api/conversations/{conversation_id}/messages/stream",
+        json={"message": "查询贵州茅台日K"},
+    )
+
+    events = _decode_sse_events(response.content)
+    chart_event = next(
+        event["data"] for event in events if event["data"].get("type") == "kline_chart"
+    )
+    assert chart_event["content"]["candles"][0]["close"] == 11
+    assert chart_event["content"]["moving_averages"] == [{"period": 5, "values": [10.5]}]
+    saved = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"][-1]
+    assert saved["content"]["parts"][-1] == chart_event
 
 
 def test_stream_idempotency_replays_completed_turn_without_running_agent_twice(

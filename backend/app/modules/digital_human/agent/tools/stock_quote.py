@@ -8,6 +8,7 @@ import threading
 
 import akshare as ak
 import httpx
+import pandas as pd
 import requests
 from langchain_core.tools import tool
 
@@ -28,19 +29,23 @@ def _number(value: object) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _find_stock_matches(stock: str) -> pd.DataFrame:
+    """按股票名称或代码查找候选；调用方：数字人 A 股报价和K线工具。"""
+    stocks = ak.stock_info_a_code_name()
+    codes = stocks["code"].astype(str)
+    names = stocks["name"].astype(str)
+    if stock.isascii() and stock.isdigit():
+        return stocks[codes == stock]
+    exact = stocks[names == stock]
+    return exact if not exact.empty else stocks[names.str.contains(stock, regex=False)]
+
+
 def _fetch_stock_quote(stock: str) -> dict[str, object]:
     """按名称或代码匹配 A 股并读取报价；输入查询文本，输出工具观察；调用方：行情工具。"""
     if not _stock_query_slots.acquire(blocking=False):
         return {"status": "unavailable", "message": "行情查询繁忙，请稍后重试。"}
     try:
-        stocks = ak.stock_info_a_code_name()
-        codes = stocks["code"].astype(str)
-        names = stocks["name"].astype(str)
-        if stock.isascii() and stock.isdigit():
-            matches = stocks[codes == stock]
-        else:
-            exact = stocks[names == stock]
-            matches = exact if not exact.empty else stocks[names.str.contains(stock, regex=False)]
+        matches = _find_stock_matches(stock)
         if matches.empty:
             return {"status": "not_found", "message": "未找到对应的 A 股，请核对名称或代码。"}
         if len(matches) > 1:

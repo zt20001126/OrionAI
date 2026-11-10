@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PlatformSidebar } from "./PlatformSidebar";
 import { navigationItems, platformPaths, type PlatformRoute } from "./platformData";
@@ -8,6 +8,8 @@ vi.mock("../auth/ProductIntro", () => ({ BrandMark: () => null }));
 vi.mock("../membership/MembershipEntry", () => ({ MembershipEntry: () => null }));
 vi.mock("../notifications/NotificationBell", () => ({ NotificationBell: () => null }));
 vi.mock("./ProfileMenu", () => ({ ProfileMenu: () => null }));
+
+afterEach(cleanup);
 
 function renderSidebar(pathname: PlatformRoute, onNavigate = vi.fn()) {
   render(
@@ -43,5 +45,20 @@ describe("PlatformSidebar", () => {
     expect(item).toHaveAttribute("aria-current", "page");
     fireEvent.click(item);
     expect(onNavigate).toHaveBeenCalledWith(platformPaths.digitalHuman);
+  });
+
+  it("navigates the brand to Orion Assistant without navigating again on that route", () => {
+    const onNavigate = renderSidebar(platformPaths.market);
+    const brand = screen.getByRole("link", { name: "前往 Orion 助手" });
+
+    fireEvent.click(brand);
+    expect(onNavigate).toHaveBeenCalledWith(platformPaths.digitalHuman);
+  });
+
+  it("does not navigate again when the brand is clicked inside an assistant conversation", () => {
+    const onNavigate = renderSidebar(`${platformPaths.digitalHuman}/42`);
+    fireEvent.click(screen.getByRole("link", { name: "前往 Orion 助手" }));
+
+    expect(onNavigate).not.toHaveBeenCalled();
   });
 });

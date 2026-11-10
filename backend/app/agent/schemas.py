@@ -1,8 +1,10 @@
 """定义 Agent 内部调用和结构化题卡协议，不复用 HTTP 或 ORM 模型。"""
 
+from datetime import date
+from itertools import pairwise
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
 from app.agent.config import DEFAULT_MAX_INPUT_CHARS, MAX_QUESTIONS_PER_BATCH, QUESTION_OPTION_COUNT
 
@@ -36,6 +38,77 @@ class QuestionOption(BaseModel):
         if not normalized or "\n" in normalized or "\r" in normalized:
             raise ValueError("题卡选项必须是非空单行文本。")
         return normalized
+
+
+class KlineCandle(BaseModel):
+    """一根经校验的 OHLC K 线；供 Agent 结果和会话图表共用。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    date: date
+    open: float = Field(gt=0, allow_inf_nan=False)
+    close: float = Field(gt=0, allow_inf_nan=False)
+    high: float = Field(gt=0, allow_inf_nan=False)
+    low: float = Field(gt=0, allow_inf_nan=False)
+    volume: float | None = Field(default=None, ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_ohlc(self) -> "KlineCandle":
+        """确保最高、最低价覆盖开收盘价；调用方：K线工具结果校验。"""
+        if self.low > min(self.open, self.close) or self.high < max(self.open, self.close):
+            raise ValueError("K线最高价和最低价必须覆盖开盘价与收盘价。")
+        return self
+
+
+class KlineMovingAverage(BaseModel):
+    """与可见 K 线逐项对齐的简单移动平均序列。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    period: Literal[5, 10, 20, 60]
+    values: list[FiniteFloat | None] = Field(min_length=1, max_length=300)
+
+
+class KlineChartPayload(BaseModel):
+    """数字人K线工具和会话图表消息共用的 K 线及可选均线数据结构。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: str = Field(pattern=r"^[0-9]{6}$")
+    name: str = Field(min_length=1, max_length=100)
+    period: Literal["daily", "weekly", "monthly"]
+    adjust: Literal["qfq"]
+    start_date: date
+    end_date: date
+    source: str = Field(min_length=1, max_length=100)
+    candles: list[KlineCandle] = Field(min_length=1, max_length=300)
+    moving_averages: list[KlineMovingAverage] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        min_length=1,
+        max_length=4,
+        description="用户明确请求时附带、与 candles 等长的均线序列。",
+    )
+
+    @model_validator(mode="after")
+    def validate_chart_dates(self) -> "KlineChartPayload":
+        """校验K线日期和均线长度。
+
+        输入：图表 payload；输出：校验后的实例；调用方：Agent 及会话 schema。
+        """
+        if self.start_date > self.end_date:
+            raise ValueError("K线开始日期不能晚于结束日期。")
+        if self.candles[0].date != self.start_date or self.candles[-1].date != self.end_date:
+            raise ValueError("K线日期范围必须匹配首尾数据。")
+        if any(left.date >= right.date for left, right in pairwise(self.candles)):
+            raise ValueError("K线日期必须严格递增。")
+        if self.moving_averages is not None:
+            periods = [series.period for series in self.moving_averages]
+            if len(periods) != len(set(periods)):
+                raise ValueError("均线周期不能重复。")
+            if any(len(series.values) != len(self.candles) for series in self.moving_averages):
+                raise ValueError("均线值必须与K线数量一致。")
+        return self
 
 
 class Question(BaseModel):
@@ -132,7 +205,7 @@ class QuestionPayload(BaseModel):
 
 
 class AgentResponse(BaseModel):
-    """Agent 稳定结果；completed 携带回答，waiting 携带待展示题卡。"""
+    """Agent 稳定结果；完成态可携带媒体，等待态携带待答题卡。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -150,6 +223,7 @@ class AgentResponse(BaseModel):
     video_result_id: str | None = Field(
         default=None, pattern=r"^[0-9]{1,20}$", description="可选的私有视频任务结果 ID。"
     )
+    kline_chart: KlineChartPayload | None = Field(default=None, description="可选的K线图数据。")
 
     @model_validator(mode="after")
     def validate_result_state(self) -> "AgentResponse":
@@ -163,6 +237,7 @@ class AgentResponse(BaseModel):
             or self.questions is None
             or self.image_result_id is not None
             or self.video_result_id is not None
+            or self.kline_chart is not None
         ):
             raise ValueError("waiting 结果必须只包含 questions。")
         return self

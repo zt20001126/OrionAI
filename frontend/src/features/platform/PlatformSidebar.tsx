@@ -49,12 +49,12 @@ export function PlatformSidebar({
     >
       <div className="platform-sidebar__top">
         <a
-          aria-label={t("OrionAI 首页")}
+          aria-label={t("前往 Orion 助手")}
           className="platform-brand"
-          href={platformPaths.market}
+          href={platformPaths.digitalHuman}
           onClick={(event) => {
             event.preventDefault();
-            onNavigate(platformPaths.market);
+            if (!isDigitalHumanPath(pathname)) onNavigate(platformPaths.digitalHuman);
           }}
         >
           <BrandMark />
@@ -68,7 +68,7 @@ export function PlatformSidebar({
           title={t(collapsed ? t("展开导航栏") : t("收起导航栏"))}
           type="button"
         >
-          <PlatformIcon name={collapsed ? "expand" : "collapse"} size={18} />
+          <PlatformIcon name={collapsed ? "expand" : "collapse"} size={20} />
         </button>
       </div>
 

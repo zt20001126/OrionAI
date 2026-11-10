@@ -78,6 +78,15 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "与当前日期无关的问题无需调用。",
     ),
     DigitalHumanCapability(
+        "当前位置查询",
+        "根据当前对话用户的公网 IP 估计省份和城市",
+        frozenset({"get_user_location"}),
+        "仅当用户询问自己当前所在的城市、省份或位置时调用 get_user_location；普通聊天、"
+        "其他意图或用户询问他人位置时不调用。工具只能定位当前请求用户，不能查询任意 IP。"
+        "回答时说明位置是根据公网 IP 估计的，不能获取精确街道或门牌；只使用工具返回的字段，"
+        "城市为空时不得猜测城市。定位失败时明确告知用户，不得用服务器所在地或常识补全。",
+    ),
+    DigitalHumanCapability(
         "天气查询",
         "根据地点查询当前天气",
         frozenset({"get_current_date", "get_current_weather", "ask_user_questions"}),
@@ -129,6 +138,18 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "多个候选时列出候选并请用户确认代码。仅依据工具结果回答价格、涨跌幅、币种和行情时间；"
         "时间或延迟未知时明确说明，不称为实时行情，不把查询时间当作行情时间，"
         "不推断停牌或编造价格。",
+    ),
+    DigitalHumanCapability(
+        "A 股K线查询",
+        "查询单只 A 股的日K、周K或月K，并在对话中展示走势图",
+        frozenset({"get_stock_kline", "ask_user_questions"}),
+        "用户询问个股历史走势或K线时调用 get_stock_kline；缺少股票名称或代码时使用 Text 题卡追问，"
+        "匹配到多个候选时列出代码并请用户确认；未指定周期时使用 daily，未指定日期时查询最近 60 根；"
+        "仅在用户明确要求 MA 或均线时传入 ma_periods；未指定均线周期时传入 [5, 10, 20, 60]，"
+        "用户点名支持的周期时只传入点名周期；支持周期为 5、10、20、60，其他周期说明暂不支持。"
+        "只依据工具返回的K线和均线数据总结；用户请求 MA 时在文字回答中说明所请求周期的"
+        "最新有效均线值，"
+        "某周期没有有效值时说明历史数据不足，不自行估算；不得称为实时数据或提供未经请求的投资建议。",
     ),
     DigitalHumanCapability(
         "淘宝商品查询",
