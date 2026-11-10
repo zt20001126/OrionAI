@@ -8,6 +8,7 @@ import type {
   ImageResultContentPart,
   KlineChartContentPart,
   KlineChartPayload,
+  KlineMovingAverage,
   QuestionAnswersContentPart,
   QuestionContentPart,
   VideoResultContentPart,
@@ -64,13 +65,17 @@ function getKlineChart(message: ConversationMessage): KlineChartContentPart | nu
   );
 }
 
-/** 将 OHLC 序列绘制成蜡烛图；调用方：数字人对话消息。 */
+/** 绘制 OHLC 蜡烛及用户请求的均线；输入图表 payload；输出 SVG 图表；调用方：数字人对话消息。 */
 function KlineChart({ chart }: { chart: KlineChartPayload }) {
   const width = 600;
   const plotTop = 18;
   const plotBottom = 185;
-  const lows = chart.candles.map((candle) => candle.low);
-  const highs = chart.candles.map((candle) => candle.high);
+  const movingAverages = chart.moving_averages ?? [];
+  const movingAverageValues = movingAverages.flatMap((series) =>
+    series.values.filter((value): value is number => value !== null),
+  );
+  const lows = [...chart.candles.map((candle) => candle.low), ...movingAverageValues];
+  const highs = [...chart.candles.map((candle) => candle.high), ...movingAverageValues];
   let minPrice = Math.min(...lows);
   let maxPrice = Math.max(...highs);
   if (minPrice === maxPrice) {
@@ -83,6 +88,12 @@ function KlineChart({ chart }: { chart: KlineChartPayload }) {
   const step = (width - 48) / chart.candles.length;
   const candleWidth = Math.min(6, step * 0.7);
   const periodLabel = { daily: "日K", weekly: "周K", monthly: "月K" }[chart.period];
+  const movingAverageClasses: Record<KlineMovingAverage["period"], string> = {
+    5: "digital-human-kline__moving-average--5",
+    10: "digital-human-kline__moving-average--10",
+    20: "digital-human-kline__moving-average--20",
+    60: "digital-human-kline__moving-average--60",
+  };
 
   return (
     <figure className="digital-human-kline">
@@ -132,7 +143,46 @@ function KlineChart({ chart }: { chart: KlineChartPayload }) {
             </g>
           );
         })}
+        {movingAverages.map((series) => {
+          const points = series.values.flatMap((value, index) =>
+            value === null ? [] : [{ x: 44 + step * (index + 0.5), y: y(value) }],
+          );
+          const className = `digital-human-kline__moving-average ${movingAverageClasses[series.period]}`;
+          if (points.length === 0) return null;
+          if (points.length === 1) {
+            return (
+              <circle
+                className={className}
+                cx={points[0].x}
+                cy={points[0].y}
+                key={series.period}
+                r="2"
+              />
+            );
+          }
+          return (
+            <polyline
+              className={className}
+              fill="none"
+              key={series.period}
+              points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+            />
+          );
+        })}
       </svg>
+      {movingAverages.length > 0 && (
+        <div aria-label="均线图例" className="digital-human-kline__legend" role="group">
+          {movingAverages.map((series) => (
+            <span className="digital-human-kline__legend-item" key={series.period}>
+              <span
+                aria-hidden="true"
+                className={`digital-human-kline__legend-line ${movingAverageClasses[series.period]}`}
+              />
+              MA{series.period}
+            </span>
+          ))}
+        </div>
+      )}
       <div aria-hidden="true" className="digital-human-kline__dates">
         <span>{chart.start_date}</span>
         <span>{chart.end_date}</span>
@@ -208,7 +258,10 @@ function getQuestionAnswersPart(message: ConversationMessage): QuestionAnswersCo
   );
 }
 
-/** 展示当前会话的消息流，只保留消息加载反馈，不在聊天区重复显示智能体状态。 */
+/**
+ * 渲染会话历史和当前流式回复；输入消息、流式文本／图表、题卡状态及操作回调和加载状态；
+ * 输出会话消息区域；调用方：数字人会话页面。
+ */
 export function DigitalHumanConversation({
   messages,
   pendingMessage,

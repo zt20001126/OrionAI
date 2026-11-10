@@ -467,6 +467,7 @@ def test_streaming_kline_sends_chart_message_and_persists_same_payload(
                     "volume": 100,
                 }
             ],
+            "moving_averages": [{"period": 5, "values": [10.5]}],
         }
     )
     agent.responses[0] = AgentResponse(
@@ -487,6 +488,7 @@ def test_streaming_kline_sends_chart_message_and_persists_same_payload(
         event["data"] for event in events if event["data"].get("type") == "kline_chart"
     )
     assert chart_event["content"]["candles"][0]["close"] == 11
+    assert chart_event["content"]["moving_averages"] == [{"period": 5, "values": [10.5]}]
     saved = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"][-1]
     assert saved["content"]["parts"][-1] == chart_event
 

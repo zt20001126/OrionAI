@@ -82,6 +82,11 @@ export interface KlineCandle {
   volume: number | null;
 }
 
+export interface KlineMovingAverage {
+  period: 5 | 10 | 20 | 60;
+  values: (number | null)[];
+}
+
 export interface KlineChartPayload {
   code: string;
   name: string;
@@ -91,6 +96,7 @@ export interface KlineChartPayload {
   end_date: string;
   source: string;
   candles: KlineCandle[];
+  moving_averages?: KlineMovingAverage[];
 }
 
 export interface KlineChartContentPart {

@@ -40,6 +40,7 @@ def test_kline_event_and_history_part_share_the_content_contract() -> None:
     assert event.model_dump(mode="json")["type"] == "kline_chart"
     assert event.model_dump(mode="json")["content"]["candles"][0]["close"] == 11
     assert content.parts[0].type == "kline_chart"
+    assert "moving_averages" not in event.model_dump(mode="json")["content"]
 
 
 def test_kline_payload_rejects_invalid_ohlc_and_unsorted_dates() -> None:
@@ -54,5 +55,21 @@ def test_kline_payload_rejects_invalid_ohlc_and_unsorted_dates() -> None:
             "volume": 100,
         }
     ]
+    with pytest.raises(ValidationError):
+        ConversationKlineChartEvent(type="kline_chart", content=payload)
+
+
+def test_kline_payload_accepts_aligned_ma_and_rejects_length_mismatch() -> None:
+    payload = _chart_payload()
+    payload["moving_averages"] = [{"period": 5, "values": [10.5]}]
+
+    event = ConversationKlineChartEvent(type="kline_chart", content=payload)
+    assert event.content.moving_averages[0].values == [10.5]
+
+    payload["moving_averages"] = [{"period": 5, "values": [10.5, 10.6]}]
+    with pytest.raises(ValidationError):
+        ConversationKlineChartEvent(type="kline_chart", content=payload)
+
+    payload["moving_averages"] = [{"period": 5, "values": [float("inf")]}]
     with pytest.raises(ValidationError):
         ConversationKlineChartEvent(type="kline_chart", content=payload)

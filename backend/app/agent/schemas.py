@@ -4,7 +4,7 @@ from datetime import date
 from itertools import pairwise
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator, model_validator
 
 from app.agent.config import DEFAULT_MAX_INPUT_CHARS, MAX_QUESTIONS_PER_BATCH, QUESTION_OPTION_COUNT
 
@@ -60,8 +60,17 @@ class KlineCandle(BaseModel):
         return self
 
 
+class KlineMovingAverage(BaseModel):
+    """与可见 K 线逐项对齐的简单移动平均序列。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    period: Literal[5, 10, 20, 60]
+    values: list[FiniteFloat | None] = Field(min_length=1, max_length=300)
+
+
 class KlineChartPayload(BaseModel):
-    """数字人K线工具和会话图表消息共用的数据结构。"""
+    """数字人K线工具和会话图表消息共用的 K 线及可选均线数据结构。"""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -73,16 +82,32 @@ class KlineChartPayload(BaseModel):
     end_date: date
     source: str = Field(min_length=1, max_length=100)
     candles: list[KlineCandle] = Field(min_length=1, max_length=300)
+    moving_averages: list[KlineMovingAverage] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        min_length=1,
+        max_length=4,
+        description="用户明确请求时附带、与 candles 等长的均线序列。",
+    )
 
     @model_validator(mode="after")
     def validate_chart_dates(self) -> "KlineChartPayload":
-        """确保图表日期范围与K线序列一致；调用方：Agent 和会话 schema。"""
+        """校验K线日期和均线长度。
+
+        输入：图表 payload；输出：校验后的实例；调用方：Agent 及会话 schema。
+        """
         if self.start_date > self.end_date:
             raise ValueError("K线开始日期不能晚于结束日期。")
         if self.candles[0].date != self.start_date or self.candles[-1].date != self.end_date:
             raise ValueError("K线日期范围必须匹配首尾数据。")
         if any(left.date >= right.date for left, right in pairwise(self.candles)):
             raise ValueError("K线日期必须严格递增。")
+        if self.moving_averages is not None:
+            periods = [series.period for series in self.moving_averages]
+            if len(periods) != len(set(periods)):
+                raise ValueError("均线周期不能重复。")
+            if any(len(series.values) != len(self.candles) for series in self.moving_averages):
+                raise ValueError("均线值必须与K线数量一致。")
         return self
 
 

@@ -5,6 +5,7 @@ import json
 import logging
 import threading
 from datetime import date, datetime, timedelta
+from math import fsum
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -23,6 +24,7 @@ from app.modules.digital_human.agent.tools.stock_quote import (
 KLINE_QUERY_TIMEOUT_SECONDS = 30.0
 MAX_KLINE_CANDLES = 300
 PERIOD_LOOKBACK_DAYS = {"daily": 180, "weekly": 1095, "monthly": 2190}
+MA_WARMUP_DAYS = {"daily": 180, "weekly": 450, "monthly": 2190}
 logger = logging.getLogger(__name__)
 _kline_query_slots = threading.BoundedSemaphore(2)
 
@@ -32,8 +34,12 @@ def _query_kline(
     period: Literal["daily", "weekly", "monthly"],
     start_date: str | None,
     end_date: str | None,
+    ma_periods: list[int] | None,
 ) -> dict[str, object]:
-    """匹配股票并读取规范化K线；输入查询条件，输出工具结果；调用方：数字人K线工具。"""
+    """查询并规范化股票 K 线。
+
+    输入：股票、周期、区间及可选 MA 周期；输出：工具结果；调用方：数字人 K 线工具。
+    """
     if not _kline_query_slots.acquire(blocking=False):
         return {"status": "unavailable", "message": "K线查询繁忙，请稍后重试。"}
     try:
@@ -65,10 +71,11 @@ def _query_kline(
             return {"status": "invalid", "message": "开始日期不能晚于结束日期。"}
         if (end - start).days > 3650:
             return {"status": "invalid", "message": "K线查询区间不能超过 10 年。"}
+        fetch_start = start - timedelta(days=MA_WARMUP_DAYS[period]) if ma_periods else start
         frame = ak.stock_zh_a_hist(
             symbol=code,
             period=period,
-            start_date=start.strftime("%Y%m%d"),
+            start_date=fetch_start.strftime("%Y%m%d"),
             end_date=end.strftime("%Y%m%d"),
             adjust="qfq",
         )
@@ -100,9 +107,16 @@ def _query_kline(
         if not candles:
             return {"status": "no_data", "message": "该区间没有有效的历史K线。"}
         candles.sort(key=lambda candle: str(candle["date"]))
+        visible_candles = [
+            candle
+            for candle in candles
+            if start.isoformat() <= str(candle["date"]) <= end.isoformat()
+        ]
+        if not visible_candles:
+            return {"status": "no_data", "message": "该区间没有可用的历史K线。"}
         if start_date is None and end_date is None:
-            candles = candles[-60:]
-        elif len(candles) > MAX_KLINE_CANDLES:
+            visible_candles = visible_candles[-60:]
+        elif len(visible_candles) > MAX_KLINE_CANDLES:
             return {
                 "status": "invalid",
                 "message": f"查询结果超过 {MAX_KLINE_CANDLES} 根K线，请缩短日期范围。",
@@ -112,14 +126,46 @@ def _query_kline(
             "name": name,
             "period": period,
             "adjust": "qfq",
-            "start_date": str(candles[0]["date"]),
-            "end_date": str(candles[-1]["date"]),
+            "start_date": str(visible_candles[0]["date"]),
+            "end_date": str(visible_candles[-1]["date"]),
             "source": "东方财富（通过 AKShare）",
-            "candles": candles,
+            "candles": visible_candles,
         }
+        if ma_periods:
+            chart["moving_averages"] = _calculate_moving_averages(
+                candles,
+                visible_candles,
+                ma_periods,
+            )
         return {"status": "ok", "chart": chart}
     finally:
         _kline_query_slots.release()
+
+
+def _calculate_moving_averages(
+    candles: list[dict[str, object]],
+    visible_candles: list[dict[str, object]],
+    periods: list[int],
+) -> list[dict[str, object]]:
+    """按完整历史收盘价计算可见区间 SMA。
+
+    输入：完整和可见 K 线及周期；输出：按可见 K 线对齐的均线；调用方：数字人 K 线工具。
+    """
+    candle_indexes = {str(candle["date"]): index for index, candle in enumerate(candles)}
+    close_prices = [float(candle["close"]) for candle in candles]
+    series: list[dict[str, object]] = []
+    for period in sorted(set(periods)):
+        values: list[float | None] = []
+        for candle in visible_candles:
+            candle_index = candle_indexes[str(candle["date"])]
+            window_start = candle_index - period + 1
+            values.append(
+                fsum(close_prices[window_start : candle_index + 1]) / period
+                if window_start >= 0
+                else None
+            )
+        series.append({"period": period, "values": values})
+    return series
 
 
 @tool
@@ -128,8 +174,13 @@ async def get_stock_kline(
     period: Literal["daily", "weekly", "monthly"] = "daily",
     start_date: str | None = None,
     end_date: str | None = None,
+    ma_periods: list[Literal[5, 10, 20, 60]] | None = None,
 ) -> str:
-    """查询单只 A 股前复权日、周或月K线；日期使用 YYYY-MM-DD，缺省取最近 60 根。"""
+    """查询单只 A 股前复权日、周或月 K 线，并返回状态和图表 JSON。
+
+    输入：股票、周期、日期及可选 MA 周期；调用方：数字人 Agent。
+    仅用户明确要求 MA／均线时传入 ma_periods；未指定周期时传入 5、10、20、60。
+    """
     stock = stock.strip()
     if not stock or len(stock) > MAX_STOCK_QUERY_LENGTH:
         return json.dumps(
@@ -151,7 +202,7 @@ async def get_stock_kline(
             )
     try:
         result = await asyncio.wait_for(
-            asyncio.to_thread(_query_kline, stock, period, start_date, end_date),
+            asyncio.to_thread(_query_kline, stock, period, start_date, end_date, ma_periods),
             timeout=KLINE_QUERY_TIMEOUT_SECONDS,
         )
     except TimeoutError:

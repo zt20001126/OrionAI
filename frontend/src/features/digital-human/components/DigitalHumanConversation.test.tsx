@@ -1,9 +1,61 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
+import type { ConversationMessage, KlineChartPayload } from "../../conversations/conversationApi";
 import { DigitalHumanConversation } from "./DigitalHumanConversation";
 
 afterEach(cleanup);
+
+const chart: KlineChartPayload = {
+  code: "600519",
+  name: "贵州茅台",
+  period: "daily",
+  adjust: "qfq",
+  start_date: "2026-11-09",
+  end_date: "2026-11-10",
+  source: "东方财富（通过 AKShare）",
+  candles: [
+    {
+      date: "2026-11-09",
+      open: 1400,
+      close: 1410,
+      high: 1420,
+      low: 1390,
+      volume: 1000,
+    },
+    {
+      date: "2026-11-10",
+      open: 1410,
+      close: 1405,
+      high: 1425,
+      low: 1400,
+      volume: 1200,
+    },
+  ],
+};
+
+function renderConversation(
+  streamedKlineChart: KlineChartPayload | null,
+  messages: ConversationMessage[] = [],
+) {
+  return render(
+    <DigitalHumanConversation
+      messages={messages}
+      pendingMessage={null}
+      pendingQuestionMessageId={null}
+      currentQuestionIndex={0}
+      selectedAnswers={{}}
+      streamedAssistantText={streamedKlineChart ? "近几日走势向上。" : ""}
+      streamedKlineChart={streamedKlineChart}
+      onQuestionAnswerSelect={vi.fn()}
+      onQuestionNext={vi.fn()}
+      onQuestionPrevious={vi.fn()}
+      onQuestionSubmit={vi.fn()}
+      isSubmitting={false}
+      isLoading={false}
+    />,
+  );
+}
 
 it("在历史消息中显示私有视频并提示播放错误", () => {
   render(
@@ -48,52 +100,45 @@ it("在历史消息中显示私有视频并提示播放错误", () => {
   expect(screen.getByText("生成视频暂时无法播放。")).toBeInTheDocument();
 });
 
-it("收到完整K线流事件后绘制图表及前复权信息", () => {
-  render(
-    <DigitalHumanConversation
-      messages={[]}
-      pendingMessage={null}
-      pendingQuestionMessageId={null}
-      currentQuestionIndex={0}
-      selectedAnswers={{}}
-      streamedAssistantText="近几日走势向上。"
-      streamedKlineChart={{
-        code: "600519",
-        name: "贵州茅台",
-        period: "daily",
-        adjust: "qfq",
-        start_date: "2026-11-09",
-        end_date: "2026-11-10",
-        source: "东方财富（通过 AKShare）",
-        candles: [
-          {
-            date: "2026-11-09",
-            open: 1400,
-            close: 1410,
-            high: 1420,
-            low: 1390,
-            volume: 1000,
-          },
-          {
-            date: "2026-11-10",
-            open: 1410,
-            close: 1405,
-            high: 1425,
-            low: 1400,
-            volume: 1200,
-          },
-        ],
-      }}
-      onQuestionAnswerSelect={vi.fn()}
-      onQuestionNext={vi.fn()}
-      onQuestionPrevious={vi.fn()}
-      onQuestionSubmit={vi.fn()}
-      isSubmitting={false}
-      isLoading={false}
-    />,
-  );
+it("收到完整K线流事件和MA数据后绘制均线及前复权信息", () => {
+  renderConversation({
+    ...chart,
+    moving_averages: [{ period: 5, values: [1402, 1408] }],
+  });
 
   expect(screen.getByRole("img", { name: /贵州茅台 日K K线图/ })).toBeInTheDocument();
   expect(screen.getByText("日K · 前复权")).toBeInTheDocument();
   expect(screen.getByText("数据来源：东方财富（通过 AKShare）")).toBeInTheDocument();
+  expect(screen.getByText("MA5")).toBeInTheDocument();
+  expect(document.querySelector(".digital-human-kline__moving-average--5")).toBeInTheDocument();
+});
+
+it("没有请求MA时只显示蜡烛图", () => {
+  renderConversation(chart);
+
+  expect(screen.getByRole("img", { name: /贵州茅台 日K K线图/ })).toBeInTheDocument();
+  expect(screen.queryByText(/^MA\d+$/)).not.toBeInTheDocument();
+  expect(document.querySelector(".digital-human-kline__moving-average")).not.toBeInTheDocument();
+});
+
+it("历史消息中的K线保留并绘制MA曲线", () => {
+  renderConversation(null, [
+    {
+      id: "assistant-1",
+      conversation_id: "conversation-1",
+      role: "assistant",
+      created_at: "2026-11-10T00:00:00Z",
+      content: {
+        parts: [
+          {
+            type: "kline_chart",
+            content: { ...chart, moving_averages: [{ period: 20, values: [1402, 1408] }] },
+          },
+        ],
+      },
+    },
+  ]);
+
+  expect(screen.getByText("MA20")).toBeInTheDocument();
+  expect(document.querySelector(".digital-human-kline__moving-average--20")).toBeInTheDocument();
 });

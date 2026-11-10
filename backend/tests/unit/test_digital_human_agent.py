@@ -67,6 +67,10 @@ def test_capabilities_require_all_registered_tools() -> None:
     assert "A 股K线查询" in build_capabilities_prompt(
         names | {"ask_user_questions", "get_stock_kline"}
     )
+    kline_prompt = build_capabilities_prompt(names | {"ask_user_questions", "get_stock_kline"})
+    assert "仅在用户明确要求 MA 或均线时" in kline_prompt
+    assert "ma_periods" in kline_prompt
+    assert "文字回答中说明所请求周期的最新有效均线值" in kline_prompt
 
 
 @pytest.mark.anyio
@@ -269,6 +273,7 @@ async def test_stock_kline_tool_result_is_attached_to_agent_response(
                 "volume": 100,
             }
         ],
+        "moving_averages": [{"period": 5, "values": [10.5]}],
     }
     monkeypatch.setattr(
         stock_kline,
@@ -299,6 +304,7 @@ async def test_stock_kline_tool_result_is_attached_to_agent_response(
     assert response.kline_chart is not None
     assert response.kline_chart.code == "600519"
     assert response.kline_chart.candles[0].close == 11
+    assert response.kline_chart.moving_averages[0].values == [10.5]
 
 
 @pytest.mark.anyio
