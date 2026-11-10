@@ -7,7 +7,7 @@ services:
     environment:
       API_PROXY_TARGET: http://backend:8000
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./frontend/src:/workspace/frontend/src
       - ./frontend/public:/workspace/frontend/public
@@ -63,7 +63,7 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       MEMBERSHIP_FRONTEND_BASE_URL: ${MEMBERSHIP_FRONTEND_BASE_URL:-http://localhost:5173}
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
       - ./backend:/app
       - ./frontend/public/memory-training-assets:/app/memory-training-assets:ro
