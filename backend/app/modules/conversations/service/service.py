@@ -63,6 +63,7 @@ from app.modules.conversations.schemas.schemas import (
     QuestionContentPart,
     SubmittedQuestionAnswer,
     TextContentPart,
+    UserLocationContext,
 )
 from app.modules.conversations.service.title import (
     ConversationTitleGenerator,
@@ -72,6 +73,10 @@ from app.modules.digital_human.agent.tools.email import (
     CONFIRM_SEND,
     EMAIL_QUESTION_PREFIX,
     draft_key,
+)
+from app.modules.digital_human.constants import (
+    DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER,
+    DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
 )
 from app.modules.image_generation.constants import IMAGE_RESULT_URL_PREFIX
 from app.modules.skills import repository as skills_repository
@@ -85,7 +90,7 @@ IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60
 
 @dataclass(frozen=True)
 class PreparedConversationTurn:
-    """流式响应开始前准备的一轮对话；客户端 IP 仅保留于本轮内存上下文。"""
+    """流式响应开始前准备的一轮对话；IP 和位置数据仅保留于本轮上下文。"""
 
     user_id: int
     conversation: Conversation
@@ -93,6 +98,7 @@ class PreparedConversationTurn:
     message_id: int
     should_generate_title: bool
     client_ip: str | None = None
+    location_context: UserLocationContext | None = None
     resume_answers: dict[str, str] | None = None
     idempotency_key: str | None = None
     idempotency_token: str | None = None
@@ -226,6 +232,7 @@ class ConversationService:
                 skill_code=prepared.conversation.skill_code,
                 resume_answers=prepared.resume_answers,
                 client_ip=prepared.client_ip,
+                location_context=prepared.location_context,
             )
         return self._save_agent_response(prepared.conversation, agent_response)
 
@@ -237,7 +244,7 @@ class ConversationService:
         *,
         client_ip: str | None = None,
     ) -> AgentTurnResponse:
-        """验证题卡答案并恢复 Agent；client_ip 仅传给当前数字人运行配置。"""
+        """验证题卡答案并恢复 Agent；数字人获准的位置仅作为本轮上下文传递。"""
 
         prepared = self._prepare_answer_turn(user, conversation_id, request, client_ip=client_ip)
         agent_response = self._invoke_agent(
@@ -248,6 +255,7 @@ class ConversationService:
             skill_code=prepared.conversation.skill_code,
             resume_answers=prepared.resume_answers,
             client_ip=prepared.client_ip,
+            location_context=prepared.location_context,
         )
         return self._save_agent_response(prepared.conversation, agent_response)
 
@@ -766,7 +774,11 @@ class ConversationService:
         *,
         client_ip: str | None = None,
     ) -> PreparedConversationTurn:
-        """校验并保存题卡答案；client_ip 仅供恢复后的本轮数字人运行使用。"""
+        """校验并保存题卡答案。
+
+        输入：当前用户、会话 ID、题卡答案及可选的浏览器位置；输出：恢复 Agent 所需的本轮数据；
+        调用方：同步答题接口和后台问答任务。授权坐标只留在数字人本轮上下文，不写入消息。
+        """
 
         conversation = self._get_conversation_safely(user.id, conversation_id)
         self._require_skill(user.id, conversation.skill_code)
@@ -776,6 +788,23 @@ class ConversationService:
             question_payload.validate_answers(request.answers)
         except ValueError as error:
             raise ConversationValidationError(str(error)) from None
+
+        if request.location is not None:
+            location_question = next(
+                (
+                    question
+                    for question in question_payload.questions
+                    if question.id == DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID
+                ),
+                None,
+            )
+            if (
+                conversation.skill_code != "digital_human"
+                or location_question is None
+                or request.answers.get(DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID)
+                != DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER
+            ):
+                raise ConversationValidationError("只有数字人位置授权题卡允许提交定位结果。")
 
         answer_text = self._format_answer(question_payload, request)
         if conversation.skill_code == "digital_human" and len(question_payload.questions) == 1:
@@ -808,6 +837,7 @@ class ConversationService:
             should_generate_title=False,
             client_ip=client_ip,
             resume_answers=request.answers,
+            location_context=request.location,
         )
 
     @staticmethod
@@ -916,8 +946,14 @@ class ConversationService:
         skill_code: str,
         resume_answers: dict[str, str] | None,
         client_ip: str | None = None,
+        location_context: UserLocationContext | None = None,
     ) -> AgentResponse:
-        """调度技能 Runtime；client_ip 只进入本轮数字人配置并映射运行错误。"""
+        """调度技能 Runtime。
+
+        输入：用户/会话标识、消息、技能和可选本轮上下文；输出：Agent 回答。
+        调用方：同步对话与答题 Service。
+        数字人 IP 和授权位置只进入当前运行配置，Agent 异常在此转换为会话业务错误。
+        """
 
         agent = self._agents.get(skill_code)
         if agent is None:
@@ -936,6 +972,8 @@ class ConversationService:
                 configurable["resume_answers"] = resume_answers
         if skill_code == "digital_human" and client_ip is not None:
             configurable["client_ip"] = client_ip
+        if skill_code == "digital_human" and location_context is not None:
+            configurable["user_location"] = location_context.model_dump(exclude_none=True)
         try:
             return invoke_agent_from_worker_thread(
                 agent,
@@ -1300,7 +1338,10 @@ class ConversationService:
         prepared: PreparedConversationTurn,
         thread_id: str,
     ) -> dict[str, object]:
-        """构造单轮 Agent 配置；仅数字人配置携带当前 HTTP 请求 IP。"""
+        """构造单轮 Agent 配置；输入已准备的会话轮次和线程 ID，输出 Runtime 配置。
+
+        调用方：后台流式执行。
+        """
         configurable: dict[str, object] = {"thread_id": thread_id}
         if prepared.conversation.skill_code in {
             "image_agent",
@@ -1319,4 +1360,9 @@ class ConversationService:
                 configurable["resume_answers"] = prepared.resume_answers
         if prepared.conversation.skill_code == "digital_human" and prepared.client_ip is not None:
             configurable["client_ip"] = prepared.client_ip
+        if (
+            prepared.conversation.skill_code == "digital_human"
+            and prepared.location_context is not None
+        ):
+            configurable["user_location"] = prepared.location_context.model_dump(exclude_none=True)
         return {"configurable": configurable}

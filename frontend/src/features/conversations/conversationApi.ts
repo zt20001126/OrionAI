@@ -54,6 +54,18 @@ export interface SubmittedQuestionAnswer {
   answer: string;
 }
 
+export type UserLocationContext =
+  | {
+      status: "granted";
+      latitude: number;
+      longitude: number;
+      accuracy_meters: number;
+    }
+  | { status: "denied" | "unavailable" };
+
+export const DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID = "digital_human_location_consent";
+export const DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER = "允许获取当前位置";
+
 export interface QuestionAnswersContentPart {
   type: "question_answers";
   items: SubmittedQuestionAnswer[];
@@ -330,12 +342,16 @@ export function startConversationMessageRun(
   );
 }
 
-/** 创建题卡答案对应的后台生成任务。 */
+/** 提交题卡答案并创建后台任务；输入可选数字人本轮定位结果；调用方：对话题卡。 */
 export function startQuestionAnswersRun(
   conversationId: string,
   answers: Record<string, string>,
+  location?: UserLocationContext,
 ): Promise<ConversationRunResponse> {
-  return request<ConversationRunResponse>(`/${conversationId}/runs/answers`, { answers });
+  return request<ConversationRunResponse>(`/${conversationId}/runs/answers`, {
+    answers,
+    ...(location ? { location } : {}),
+  });
 }
 
 /** 查询会话活动任务；无活动任务时返回 null。 */
