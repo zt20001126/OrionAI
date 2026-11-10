@@ -27,12 +27,15 @@ import {
   listConversations,
   startConversationMessageRun,
   startQuestionAnswersRun,
+  DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER,
+  DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
   type ConversationMessage,
   type ImageResultContentPart,
   type MessageListResponse,
   type QuestionContentPart,
   type QuestionAnswersContentPart,
   type SubmittedQuestionAnswer,
+  type UserLocationContext,
 } from "./conversationApi";
 import "./conversations.css";
 import { t } from "../../i18n/localeStore";
@@ -52,6 +55,36 @@ const RESUME_ASSISTANT_PROMPTS = [
   { label: "改写项目经历", prompt: "请帮我改写简历中的项目经历，突出我的贡献和成果。" },
   { label: "匹配岗位要求", prompt: "请根据目标岗位要求分析我的简历匹配度。" },
 ] as const;
+const LOCATION_REQUEST_TIMEOUT_MS = 10_000;
+const LOCATION_CACHE_MAX_AGE_MS = 60_000;
+
+/** 获取浏览器定位；输入：无；输出：经纬度或明确失败状态；调用方：数字人授权题卡提交。 */
+function requestBrowserLocation(): Promise<UserLocationContext> {
+  if (!navigator.geolocation) return Promise.resolve({ status: "unavailable" });
+
+  return new Promise((resolve) => {
+    try {
+      navigator.geolocation.getCurrentPosition(
+        ({ coords }) =>
+          resolve({
+            status: "granted",
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            accuracy_meters: coords.accuracy,
+          }),
+        (error) =>
+          resolve({ status: error.code === error.PERMISSION_DENIED ? "denied" : "unavailable" }),
+        {
+          enableHighAccuracy: true,
+          timeout: LOCATION_REQUEST_TIMEOUT_MS,
+          maximumAge: LOCATION_CACHE_MAX_AGE_MS,
+        },
+      );
+    } catch {
+      resolve({ status: "unavailable" });
+    }
+  });
+}
 
 function getPendingQuestion(messages: ConversationMessage[]): {
   messageId: string;
@@ -162,6 +195,7 @@ const markdownComponents: Components = {
     ),
 };
 
+/** 对话页面；负责消息、题卡交互及数字人明确授权后的浏览器定位。 */
 export function ConversationPage({
   conversationId,
   embedded = false,
@@ -523,6 +557,12 @@ export function ConversationPage({
           question.id === "resume_optimization" &&
           selectedAnswers[question.id] === "确认采用并保存",
       );
+    const locationAnswer = selectedAnswers[DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID];
+    const isLocationConsentQuestion =
+      skillCode === "digital_human" &&
+      pendingQuestion.part.questions.some(
+        (question) => question.id === DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
+      );
 
     const controller = new AbortController();
     activeStreamControllerRef.current = controller;
@@ -531,7 +571,12 @@ export function ConversationPage({
     setErrorState(null);
     let streamCompleted = false;
     try {
-      const run = await startQuestionAnswersRun(conversationId, selectedAnswers);
+      // 先由用户提交授权题卡，再在同一交互中调用浏览器定位 API，以便显示原生权限提示。
+      const location =
+        isLocationConsentQuestion && locationAnswer === DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER
+          ? await requestBrowserLocation()
+          : undefined;
+      const run = await startQuestionAnswersRun(conversationId, selectedAnswers, location);
       setActiveRun({ conversationId, runId: run.run_id });
       await followRun(conversationId, run.run_id, controller.signal);
       streamCompleted = true;

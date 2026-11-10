@@ -3,7 +3,15 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from app.agent.schemas import KlineChartPayload, QuestionPayload
 
@@ -47,12 +55,44 @@ class MessageCreateRequest(BaseModel):
     message: NonEmptyText = Field(description="用户消息文本。")
 
 
+class UserLocationContext(BaseModel):
+    """浏览器本轮定位上下文；由授权问答提交，不写入会话消息或用户资料。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: Literal["granted", "denied", "unavailable"] = Field(
+        description="浏览器定位状态；granted 表示坐标由用户授权后获取。"
+    )
+    latitude: FiniteFloat | None = Field(
+        default=None, ge=-90, le=90, description="浏览器返回的纬度，仅 granted 时提供。"
+    )
+    longitude: FiniteFloat | None = Field(
+        default=None, ge=-180, le=180, description="浏览器返回的经度，仅 granted 时提供。"
+    )
+    accuracy_meters: FiniteFloat | None = Field(
+        default=None, ge=0, description="浏览器报告的水平精度（米），仅 granted 时提供。"
+    )
+
+    @model_validator(mode="after")
+    def validate_coordinates(self) -> "UserLocationContext":
+        """确保授权状态与坐标字段成组出现，供对话 API 边界校验。"""
+        coordinates = (self.latitude, self.longitude, self.accuracy_meters)
+        if self.status == "granted" and any(value is None for value in coordinates):
+            raise ValueError("定位成功时必须提供经纬度和精度。")
+        if self.status != "granted" and any(value is not None for value in coordinates):
+            raise ValueError("定位未成功时不能携带坐标。")
+        return self
+
+
 class QuestionAnswersRequest(BaseModel):
-    """题卡答案，键为 question ID，值为对应选项标签。"""
+    """题卡答案及可选的数字人浏览器定位结果。"""
 
     model_config = ConfigDict(extra="forbid")
 
     answers: dict[str, str] = Field(min_length=1, description="题目 ID 到选项标签的映射。")
+    location: UserLocationContext | None = Field(
+        default=None, description="数字人授权题卡提交的浏览器定位结果，仅用于本轮。"
+    )
 
     @field_validator("answers")
     @classmethod
