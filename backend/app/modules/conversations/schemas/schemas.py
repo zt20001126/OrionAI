@@ -13,7 +13,7 @@ from pydantic import (
     model_validator,
 )
 
-from app.agent.schemas import KlineChartPayload, QuestionPayload
+from app.agent.schemas import KlineChartPayload, PlaceCardsPayload, QuestionPayload
 
 NonEmptyText = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)
@@ -180,13 +180,23 @@ class KlineChartContentPart(BaseModel):
     content: KlineChartPayload
 
 
+class PlaceCardsContentPart(BaseModel):
+    """持久化附近商家卡片数据，供实时及历史消息使用。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["place_cards"]
+    data: PlaceCardsPayload
+
+
 MessageContentPart = Annotated[
     TextContentPart
     | QuestionContentPart
     | QuestionAnswersContentPart
     | ImageResultContentPart
     | VideoResultContentPart
-    | KlineChartContentPart,
+    | KlineChartContentPart
+    | PlaceCardsContentPart,
     Field(discriminator="type"),
 ]
 
@@ -252,3 +262,12 @@ class ConversationKlineChartEvent(BaseModel):
 
     type: Literal["kline_chart"]
     content: KlineChartPayload
+
+
+class ConversationPlaceCardsEvent(BaseModel):
+    """SSE 中完整传输一组附近商家卡片；调用方：会话流服务。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["place_cards"]
+    data: PlaceCardsPayload

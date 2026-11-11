@@ -26,6 +26,7 @@ from app.agent.schemas import (
     AgentStreamResult,
     AgentTextDelta,
     KlineChartPayload,
+    PlaceCardsPayload,
     QuestionPayload,
 )
 from app.modules.digital_human.agent.graph import (
@@ -198,6 +199,7 @@ class DigitalHumanRuntime(AgentRuntime):
             image_result_id=_image_result_id_from_current_turn(messages),
             video_result_id=_video_result_id_from_current_turn(messages),
             kline_chart=_kline_chart_from_current_turn(messages),
+            place_cards=_place_cards_from_current_turn(messages),
         )
 
 
@@ -227,6 +229,56 @@ def _kline_chart_from_current_turn(messages: list[Any]) -> KlineChartPayload | N
         except (ValidationError, KeyError, TypeError):
             raise AgentExecutionError(
                 "数字人生成的K线数据格式无效。", code="invalid_kline_tool_result"
+            ) from None
+    return None
+
+
+def _place_cards_from_current_turn(messages: list[Any]) -> PlaceCardsPayload | None:
+    """提取本轮高德周边搜索结果；供 Runtime 返回结构化商家卡片。"""
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], HumanMessage)
+        ),
+        -1,
+    )
+    for message in reversed(messages[latest_user_index + 1 :]):
+        if not isinstance(message, ToolMessage) or message.name != "search_nearby_places":
+            continue
+        if not isinstance(message.content, str):
+            return None
+        try:
+            result = json.loads(message.content)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(result, dict) or result.get("success") is not True:
+            return None
+        try:
+            return PlaceCardsPayload.model_validate(
+                {
+                    "title": result["title"],
+                    "total": result["total"],
+                    "places": [
+                        {
+                            field: place[field]
+                            for field in (
+                                "id",
+                                "name",
+                                "address",
+                                "distance",
+                                "tel",
+                                "business_hours",
+                                "rating",
+                            )
+                        }
+                        for place in result["pois"]
+                    ],
+                }
+            )
+        except (ValidationError, KeyError, TypeError):
+            raise AgentExecutionError(
+                "数字人生成的周边商家数据格式无效。", code="invalid_place_cards_result"
             ) from None
     return None
 

@@ -47,6 +47,7 @@ function renderConversation(
       selectedAnswers={{}}
       streamedAssistantText={streamedKlineChart ? "近几日走势向上。" : ""}
       streamedKlineChart={streamedKlineChart}
+      streamedPlaceCards={null}
       onQuestionAnswerSelect={vi.fn()}
       onQuestionNext={vi.fn()}
       onQuestionPrevious={vi.fn()}
@@ -85,6 +86,7 @@ it("在历史消息中显示私有视频并提示播放错误", () => {
       selectedAnswers={{}}
       streamedAssistantText=""
       streamedKlineChart={null}
+      streamedPlaceCards={null}
       onQuestionAnswerSelect={vi.fn()}
       onQuestionNext={vi.fn()}
       onQuestionPrevious={vi.fn()}
@@ -111,6 +113,64 @@ it("收到完整K线流事件和MA数据后绘制均线及前复权信息", () =
   expect(screen.getByText("数据来源：东方财富（通过 AKShare）")).toBeInTheDocument();
   expect(screen.getByText("MA5")).toBeInTheDocument();
   expect(document.querySelector(".digital-human-kline__moving-average--5")).toBeInTheDocument();
+});
+
+it("在历史消息中以卡片展示周边商家资料", () => {
+  render(
+    <DigitalHumanConversation
+      messages={[
+        {
+          id: "place-message",
+          conversation_id: "2",
+          role: "assistant",
+          created_at: "2026-11-06T00:00:00Z",
+          content: {
+            parts: [
+              {
+                type: "place_cards",
+                data: {
+                  title: "附近的奶茶店",
+                  total: 1,
+                  places: [
+                    {
+                      id: "poi-1",
+                      name: "一点点（文一西路店）",
+                      address: "杭州市西湖区文一西路369号",
+                      distance: 430,
+                      tel: "0571-88881234",
+                      business_hours: "09:00-22:00",
+                      rating: 4.6,
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ]}
+      pendingMessage={null}
+      pendingQuestionMessageId={null}
+      currentQuestionIndex={0}
+      selectedAnswers={{}}
+      streamedAssistantText=""
+      streamedKlineChart={null}
+      streamedPlaceCards={null}
+      onQuestionAnswerSelect={vi.fn()}
+      onQuestionNext={vi.fn()}
+      onQuestionPrevious={vi.fn()}
+      onQuestionSubmit={vi.fn()}
+      isSubmitting={false}
+      isLoading={false}
+    />,
+  );
+
+  expect(screen.getByRole("region", { name: "附近的奶茶店" })).toBeInTheDocument();
+  expect(screen.getByText("一点点（文一西路店）")).toBeInTheDocument();
+  expect(screen.getByText("★ 4.6")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "0571-88881234" })).toHaveAttribute(
+    "href",
+    "tel:0571-88881234",
+  );
 });
 
 it("没有请求MA时只显示蜡烛图", () => {

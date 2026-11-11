@@ -52,12 +52,14 @@ from app.modules.conversations.schemas.schemas import (
     ConversationCreateResponse,
     ConversationKlineChartEvent,
     ConversationListResponse,
+    ConversationPlaceCardsEvent,
     ConversationQuestionEvent,
     ConversationTextDeltaEvent,
     KlineChartContentPart,
     MessageContent,
     MessageListResponse,
     MessageResponse,
+    PlaceCardsContentPart,
     QuestionAnswersContentPart,
     QuestionAnswersRequest,
     QuestionContentPart,
@@ -374,6 +376,12 @@ class ConversationService:
                         event_type=EventType.MESSAGE,
                         data=payload.model_dump(mode="json"),
                     )
+                elif isinstance(part, PlaceCardsContentPart):
+                    payload = ConversationPlaceCardsEvent(type="place_cards", data=part.data)
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data=payload.model_dump(mode="json"),
+                    )
             return
 
         agent = self._runtime_for(prepared.conversation)
@@ -456,6 +464,15 @@ class ConversationService:
             payload = ConversationKlineChartEvent(
                 type="kline_chart",
                 content=agent_response.kline_chart,
+            )
+            yield StreamEvent(
+                event_type=EventType.MESSAGE,
+                data=payload.model_dump(mode="json"),
+            )
+        if agent_response is not None and agent_response.place_cards is not None:
+            payload = ConversationPlaceCardsEvent(
+                type="place_cards",
+                data=agent_response.place_cards,
             )
             yield StreamEvent(
                 event_type=EventType.MESSAGE,
@@ -1154,6 +1171,13 @@ class ConversationService:
                     KlineChartContentPart(
                         type="kline_chart",
                         content=response.kline_chart,
+                    ).model_dump(mode="json")
+                )
+            if response.place_cards is not None:
+                parts.append(
+                    PlaceCardsContentPart(
+                        type="place_cards",
+                        data=response.place_cards,
                     ).model_dump(mode="json")
                 )
             content: dict[str, object] = {"parts": parts}
