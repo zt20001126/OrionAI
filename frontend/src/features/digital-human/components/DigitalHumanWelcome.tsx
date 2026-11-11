@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import { t } from "../../../i18n/localeStore";
 import { PlatformIcon, type PlatformIconName } from "../../platform/PlatformIcon";
 
-const suggestions: { title: string; prompt: string; icon: PlatformIconName }[] = [
+const suggestions: { title: string; description?: string; prompt: string; icon: PlatformIconName }[] = [
   { title: "生成图片", prompt: "帮我生成一张图片", icon: "camera" },
   { title: "发送邮件", prompt: "帮我发送一封邮件", icon: "send" },
   { title: "设置提醒", prompt: "提醒我明天下午开会", icon: "bell" },
@@ -13,6 +13,13 @@ const suggestions: { title: string; prompt: string; icon: PlatformIconName }[] =
   { title: "查询天气", prompt: "帮我查一下北京今天的天气", icon: "cloud" },
   { title: "查询商品", prompt: "给我查找商品 男款羽绒服", icon: "taobao" },
   { title: "商品详情", prompt: "查询商品 2205695 的详情", icon: "package" },
+  {
+    title: "查询附近的奶茶店",
+    description: "帮我查找附近的奶茶店",
+    prompt: "帮我查询附近的奶茶店",
+    icon: "location",
+  },
+  { title: "查询002086的K线图", prompt: "帮我查询股票002086的K线图", icon: "chart" },
   { title: "互动聊天", prompt: "陪我聊聊天", icon: "message" },
   { title: "了解我的能力", prompt: "你都有哪些能力？", icon: "assistant" },
 ];
@@ -59,7 +66,7 @@ export function DigitalHumanWelcome({
           </button>
         </header>
         <div className="digital-human-welcome__list">
-          {suggestions.map(({ title, prompt, icon }) => (
+          {suggestions.map(({ title, description, prompt, icon }) => (
             <button
               aria-pressed={draft === t(prompt)}
               className="digital-human-welcome__item"
@@ -75,7 +82,7 @@ export function DigitalHumanWelcome({
               </span>
               <span className="digital-human-welcome__text">
                 <strong>{t(title)}</strong>
-                <span>{t(prompt)}</span>
+                <span>{t(description ?? prompt)}</span>
               </span>
               <span className="digital-human-welcome__arrow" aria-hidden="true">
                 <PlatformIcon name="chevron" size={18} />

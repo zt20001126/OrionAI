@@ -24,6 +24,21 @@ describe("AuthAssistantShowcase", () => {
     expect(onRequireAuth).toHaveBeenCalledOnce();
   });
 
+  it("shows the two new features before chat and keeps them behind sign-in", () => {
+    const onRequireAuth = vi.fn();
+    render(<AuthAssistantShowcase onRequireAuth={onRequireAuth} />);
+    const features = document.querySelectorAll(".auth-assistant-feature");
+
+    expect(features).toHaveLength(14);
+    expect(features[10]).toHaveTextContent("查询附近的奶茶店");
+    expect(features[11]).toHaveTextContent("查询002086的K线图");
+    expect(features[12]).toHaveTextContent("互动聊天");
+    fireEvent.click(screen.getByRole("button", { name: /查询附近的奶茶店/ }));
+    expect(screen.getByText(/帮我查询附近的奶茶店/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "登录后体验" }));
+    expect(onRequireAuth).toHaveBeenCalledOnce();
+  });
+
   it("returns to sign-in from the composer without activating voice capture", () => {
     const onRequireAuth = vi.fn();
     render(<AuthAssistantShowcase onRequireAuth={onRequireAuth} />);

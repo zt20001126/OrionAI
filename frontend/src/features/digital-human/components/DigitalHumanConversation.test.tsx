@@ -167,7 +167,7 @@ it("在历史消息中以卡片展示周边商家资料", () => {
 
   expect(screen.getByRole("region", { name: "附近的奶茶店" })).toBeInTheDocument();
   expect(screen.getByText("一点点（文一西路店）")).toBeInTheDocument();
-  expect(screen.getByText("★ 4.6")).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "评分 4.6" })).toBeInTheDocument();
   expect(screen.getByRole("img", { name: "一点点（文一西路店）商家图片" })).toHaveAttribute(
     "src",
     "https://example.com/store.jpg",
@@ -175,6 +175,71 @@ it("在历史消息中以卡片展示周边商家资料", () => {
   expect(screen.getByRole("link", { name: "0571-88881234" })).toHaveAttribute(
     "href",
     "tel:0571-88881234",
+  );
+  expect(screen.getByText("约 430 米")).toBeInTheDocument();
+  expect(screen.getByText("营业 09:00-22:00")).toBeInTheDocument();
+  expect(screen.getByText("查看位置")).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "在高德地图中查看一点点（文一西路店）" }),
+  ).toHaveAttribute(
+    "href",
+    `https://uri.amap.com/search?keyword=${encodeURIComponent("一点点（文一西路店） 杭州市西湖区文一西路369号")}&view=map`,
+  );
+  expect(screen.queryByText("地图位置")).not.toBeInTheDocument();
+});
+
+it("商家图片缺失或加载失败时展示店铺图标，无电话时显示提示", () => {
+  const message: ConversationMessage = {
+    id: "place-fallback-message",
+    conversation_id: "2",
+    role: "assistant",
+    created_at: "2026-11-06T00:00:00Z",
+    content: {
+      parts: [
+        {
+          type: "place_cards",
+          data: {
+            title: "附近的餐厅",
+            total: 2,
+            places: [
+              {
+                id: "poi-no-image",
+                name: "无图片餐厅",
+                address: "杭州市西湖区文一西路 1 号",
+                distance: 1250,
+                tel: null,
+                business_hours: null,
+                rating: null,
+                image_url: null,
+              },
+              {
+                id: "poi-broken-image",
+                name: "图片加载失败餐厅",
+                address: "杭州市西湖区文一西路 2 号",
+                distance: 800,
+                tel: "057188881234",
+                business_hours: "09:00-22:00",
+                rating: 4.2,
+                image_url: "https://example.com/broken.jpg",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  };
+  renderConversation(null, [message]);
+
+  expect(screen.getByText("约 1.3 公里")).toBeInTheDocument();
+  expect(screen.getByText("暂无电话")).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "暂无电话" })).not.toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "无图片餐厅商家图片" })).toHaveClass(
+    "digital-human-place-card__image-fallback",
+  );
+
+  fireEvent.error(screen.getByRole("img", { name: "图片加载失败餐厅商家图片" }));
+  expect(screen.getByRole("img", { name: "图片加载失败餐厅商家图片" })).toHaveClass(
+    "digital-human-place-card__image-fallback",
   );
 });
 
