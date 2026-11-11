@@ -558,11 +558,10 @@ export function ConversationPage({
           selectedAnswers[question.id] === "确认采用并保存",
       );
     const locationAnswer = selectedAnswers[DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID];
-    const isLocationConsentQuestion =
-      skillCode === "digital_human" &&
-      pendingQuestion.part.questions.some(
-        (question) => question.id === DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
-      );
+    // 以题目 ID 识别定位授权，避免页面 skillCode 尚未同步时跳过浏览器定位。
+    const isLocationConsentQuestion = pendingQuestion.part.questions.some(
+      (question) => question.id === DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
+    );
 
     const controller = new AbortController();
     activeStreamControllerRef.current = controller;
