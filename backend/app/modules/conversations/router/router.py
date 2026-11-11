@@ -21,6 +21,7 @@ from app.modules.conversations.schemas.schemas import (
     MessageCreateRequest,
     MessageListResponse,
     QuestionAnswersRequest,
+    WalkingRouteRequest,
 )
 from app.modules.digital_human.dependencies.dependencies import DigitalHumanServiceDependency
 from app.modules.digital_human.service.speech_stream import stream_speech
@@ -34,6 +35,21 @@ IdempotencyKey = Annotated[
     str | None,
     Header(alias="Idempotency-Key", max_length=64, description="可选的单轮消息防重 UUID。"),
 ]
+
+
+@router.post(
+    "/{conversation_id}/walking-route/stream",
+    dependencies=[Depends(validate_origin), Depends(require_membership_access)],
+)
+def stream_walking_route(
+    conversation_id: int,
+    payload: WalkingRouteRequest,
+    user: CurrentUser,
+    service: ConversationServiceDependency,
+) -> StreamingResponse:
+    """验证会话并流式返回步行路线；业务和存储由会话服务负责。"""
+    conversation = service.prepare_walking_route(user, conversation_id)
+    return create_sse_response(service.stream_walking_route(conversation, payload))
 
 
 @router.post(

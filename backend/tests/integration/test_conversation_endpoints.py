@@ -952,3 +952,69 @@ def test_conversation_is_hidden_from_other_users(
 
     assert response.status_code == 404
     assert stream_response.status_code == 404
+
+
+def test_walking_route_stream_persists_and_restores_result(conversation_client, monkeypatch):
+    """路线事件与历史消息使用相同数据，且浏览器坐标先经高德转换。"""
+    from app.modules.digital_human.providers.amap.walking import AmapWalkingRouteClient
+
+    async def convert(_self, coordinate):
+        assert coordinate == "120.15,30.28"
+        return "120.155000,30.285000"
+
+    async def plan(_self, origin, destination, destination_id):
+        assert (origin, destination, destination_id) == (
+            "120.155000,30.285000",
+            "120.16,30.29",
+            "poi1",
+        )
+        return {
+            "mode": "walking",
+            "origin": {"name": "我的位置", "location": origin},
+            "destination": {"name": "目的地", "location": destination},
+            "distance_m": 1050,
+            "duration_s": 780,
+            "steps": [{"instruction": "向东走", "distance_m": 300, "polyline": None}],
+        }
+
+    monkeypatch.setattr(AmapWalkingRouteClient, "convert_gps", convert)
+    monkeypatch.setattr(AmapWalkingRouteClient, "plan", plan)
+    client, _, _, _, _ = conversation_client
+    conversation_id = client.post(
+        "/api/conversations", json={"skill_code": "digital_human"}
+    ).json()["id"]
+    response = client.post(
+        f"/api/conversations/{conversation_id}/walking-route/stream",
+        json={
+            "longitude": 120.15,
+            "latitude": 30.28,
+            "destination": "120.16,30.29",
+            "destination_id": "poi1",
+            "destination_name": "商店",
+            "request_id": "dd832103-4bd0-4a73-9073-40a25b1021cb",
+        },
+    )
+    events = _decode_sse_events(response.content)
+    assert events[1]["data"]["type"] == "route_result"
+    result = events[1]["data"]["data"]
+    assert result["destination"]["name"] == "商店"
+    messages = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]
+    assert len(messages) == 1
+    assert messages[0]["content"]["parts"][0] == {
+        "type": "route_result",
+        "data": result,
+        "request_id": "dd832103-4bd0-4a73-9073-40a25b1021cb",
+    }
+    retry = client.post(
+        f"/api/conversations/{conversation_id}/walking-route/stream",
+        json={
+            "longitude": 120.15,
+            "latitude": 30.28,
+            "destination": "120.16,30.29",
+            "destination_id": "poi1",
+            "destination_name": "商店",
+            "request_id": "dd832103-4bd0-4a73-9073-40a25b1021cb",
+        },
+    )
+    assert _decode_sse_events(retry.content)[1]["data"]["message"]["id"] == messages[0]["id"]
+    assert len(client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]) == 1

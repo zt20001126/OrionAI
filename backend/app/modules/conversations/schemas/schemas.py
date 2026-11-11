@@ -189,6 +189,52 @@ class PlaceCardsContentPart(BaseModel):
     data: PlaceCardsPayload
 
 
+class RoutePoint(BaseModel):
+    """路线端点名称和高德 GCJ-02 坐标。"""
+
+    name: str = Field(min_length=1, max_length=200)
+    location: str = Field(min_length=3, max_length=64)
+
+
+class RouteStep(BaseModel):
+    """高德返回的步行导航指示和距离。"""
+
+    instruction: str
+    distance_m: int = Field(ge=0)
+    polyline: str | None = None
+
+
+class RouteResult(BaseModel):
+    """路线卡片和会话历史共用的数据结构。"""
+
+    mode: Literal["walking"]
+    origin: RoutePoint
+    destination: RoutePoint
+    distance_m: int = Field(ge=0)
+    duration_s: int = Field(ge=0)
+    steps: list[RouteStep]
+
+
+class WalkingRouteRequest(BaseModel):
+    """用户授权的浏览器位置与选定商家的高德坐标。"""
+
+    model_config = ConfigDict(extra="forbid")
+    latitude: FiniteFloat = Field(ge=-90, le=90)
+    longitude: FiniteFloat = Field(ge=-180, le=180)
+    destination: str = Field(min_length=3, max_length=64)
+    destination_name: str = Field(min_length=1, max_length=200)
+    destination_id: str | None = Field(default=None, max_length=100)
+    request_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$", description="路线请求的重试标识。")
+
+
+class RouteResultContentPart(BaseModel):
+    """保存路线结果以支持历史消息恢复。"""
+
+    type: Literal["route_result"]
+    data: RouteResult
+    request_id: str | None = Field(default=None, description="按钮请求标识，用于重试去重。")
+
+
 MessageContentPart = Annotated[
     TextContentPart
     | QuestionContentPart
@@ -196,7 +242,8 @@ MessageContentPart = Annotated[
     | ImageResultContentPart
     | VideoResultContentPart
     | KlineChartContentPart
-    | PlaceCardsContentPart,
+    | PlaceCardsContentPart
+    | RouteResultContentPart,
     Field(discriminator="type"),
 ]
 

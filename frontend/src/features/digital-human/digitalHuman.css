@@ -1384,7 +1384,7 @@
 .digital-human-place-card {
   display: grid;
   min-width: 0;
-  grid-template-columns: 84px minmax(0, 1fr) 150px;
+  grid-template-columns: 84px minmax(0, 1fr) 270px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -1560,7 +1560,7 @@
   }
 }
 
-@container digital-human-place-cards (max-width: 620px) {
+@container digital-human-place-cards (max-width: 760px) {
   .digital-human-place-card {
     grid-template-columns: 72px minmax(0, 1fr);
   }
@@ -1615,5 +1615,61 @@
   .digital-human-place-card:hover,
   .digital-human-place-card__map-button:hover {
     transform: none;
+  }
+}
+
+.digital-human-route-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.digital-human-route-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--digital-human-playback-active);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--digital-human-playback-active);
+  font: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.digital-human-route-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.digital-human-route-button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+.digital-human-walking-route {
+  padding: var(--space-4);
+  border: 1px solid var(--digital-human-ai-message-border);
+  border-radius: var(--radius-card);
+  background: var(--digital-human-ai-message-background);
+}
+.digital-human-walking-route h3 {
+  margin: 0 0 var(--space-2);
+}
+.digital-human-walking-route ol {
+  padding-left: var(--space-6);
+  line-height: var(--line-height-relaxed);
+}
+.digital-human-walking-route .digital-human-route-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.digital-human-walking-route .digital-human-place-card__map-button {
+  width: auto;
+}
+@container digital-human-place-cards (max-width: 420px) {
+  .digital-human-place-card__actions,
+  .digital-human-route-actions {
+    flex-wrap: wrap;
   }
 }

@@ -200,7 +200,34 @@ class DigitalHumanRuntime(AgentRuntime):
             video_result_id=_video_result_id_from_current_turn(messages),
             kline_chart=_kline_chart_from_current_turn(messages),
             place_cards=_place_cards_from_current_turn(messages),
+            route_result=_route_from_current_turn(messages),
         )
+
+
+def _route_from_current_turn(messages: list[Any]) -> dict[str, Any] | None:
+    """提取本轮成功路线工具结果；调用方：数字人运行时。"""
+    latest_user_index = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], HumanMessage)
+        ),
+        -1,
+    )
+    for message in reversed(messages[latest_user_index + 1 :]):
+        if isinstance(message, ToolMessage) and message.name == "plan_walking_route":
+            try:
+                result = json.loads(message.content)
+            except (ValueError, TypeError):
+                return None
+            if (
+                isinstance(result, dict)
+                and result.get("success") is True
+                and isinstance(result.get("route"), dict)
+            ):
+                return result["route"]
+            return None
+    return None
 
 
 def _kline_chart_from_current_turn(messages: list[Any]) -> KlineChartPayload | None:
@@ -261,17 +288,20 @@ def _place_cards_from_current_turn(messages: list[Any]) -> PlaceCardsPayload | N
                     "total": result["total"],
                     "places": [
                         {
-                            field: place[field]
-                            for field in (
-                                "id",
-                                "name",
-                                "address",
-                                "distance",
-                                "tel",
-                                "business_hours",
-                                "rating",
-                                "image_url",
-                            )
+                            **{
+                                field: place[field]
+                                for field in (
+                                    "id",
+                                    "name",
+                                    "address",
+                                    "distance",
+                                    "tel",
+                                    "business_hours",
+                                    "rating",
+                                    "image_url",
+                                )
+                            },
+                            "location": place.get("location"),
                         }
                         for place in result["pois"]
                     ],

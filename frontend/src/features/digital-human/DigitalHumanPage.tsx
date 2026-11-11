@@ -7,6 +7,7 @@ import {
   DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
   createConversation,
   listAllMessages,
+  planWalkingRoute,
   streamDigitalHumanReply,
   type DigitalHumanAudioEvent,
 } from "../conversations/conversationApi";
@@ -15,6 +16,7 @@ import type {
   KlineChartPayload,
   MessageListResponse,
   PlaceCardsPayload,
+  PlaceCard,
   QuestionContentPart,
 } from "../conversations/conversationApi";
 import { requestBrowserLocation } from "../conversations/browserLocation";
@@ -119,6 +121,11 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     cards: PlaceCardsPayload;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPlanningRoute, setIsPlanningRoute] = useState(false);
+  const routeLockRef = useRef(false);
+  const routeRequestRef = useRef<{ conversationId: string; placeId: string; key: string } | null>(
+    null,
+  );
   const audioTurnRef = useRef<string | null>(null);
   const nextSegmentRef = useRef(1);
   const requestStartedRef = useRef(0);
@@ -252,6 +259,44 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     }
     setLoadedMessages({ conversationId: targetConversationId, items: response.items });
     return response;
+  }
+
+  /** 获取浏览器精确位置并规划已选商家路线；结果写入当前会话后刷新消息。 */
+  async function handlePlanRoute(place: PlaceCard) {
+    if (!conversationId || routeLockRef.current) return;
+    if (!place.location) {
+      showToast("error", "商家缺少坐标，请重新搜索。");
+      return;
+    }
+    routeLockRef.current = true;
+    setIsPlanningRoute(true);
+    const target = conversationId;
+    try {
+      const location = await requestBrowserLocation();
+      if (location.status !== "granted")
+        throw new Error(
+          location.status === "denied"
+            ? "定位权限被拒绝，请允许定位后重试。"
+            : "无法获取当前位置，请检查定位后重试。",
+        );
+      const existing = routeRequestRef.current;
+      const key =
+        existing?.conversationId === target && existing.placeId === place.id
+          ? existing.key
+          : createRequestKey();
+      routeRequestRef.current = { conversationId: target, placeId: place.id, key };
+      await planWalkingRoute(target, place, location, key);
+      routeRequestRef.current = null;
+      if (activeConversationRef.current === target) await refreshMessages(target);
+    } catch (error) {
+      if (activeConversationRef.current === target) {
+        showToast("error", errorMessage(error, "路线规划失败，请重试。"));
+        await refreshMessages(target).catch(() => undefined);
+      }
+    } finally {
+      routeLockRef.current = false;
+      setIsPlanningRoute(false);
+    }
   }
 
   /** 将当前请求的音频段按顺序加入播放器；取消后忽略旧事件。 */
@@ -475,7 +520,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     void recorder.startRecording();
   }
 
-  const isBusy = isSubmitting || recorder.status !== "idle";
+  const isBusy = isSubmitting || isPlanningRoute || recorder.status !== "idle";
 
   return (
     <section aria-label={t("Orion 助手")} className="digital-human-page">
@@ -500,6 +545,8 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
             />
           ) : (
             <DigitalHumanConversation
+              onPlanRoute={(place) => void handlePlanRoute(place)}
+              isPlanningRoute={isPlanningRoute || isSubmitting || pendingQuestion !== null}
               currentQuestionIndex={currentQuestionIndex}
               isSubmitting={isSubmitting}
               isLoading={isMessagesLoading}

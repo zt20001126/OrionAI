@@ -96,6 +96,21 @@ def get_latest_message(session: Session, conversation_id: int) -> Message | None
     return session.scalar(statement)
 
 
+def get_route_request_message(
+    session: Session, conversation_id: int, request_id: str
+) -> Message | None:
+    """按请求标识读取已保存的路线，供会话服务在持锁后去重。"""
+    statement = (
+        select(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.content["parts"][0]["request_id"].as_string() == request_id,
+        )
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
 def get_message_by_id(
     session: Session,
     conversation_id: int,
