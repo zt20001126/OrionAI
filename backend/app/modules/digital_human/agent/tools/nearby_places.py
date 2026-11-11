@@ -82,6 +82,7 @@ async def search_nearby_places(keyword: str, radius_meters: int, config: Runnabl
                     "tel": poi.tel,
                     "business_hours": poi.business_hours,
                     "rating": poi.rating,
+                    "image_url": poi.image_url,
                 }
                 for poi in pois
             ],

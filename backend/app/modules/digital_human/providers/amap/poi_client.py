@@ -23,6 +23,7 @@ class AmapPoi:
     tel: str | None
     business_hours: str | None
     rating: float | None
+    image_url: str | None
 
 
 class AmapPoiSearchClient:
@@ -48,7 +49,7 @@ class AmapPoiSearchClient:
             "sortrule": "distance",
             "page_size": 10,
             "page_num": 1,
-            "show_fields": "business",
+            "show_fields": "business,photos",
         }
         try:
             async with httpx.AsyncClient(timeout=AMAP_POI_TIMEOUT_SECONDS) as client:
@@ -77,6 +78,7 @@ class AmapPoiSearchClient:
                 tel=_business_field(poi, "tel"),
                 business_hours=_business_field(poi, "opentime_today"),
                 rating=_rating_field(poi),
+                image_url=_photo_url(poi),
             )
             for poi in payload.get("pois", [])
         ]
@@ -103,3 +105,15 @@ def _rating_field(poi: dict[str, object]) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _photo_url(poi: dict[str, object]) -> str | None:
+    """读取高德返回的第一张商家图片；无图片时卡片只展示文字资料。"""
+    photos = poi.get("photos")
+    if not isinstance(photos, list) or not photos:
+        return None
+    first_photo: object = photos[0]
+    if not isinstance(first_photo, dict):
+        return None
+    url = first_photo.get("url")
+    return url.strip() if isinstance(url, str) and url.strip() else None

@@ -18,6 +18,20 @@ import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/Q
 import { QuestionWizard } from "../../conversations/QuestionWizard";
 
 /** 展示周边搜索结果中的商家资料；调用方：数字人消息列表。 */
+function PlaceCardImage({ imageUrl, name }: { imageUrl: string | null; name: string }) {
+  const [hasError, setHasError] = useState(false);
+  if (!imageUrl || hasError) return null;
+  return (
+    <img
+      alt={`${name}商家图片`}
+      className="digital-human-place-card__image"
+      loading="lazy"
+      onError={() => setHasError(true)}
+      src={imageUrl}
+    />
+  );
+}
+
 function PlaceCards({ data }: { data: PlaceCardsPayload }) {
   return (
     <section aria-label={data.title} className="digital-human-place-cards">
@@ -26,17 +40,22 @@ function PlaceCards({ data }: { data: PlaceCardsPayload }) {
       </h3>
       {data.places.map((place) => (
         <article className="digital-human-place-card" key={place.id}>
-          <header>
-            <strong>{place.name}</strong>
-            {place.rating !== null && (
-              <span className="digital-human-place-card__rating">★ {place.rating.toFixed(1)}</span>
-            )}
-          </header>
-          <div className="digital-human-place-card__details">
-            <span>{place.address}</span>
-            <span>约 {place.distance} 米</span>
-            {place.tel && <a href={`tel:${place.tel}`}>{place.tel}</a>}
-            {place.business_hours && <span>营业时间 {place.business_hours}</span>}
+          <PlaceCardImage imageUrl={place.image_url} name={place.name} />
+          <div className="digital-human-place-card__content">
+            <header>
+              <strong>{place.name}</strong>
+              {place.rating !== null && (
+                <span className="digital-human-place-card__rating">
+                  ★ {place.rating.toFixed(1)}
+                </span>
+              )}
+            </header>
+            <div className="digital-human-place-card__details">
+              <span>{place.address}</span>
+              <span>约 {place.distance} 米</span>
+              {place.tel && <a href={`tel:${place.tel}`}>{place.tel}</a>}
+              {place.business_hours && <span>营业时间 {place.business_hours}</span>}
+            </div>
           </div>
         </article>
       ))}

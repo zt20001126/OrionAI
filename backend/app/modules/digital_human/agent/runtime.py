@@ -270,6 +270,7 @@ def _place_cards_from_current_turn(messages: list[Any]) -> PlaceCardsPayload | N
                                 "tel",
                                 "business_hours",
                                 "rating",
+                                "image_url",
                             )
                         }
                         for place in result["pois"]
