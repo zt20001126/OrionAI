@@ -111,6 +111,30 @@ class KlineChartPayload(BaseModel):
         return self
 
 
+class PlaceCard(BaseModel):
+    """一条经高德周边搜索返回的商家信息，用于数字人消息卡片。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    address: str = ""
+    distance: int = Field(ge=0)
+    tel: str | None = None
+    business_hours: str | None = None
+    rating: FiniteFloat | None = Field(default=None, ge=0, le=5)
+
+
+class PlaceCardsPayload(BaseModel):
+    """数字人周边搜索的标题、结果数量及商家卡片数据。"""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    title: str = Field(min_length=1)
+    total: int = Field(ge=0)
+    places: list[PlaceCard]
+
+
 class Question(BaseModel):
     """基础对话 Agent 使用的单选题及其固定选项。"""
 
@@ -224,6 +248,9 @@ class AgentResponse(BaseModel):
         default=None, pattern=r"^[0-9]{1,20}$", description="可选的私有视频任务结果 ID。"
     )
     kline_chart: KlineChartPayload | None = Field(default=None, description="可选的K线图数据。")
+    place_cards: PlaceCardsPayload | None = Field(
+        default=None, description="可选的附近商家卡片数据。"
+    )
 
     @model_validator(mode="after")
     def validate_result_state(self) -> "AgentResponse":
@@ -238,6 +265,7 @@ class AgentResponse(BaseModel):
             or self.image_result_id is not None
             or self.video_result_id is not None
             or self.kline_chart is not None
+            or self.place_cards is not None
         ):
             raise ValueError("waiting 结果必须只包含 questions。")
         return self

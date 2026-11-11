@@ -116,13 +116,35 @@ export interface KlineChartContentPart {
   content: KlineChartPayload;
 }
 
+export interface PlaceCard {
+  id: string;
+  name: string;
+  address: string;
+  distance: number;
+  tel: string | null;
+  business_hours: string | null;
+  rating: number | null;
+}
+
+export interface PlaceCardsPayload {
+  title: string;
+  total: number;
+  places: PlaceCard[];
+}
+
+export interface PlaceCardsContentPart {
+  type: "place_cards";
+  data: PlaceCardsPayload;
+}
+
 export type MessageContentPart =
   | TextContentPart
   | QuestionContentPart
   | QuestionAnswersContentPart
   | ImageResultContentPart
   | VideoResultContentPart
-  | KlineChartContentPart;
+  | KlineChartContentPart
+  | PlaceCardsContentPart;
 
 export interface ConversationMessage {
   id: string;
@@ -163,8 +185,16 @@ export interface ConversationKlineChartEvent {
   content: KlineChartPayload;
 }
 
+export interface ConversationPlaceCardsEvent {
+  type: "place_cards";
+  data: PlaceCardsPayload;
+}
+
 export type ConversationStreamMessageData =
-  ConversationTextDeltaEvent | ConversationQuestionEvent | ConversationKlineChartEvent;
+  | ConversationTextDeltaEvent
+  | ConversationQuestionEvent
+  | ConversationKlineChartEvent
+  | ConversationPlaceCardsEvent;
 
 interface ConversationStreamEnvelope {
   event_type: "start" | "message" | "heartbeat" | "end";
@@ -484,6 +514,7 @@ export async function streamDigitalHumanReply(
   idempotencyKey?: string,
   onKlineChart?: (chart: KlineChartPayload) => void,
   voiceEnabled = true,
+  onPlaceCards?: (cards: PlaceCardsPayload) => void,
 ): Promise<void> {
   const response = await fetch(
     `/api/conversations/${conversationId}/${endpoint}/stream?voice=${voiceEnabled}`,
@@ -523,6 +554,8 @@ export async function streamDigitalHumanReply(
       if (event.type === "text_delta" && typeof event.content === "string") onText(event.content);
       if (event.type === "kline_chart" && event.content && onKlineChart)
         onKlineChart(event.content as KlineChartPayload);
+      if (event.type === "place_cards" && event.data && onPlaceCards)
+        onPlaceCards(event.data as PlaceCardsPayload);
       if (
         (event.type === "audio_segment" ||
           event.type === "audio_done" ||

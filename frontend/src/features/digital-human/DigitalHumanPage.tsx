@@ -14,6 +14,7 @@ import type {
   ConversationMessage,
   KlineChartPayload,
   MessageListResponse,
+  PlaceCardsPayload,
   QuestionContentPart,
 } from "../conversations/conversationApi";
 import { requestBrowserLocation } from "../conversations/browserLocation";
@@ -112,6 +113,10 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   const [streamedKlineChart, setStreamedKlineChart] = useState<{
     conversationId: string;
     chart: KlineChartPayload;
+  } | null>(null);
+  const [streamedPlaceCards, setStreamedPlaceCards] = useState<{
+    conversationId: string;
+    cards: PlaceCardsPayload;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const audioTurnRef = useRef<string | null>(null);
@@ -322,6 +327,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     setDraft("");
     setStreamedAssistantText("");
     setStreamedKlineChart(null);
+    setStreamedPlaceCards(null);
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
@@ -346,11 +352,13 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         requestKey,
         (chart) => setStreamedKlineChart({ conversationId: streamConversationId, chart }),
         voiceEnabledForTurn,
+        (cards) => setStreamedPlaceCards({ conversationId: streamConversationId, cards }),
       );
       await refreshMessages(activeConversationId);
       // 持久化消息已加载，移除临时流式气泡，避免 TTS 期间重复展示同一回复。
       setStreamedAssistantText("");
       setStreamedKlineChart(null);
+      setStreamedPlaceCards(null);
       assistantStreamRef.current = "";
       setIsSubmitting(false);
       setPendingMessage(null);
@@ -372,6 +380,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setPendingMessage(null);
       setStreamedAssistantText("");
       setStreamedKlineChart(null);
+      setStreamedPlaceCards(null);
       assistantStreamRef.current = "";
     }
   }
@@ -400,6 +409,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     setPendingMessage(submittedText);
     setStreamedAssistantText("");
     setStreamedKlineChart(null);
+    setStreamedPlaceCards(null);
     assistantStreamRef.current = "";
     const controller = new AbortController();
     requestRef.current = controller;
@@ -408,7 +418,9 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       const location =
         pendingQuestion.part.questions.some(
           (question) => question.id === DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
-        ) && answers[DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID] === DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER
+        ) &&
+        answers[DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID] ===
+          DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER
           ? await requestBrowserLocation()
           : undefined;
       if (controller.signal.aborted) return;
@@ -425,6 +437,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         undefined,
         (chart) => setStreamedKlineChart({ conversationId: targetConversationId, chart }),
         voiceEnabledForTurn,
+        (cards) => setStreamedPlaceCards({ conversationId: targetConversationId, cards }),
       );
       await refreshMessages(targetConversationId);
       if (activeConversationRef.current !== targetConversationId) return;
@@ -433,6 +446,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setPendingMessage(null);
       setStreamedAssistantText("");
       setStreamedKlineChart(null);
+      setStreamedPlaceCards(null);
       assistantStreamRef.current = "";
       setIsSubmitting(false);
     } catch (submitError) {
@@ -447,6 +461,7 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
       setPendingMessage(null);
       setStreamedAssistantText("");
       setStreamedKlineChart(null);
+      setStreamedPlaceCards(null);
       assistantStreamRef.current = "";
     }
   }
@@ -525,6 +540,11 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
               pendingQuestionMessageId={pendingQuestion?.messageId ?? null}
               selectedAnswers={selectedAnswers}
               streamedAssistantText={streamedAssistantText}
+              streamedPlaceCards={
+                streamedPlaceCards?.conversationId === conversationId
+                  ? streamedPlaceCards.cards
+                  : null
+              }
               streamedKlineChart={
                 streamedKlineChart?.conversationId === conversationId
                   ? streamedKlineChart.chart

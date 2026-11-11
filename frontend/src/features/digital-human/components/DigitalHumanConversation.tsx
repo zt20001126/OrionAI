@@ -12,9 +12,37 @@ import type {
   QuestionAnswersContentPart,
   QuestionContentPart,
   VideoResultContentPart,
+  PlaceCardsPayload,
 } from "../../conversations/conversationApi";
 import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/QuestionAnswerCards";
 import { QuestionWizard } from "../../conversations/QuestionWizard";
+
+/** 展示周边搜索结果中的商家资料；调用方：数字人消息列表。 */
+function PlaceCards({ data }: { data: PlaceCardsPayload }) {
+  return (
+    <section aria-label={data.title} className="digital-human-place-cards">
+      <h3>
+        {data.title}（{data.total}家）
+      </h3>
+      {data.places.map((place) => (
+        <article className="digital-human-place-card" key={place.id}>
+          <header>
+            <strong>{place.name}</strong>
+            {place.rating !== null && (
+              <span className="digital-human-place-card__rating">★ {place.rating.toFixed(1)}</span>
+            )}
+          </header>
+          <div className="digital-human-place-card__details">
+            <span>{place.address}</span>
+            <span>约 {place.distance} 米</span>
+            {place.tel && <a href={`tel:${place.tel}`}>{place.tel}</a>}
+            {place.business_hours && <span>营业时间 {place.business_hours}</span>}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
 
 interface DigitalHumanConversationProps {
   messages: ConversationMessage[];
@@ -24,6 +52,7 @@ interface DigitalHumanConversationProps {
   selectedAnswers: Record<string, string>;
   streamedAssistantText: string;
   streamedKlineChart: KlineChartPayload | null;
+  streamedPlaceCards: PlaceCardsPayload | null;
   onQuestionAnswerSelect: (questionId: string, answer: string) => void;
   onQuestionNext: () => void;
   onQuestionPrevious: () => void;
@@ -270,6 +299,7 @@ export function DigitalHumanConversation({
   selectedAnswers,
   streamedAssistantText,
   streamedKlineChart,
+  streamedPlaceCards,
   onQuestionAnswerSelect,
   onQuestionNext,
   onQuestionPrevious,
@@ -311,6 +341,7 @@ export function DigitalHumanConversation({
         const imageResults = getImageResults(message);
         const videoResults = getVideoResults(message);
         const klineChart = getKlineChart(message);
+        const placeCards = message.content.parts.find((part) => part.type === "place_cards");
         const questionPart = getQuestionPart(message);
         const questionAnswersPart = getQuestionAnswersPart(message);
         const isPendingQuestion = pendingQuestionMessageId === message.id;
@@ -325,6 +356,7 @@ export function DigitalHumanConversation({
           imageResults.length === 0 &&
           videoResults.length === 0 &&
           !klineChart &&
+          !placeCards &&
           !questionPart &&
           !questionAnswersPart
         )
@@ -346,6 +378,7 @@ export function DigitalHumanConversation({
               <DigitalHumanVideoResult key={part.task_result_id} part={part} />
             ))}
             {klineChart && <KlineChart chart={klineChart.content} />}
+            {placeCards?.type === "place_cards" && <PlaceCards data={placeCards.data} />}
             {questionAnswersPart && <QuestionAnswerCard items={questionAnswersPart.items} />}
             {questionPart && isPendingQuestion && (
               <QuestionWizard
@@ -382,7 +415,7 @@ export function DigitalHumanConversation({
           </div>
         </article>
       )}
-      {(streamedAssistantText || visibleStreamedChart) && (
+      {(streamedAssistantText || visibleStreamedChart || streamedPlaceCards) && (
         <article
           aria-label={t("助手回答")}
           className="digital-human-message digital-human-message--assistant digital-human-message--streaming"
@@ -391,6 +424,7 @@ export function DigitalHumanConversation({
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedAssistantText}</ReactMarkdown>
           </div>
           {visibleStreamedChart && <KlineChart chart={visibleStreamedChart} />}
+          {streamedPlaceCards && <PlaceCards data={streamedPlaceCards} />}
         </article>
       )}
       {isLoading && (

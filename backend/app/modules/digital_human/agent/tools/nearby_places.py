@@ -70,12 +70,18 @@ async def search_nearby_places(keyword: str, radius_meters: int, config: Runnabl
             "keyword": keyword,
             "radius_meters": radius_meters,
             "accuracy_meters": accuracy,
+            "title": f"附近的{keyword}",
+            "total": len(pois),
             "pois": [
                 {
+                    "id": poi.id,
                     "name": poi.name,
                     "address": poi.address,
                     "location": poi.location,
-                    "distance_meters": poi.distance_meters,
+                    "distance": int(poi.distance_meters),
+                    "tel": poi.tel,
+                    "business_hours": poi.business_hours,
+                    "rating": poi.rating,
                 }
                 for poi in pois
             ],

@@ -15,10 +15,14 @@ AMAP_POI_TIMEOUT_SECONDS = 8.0
 class AmapPoi:
     """周边搜索返回的商家摘要，供数字人工具整理给用户。"""
 
+    id: str
     name: str
     address: str
     location: str
     distance_meters: str
+    tel: str | None
+    business_hours: str | None
+    rating: float | None
 
 
 class AmapPoiSearchClient:
@@ -59,14 +63,43 @@ class AmapPoiSearchClient:
             raise AmapProviderError("高德周边搜索返回了无法识别的数据。") from None
 
         if payload.get("status") != "1":
-            raise AmapProviderError("高德周边搜索未能完成查询。")
+            info = payload.get("info")
+            detail = info if isinstance(info, str) and info else "高德周边搜索未能完成查询。"
+            raise AmapProviderError(detail)
 
         return [
             AmapPoi(
+                id=poi["id"],
                 name=poi["name"],
                 address=poi.get("address", ""),
                 location=poi["location"],
                 distance_meters=poi.get("distance", ""),
+                tel=_business_field(poi, "tel"),
+                business_hours=_business_field(poi, "opentime_today"),
+                rating=_rating_field(poi),
             )
             for poi in payload.get("pois", [])
         ]
+
+
+def _business_field(poi: dict[str, object], name: str) -> str | None:
+    """读取高德 POI business 扩展字段；缺失时供卡片隐藏对应信息。"""
+    business = poi.get("business")
+    if not isinstance(business, dict):
+        return None
+    value = business.get(name)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _rating_field(poi: dict[str, object]) -> float | None:
+    """读取高德商业评分；无评分或非数值时不向卡片提供评分。"""
+    business = poi.get("business")
+    if not isinstance(business, dict):
+        return None
+    value = business.get("rating")
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
