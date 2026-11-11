@@ -45,6 +45,7 @@ from app.modules.digital_human.agent.tools.reminder import (
 from app.modules.digital_human.agent.tools.resume import create_resume_tools
 from app.modules.digital_human.agent.tools.stock_kline import get_stock_kline
 from app.modules.digital_human.agent.tools.stock_quote import get_stock_quote
+from app.modules.digital_human.agent.tools.walking_route import plan_walking_route
 from app.modules.digital_human.agent.tools.weather import get_current_weather
 from app.modules.resume.schemas import ResumeResponse, ResumeSaveRequest
 
@@ -114,6 +115,7 @@ def create_digital_human_graph(
         get_current_weather,
         get_user_location,
         search_nearby_places,
+        plan_walking_route,
         generate_image,
         generate_video,
         get_stock_quote,

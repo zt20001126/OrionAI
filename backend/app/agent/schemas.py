@@ -119,6 +119,7 @@ class PlaceCard(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     address: str = ""
+    location: str | None = None
     distance: int = Field(ge=0)
     tel: str | None = None
     business_hours: str | None = None
@@ -252,6 +253,7 @@ class AgentResponse(BaseModel):
     place_cards: PlaceCardsPayload | None = Field(
         default=None, description="可选的附近商家卡片数据。"
     )
+    route_result: dict[str, Any] | None = Field(default=None, description="可选的步行路线结果。")
 
     @model_validator(mode="after")
     def validate_result_state(self) -> "AgentResponse":
@@ -267,6 +269,7 @@ class AgentResponse(BaseModel):
             or self.video_result_id is not None
             or self.kline_chart is not None
             or self.place_cards is not None
+            or self.route_result is not None
         ):
             raise ValueError("waiting 结果必须只包含 questions。")
         return self

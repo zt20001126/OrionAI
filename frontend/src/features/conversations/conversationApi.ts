@@ -125,6 +125,21 @@ export interface PlaceCard {
   business_hours: string | null;
   rating: number | null;
   image_url: string | null;
+  location?: string | null;
+}
+
+export interface RouteResult {
+  mode: "walking";
+  origin: { name: string; location: string };
+  destination: { name: string; location: string };
+  distance_m: number;
+  duration_s: number;
+  steps: { instruction: string; distance_m: number; polyline: string | null }[];
+}
+
+export interface RouteResultContentPart {
+  type: "route_result";
+  data: RouteResult;
 }
 
 export interface PlaceCardsPayload {
@@ -145,7 +160,8 @@ export type MessageContentPart =
   | ImageResultContentPart
   | VideoResultContentPart
   | KlineChartContentPart
-  | PlaceCardsContentPart;
+  | PlaceCardsContentPart
+  | RouteResultContentPart;
 
 export interface ConversationMessage {
   id: string;
@@ -495,6 +511,68 @@ export function getConversationErrorMessage(error: unknown): string {
   }
   if (error.status === 503) return error.message || t("对话服务暂不可用，请稍后重试。");
   return error.message;
+}
+
+/** 请求已选商家的步行路线；输入授权位置和商家信息，输出已保存的消息；调用方：数字人页面。 */
+export async function planWalkingRoute(
+  conversationId: string,
+  place: PlaceCard,
+  location: Extract<UserLocationContext, { status: "granted" }>,
+  requestId: string,
+): Promise<ConversationMessage> {
+  const response = await fetch(`/api/conversations/${conversationId}/walking-route/stream`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      destination: place.location,
+      destination_id: place.id,
+      request_id: requestId,
+      destination_name: place.name,
+    }),
+  });
+  if (!response.ok || !response.body) {
+    const payload: unknown = await response.json().catch(() => null);
+    throw getResponseError(response, payload);
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let message: ConversationMessage | null = null;
+  let completed = false;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let delimiter = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
+      while (delimiter?.index !== undefined) {
+        const frame = buffer.slice(0, delimiter.index);
+        buffer = buffer.slice(delimiter.index + delimiter[0].length);
+        const raw = frame
+          .split(/\r?\n/)
+          .find((line) => line.startsWith("data:"))
+          ?.slice(5)
+          .trim();
+        if (raw) {
+          const envelope = JSON.parse(raw) as ConversationStreamEnvelope;
+          const event = envelope.data as Record<string, unknown>;
+          if (envelope.event_type === "message" && event.type === "error")
+            throw new Error(typeof event.message === "string" ? event.message : "路线规划失败。");
+          if (envelope.event_type === "message" && event.type === "route_result")
+            message = event.message as ConversationMessage;
+          if (envelope.event_type === "end") completed = event.status === "completed";
+        }
+        delimiter = /\r\n\r\n|\n\n|\r\r/.exec(buffer);
+      }
+      if (done) break;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (!completed || !message) throw new Error("路线连接中断，请检查对话后重试。");
+  return message;
 }
 
 export interface DigitalHumanAudioEvent {

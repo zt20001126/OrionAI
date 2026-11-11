@@ -272,3 +272,78 @@ it("历史消息中的K线保留并绘制MA曲线", () => {
   expect(screen.getByText("MA20")).toBeInTheDocument();
   expect(document.querySelector(".digital-human-kline__moving-average--20")).toBeInTheDocument();
 });
+
+it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
+  const onPlanRoute = vi.fn();
+  const place = {
+    id: "poi-1",
+    name: "商店",
+    address: "西湖区",
+    location: "120.16,30.29",
+    distance: 200,
+    tel: null,
+    business_hours: null,
+    rating: null,
+    image_url: null,
+  };
+  const messages: ConversationMessage[] = [
+    {
+      id: "1",
+      conversation_id: "2",
+      role: "assistant",
+      created_at: "2026-11-06T00:00:00Z",
+      content: {
+        parts: [{ type: "place_cards", data: { title: "附近商家", total: 1, places: [place] } }],
+      },
+    },
+    {
+      id: "2",
+      conversation_id: "2",
+      role: "assistant",
+      created_at: "2026-11-06T00:00:00Z",
+      content: {
+        parts: [
+          {
+            type: "route_result",
+            data: {
+              mode: "walking",
+              origin: { name: "我的位置", location: "120.15,30.28" },
+              destination: { name: "商店", location: "120.16,30.29" },
+              distance_m: 1050,
+              duration_s: 780,
+              steps: [{ instruction: "向东走", distance_m: 300, polyline: null }],
+            },
+          },
+        ],
+      },
+    },
+  ];
+  render(
+    <DigitalHumanConversation
+      messages={messages}
+      pendingMessage={null}
+      pendingQuestionMessageId={null}
+      currentQuestionIndex={0}
+      selectedAnswers={{}}
+      streamedAssistantText=""
+      streamedKlineChart={null}
+      streamedPlaceCards={null}
+      onQuestionAnswerSelect={vi.fn()}
+      onQuestionNext={vi.fn()}
+      onQuestionPrevious={vi.fn()}
+      onQuestionSubmit={vi.fn()}
+      onPlanRoute={onPlanRoute}
+      isSubmitting={false}
+      isLoading={false}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "路线规划" }));
+  expect(onPlanRoute).toHaveBeenCalledWith(place);
+  expect(screen.getByText("向东走")).toBeInTheDocument();
+  expect(screen.getByText("1.05 公里")).toBeInTheDocument();
+  const link = new URL(screen.getByRole("link", { name: "开始导航" }).getAttribute("href")!);
+  expect(link.pathname).toBe("/navigation");
+  expect(link.searchParams.get("from")).toBe("120.15,30.28,我的位置");
+  expect(link.searchParams.get("to")).toBe("120.16,30.29,商店");
+  expect(link.searchParams.get("mode")).toBe("walk");
+});

@@ -63,9 +63,12 @@ from app.modules.conversations.schemas.schemas import (
     QuestionAnswersContentPart,
     QuestionAnswersRequest,
     QuestionContentPart,
+    RouteResult,
+    RouteResultContentPart,
     SubmittedQuestionAnswer,
     TextContentPart,
     UserLocationContext,
+    WalkingRouteRequest,
 )
 from app.modules.conversations.service.title import (
     ConversationTitleGenerator,
@@ -80,6 +83,8 @@ from app.modules.digital_human.constants import (
     DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER,
     DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
 )
+from app.modules.digital_human.providers.amap.client import AmapProviderError
+from app.modules.digital_human.providers.amap.walking import AmapWalkingRouteClient
 from app.modules.image_generation.constants import IMAGE_RESULT_URL_PREFIX
 from app.modules.skills import repository as skills_repository
 from app.shared.streaming import EventType, StreamEvent
@@ -145,6 +150,65 @@ class ConversationService:
         except SQLAlchemyError:
             self._session.rollback()
             raise ConversationUnavailableError from None
+
+    def prepare_walking_route(self, user: User, conversation_id: int) -> Conversation:
+        """校验路线请求的会话归属和技能；调用方：路线 API。"""
+        conversation = self._get_conversation_safely(user.id, conversation_id)
+        if conversation.skill_code != "digital_human":
+            raise ConversationConflictError("当前会话不支持路线规划。")
+        return conversation
+
+    async def stream_walking_route(
+        self, conversation: Conversation, payload: WalkingRouteRequest
+    ) -> AsyncIterator[StreamEvent]:
+        """转换授权位置并规划路线，保存成功结果后发送结构化事件；调用方：路线 API。"""
+        client = AmapWalkingRouteClient()
+        try:
+            origin = await client.convert_gps(f"{payload.longitude},{payload.latitude}")
+            route = await client.plan(origin, payload.destination, payload.destination_id)
+            route["destination"]["name"] = payload.destination_name
+            result = RouteResult.model_validate(route)
+            conversation = self._get_conversation(
+                conversation.user_id, conversation.id, for_update=True
+            )
+            message = repository.get_route_request_message(
+                self._session, conversation.id, payload.request_id
+            )
+            if message is None:
+                part = RouteResultContentPart(
+                    type="route_result", data=result, request_id=payload.request_id
+                )
+                message = repository.create_message(
+                    self._session,
+                    conversation_id=conversation.id,
+                    role="assistant",
+                    content={"parts": [part.model_dump(mode="json")]},
+                )
+                repository.update_conversation_timestamp(conversation, datetime.now(UTC))
+            else:
+                result = RouteResultContentPart.model_validate(message.content["parts"][0]).data
+            self._session.commit()
+            self._session.refresh(message)
+        except AmapProviderError as error:
+            yield StreamEvent(
+                event_type=EventType.MESSAGE, data={"type": "error", "message": str(error)}
+            )
+            return
+        except SQLAlchemyError:
+            self._session.rollback()
+            yield StreamEvent(
+                event_type=EventType.MESSAGE,
+                data={"type": "error", "message": "保存路线失败，请重试。"},
+            )
+            return
+        yield StreamEvent(
+            event_type=EventType.MESSAGE,
+            data={
+                "type": "route_result",
+                "data": result.model_dump(mode="json"),
+                "message": self._message_response(message).model_dump(mode="json"),
+            },
+        )
 
     def list_conversations(
         self,
@@ -382,6 +446,11 @@ class ConversationService:
                         event_type=EventType.MESSAGE,
                         data=payload.model_dump(mode="json"),
                     )
+                elif isinstance(part, RouteResultContentPart):
+                    yield StreamEvent(
+                        event_type=EventType.MESSAGE,
+                        data={"type": "route_result", "data": part.data.model_dump(mode="json")},
+                    )
             return
 
         agent = self._runtime_for(prepared.conversation)
@@ -477,6 +546,12 @@ class ConversationService:
             yield StreamEvent(
                 event_type=EventType.MESSAGE,
                 data=payload.model_dump(mode="json"),
+            )
+        if agent_response is not None and agent_response.route_result is not None:
+            route = RouteResult.model_validate(agent_response.route_result)
+            yield StreamEvent(
+                event_type=EventType.MESSAGE,
+                data={"type": "route_result", "data": route.model_dump(mode="json")},
             )
 
     async def execute_background_run(
@@ -1178,6 +1253,12 @@ class ConversationService:
                     PlaceCardsContentPart(
                         type="place_cards",
                         data=response.place_cards,
+                    ).model_dump(mode="json")
+                )
+            if response.route_result is not None:
+                parts.append(
+                    RouteResultContentPart(
+                        type="route_result", data=RouteResult.model_validate(response.route_result)
                     ).model_dump(mode="json")
                 )
             content: dict[str, object] = {"parts": parts}

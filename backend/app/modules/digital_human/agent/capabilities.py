@@ -16,6 +16,14 @@ class DigitalHumanCapability:
 DIGITAL_HUMAN_CAPABILITIES = (
     DigitalHumanCapability("日常交流", "聊天、回答问题、写作和整理想法"),
     DigitalHumanCapability(
+        "步行路线规划",
+        "根据已知高德坐标规划步行路线",
+        frozenset({"plan_walking_route"}),
+        "只有取得明确的高德 GCJ-02 起终点坐标时调用 plan_walking_route；"
+        "不得猜测坐标或将浏览器 WGS-84 坐标直接当作高德坐标。"
+        "根据工具结果回答，失败时如实说明。",
+    ),
+    DigitalHumanCapability(
         "创建提醒",
         "根据用户要求创建单次或周期提醒",
         frozenset({"create_reminder", "get_current_date", "ask_user_questions"}),

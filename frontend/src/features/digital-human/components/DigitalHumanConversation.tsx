@@ -13,6 +13,8 @@ import type {
   QuestionContentPart,
   VideoResultContentPart,
   PlaceCardsPayload,
+  PlaceCard,
+  RouteResult,
 } from "../../conversations/conversationApi";
 import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/QuestionAnswerCards";
 import { QuestionWizard } from "../../conversations/QuestionWizard";
@@ -52,7 +54,15 @@ function formatPlaceDistance(distanceMeters: number): string {
 }
 
 /** 以毛玻璃三栏卡片展示周边商家；输入：周边搜索结果；输出：图片、资料、评分与地图操作；调用方：数字人历史消息与流式消息。 */
-function PlaceCards({ data }: { data: PlaceCardsPayload }) {
+function PlaceCards({
+  data,
+  onPlanRoute,
+  planning,
+}: {
+  data: PlaceCardsPayload;
+  onPlanRoute?: (place: PlaceCard) => void;
+  planning?: boolean;
+}) {
   return (
     <section aria-label={data.title} className="digital-human-place-cards">
       <div className="digital-human-place-cards__list">
@@ -95,20 +105,86 @@ function PlaceCards({ data }: { data: PlaceCardsPayload }) {
                     <span aria-hidden="true">★</span> {place.rating.toFixed(1)}
                   </span>
                 )}
-                <a
-                  aria-label={`在高德地图中查看${place.name}`}
-                  className="digital-human-place-card__map-button"
-                  href={`https://uri.amap.com/search?keyword=${mapKeyword}&view=map`}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  <PlatformIcon name="location" size={18} />
-                  <span>查看位置</span>
-                </a>
+                <div className="digital-human-route-actions">
+                  <button
+                    type="button"
+                    className="digital-human-route-button"
+                    disabled={planning || !place.location}
+                    onClick={() => onPlanRoute?.(place)}
+                    title={!place.location ? "此历史商家缺少坐标，请重新搜索" : undefined}
+                  >
+                    <PlatformIcon name="send" size={18} />
+                    {planning ? "正在规划路线" : "路线规划"}
+                  </button>
+                  <a
+                    aria-label={`在高德地图中查看${place.name}`}
+                    className="digital-human-place-card__map-button"
+                    href={`https://uri.amap.com/search?keyword=${mapKeyword}&view=map`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <PlatformIcon name="location" size={18} />
+                    <span>查看位置</span>
+                  </a>
+                </div>
               </aside>
             </article>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+/** 展示真实步行路线；输入高德返回的路线，输出导航步骤和官方地图链接。 */
+function WalkingRouteCard({ route }: { route: RouteResult }) {
+  const params = new URLSearchParams({
+    from: `${route.origin.location},${route.origin.name}`,
+    to: `${route.destination.location},${route.destination.name}`,
+    mode: "walk",
+    src: "OrionAI",
+    callnative: "0",
+  });
+  const map = new URLSearchParams({
+    keyword: route.destination.name,
+    center: route.destination.location,
+    view: "map",
+  });
+  return (
+    <section className="digital-human-walking-route" aria-label="步行路线">
+      <h3>步行路线</h3>
+      <p>
+        <strong>
+          {route.distance_m >= 1000
+            ? `${(route.distance_m / 1000).toFixed(2)} 公里`
+            : `${route.distance_m} 米`}
+        </strong>{" "}
+        · 约 {Math.max(1, Math.round(route.duration_s / 60))} 分钟
+      </p>
+      <ol>
+        <li>从{route.origin.name}出发</li>
+        {route.steps.map((step, index) => (
+          <li key={index}>{step.instruction}</li>
+        ))}
+        <li>到达 {route.destination.name}</li>
+      </ol>
+      <div className="digital-human-route-actions">
+        <a
+          className="digital-human-route-button"
+          href={`https://uri.amap.com/search?${map}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          查看位置
+        </a>
+        <a
+          className="digital-human-place-card__map-button"
+          href={`https://uri.amap.com/navigation?${params}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          开始导航
+        </a>
       </div>
     </section>
   );
@@ -129,6 +205,8 @@ interface DigitalHumanConversationProps {
   onQuestionSubmit: () => void;
   isSubmitting: boolean;
   isLoading: boolean;
+  onPlanRoute?: (place: PlaceCard) => void;
+  isPlanningRoute?: boolean;
 }
 
 function getText(message: ConversationMessage): string {
@@ -376,6 +454,8 @@ export function DigitalHumanConversation({
   onQuestionSubmit,
   isSubmitting,
   isLoading,
+  onPlanRoute,
+  isPlanningRoute,
 }: DigitalHumanConversationProps) {
   const messageListRef = useRef<HTMLDivElement>(null);
   const showPendingMessage =
@@ -412,6 +492,7 @@ export function DigitalHumanConversation({
         const videoResults = getVideoResults(message);
         const klineChart = getKlineChart(message);
         const placeCards = message.content.parts.find((part) => part.type === "place_cards");
+        const routeResult = message.content.parts.find((part) => part.type === "route_result");
         const questionPart = getQuestionPart(message);
         const questionAnswersPart = getQuestionAnswersPart(message);
         const isPendingQuestion = pendingQuestionMessageId === message.id;
@@ -427,6 +508,7 @@ export function DigitalHumanConversation({
           videoResults.length === 0 &&
           !klineChart &&
           !placeCards &&
+          !routeResult &&
           !questionPart &&
           !questionAnswersPart
         )
@@ -448,7 +530,14 @@ export function DigitalHumanConversation({
               <DigitalHumanVideoResult key={part.task_result_id} part={part} />
             ))}
             {klineChart && <KlineChart chart={klineChart.content} />}
-            {placeCards?.type === "place_cards" && <PlaceCards data={placeCards.data} />}
+            {placeCards?.type === "place_cards" && (
+              <PlaceCards
+                data={placeCards.data}
+                onPlanRoute={onPlanRoute}
+                planning={isPlanningRoute}
+              />
+            )}
+            {routeResult?.type === "route_result" && <WalkingRouteCard route={routeResult.data} />}
             {questionAnswersPart && <QuestionAnswerCard items={questionAnswersPart.items} />}
             {questionPart && isPendingQuestion && (
               <QuestionWizard
@@ -494,7 +583,13 @@ export function DigitalHumanConversation({
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedAssistantText}</ReactMarkdown>
           </div>
           {visibleStreamedChart && <KlineChart chart={visibleStreamedChart} />}
-          {streamedPlaceCards && <PlaceCards data={streamedPlaceCards} />}
+          {streamedPlaceCards && (
+            <PlaceCards
+              data={streamedPlaceCards}
+              onPlanRoute={onPlanRoute}
+              planning={isPlanningRoute}
+            />
+          )}
         </article>
       )}
       {isLoading && (
