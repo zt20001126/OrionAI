@@ -3,6 +3,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useToast } from "../../components/ToastProvider";
 import { t } from "../../i18n/localeStore";
 import {
+  DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER,
+  DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
   createConversation,
   listAllMessages,
   streamDigitalHumanReply,
@@ -14,6 +16,7 @@ import type {
   MessageListResponse,
   QuestionContentPart,
 } from "../conversations/conversationApi";
+import { requestBrowserLocation } from "../conversations/browserLocation";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
 import { DigitalHumanAvatarHost } from "./components/DigitalHumanAvatarHost";
 import { DigitalHumanInteractionHint } from "./components/DigitalHumanInteractionHint";
@@ -401,10 +404,18 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     const controller = new AbortController();
     requestRef.current = controller;
     try {
+      // 仅在用户提交位置授权题并明确同意时读取浏览器位置。
+      const location =
+        pendingQuestion.part.questions.some(
+          (question) => question.id === DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
+        ) && answers[DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID] === DIGITAL_HUMAN_LOCATION_CONSENT_ALLOW_ANSWER
+          ? await requestBrowserLocation()
+          : undefined;
+      if (controller.signal.aborted) return;
       await streamDigitalHumanReply(
         targetConversationId,
         "answers",
-        { answers },
+        { answers, ...(location ? { location } : {}) },
         (delta) => {
           assistantStreamRef.current += delta;
           setStreamedAssistantText(assistantStreamRef.current);
