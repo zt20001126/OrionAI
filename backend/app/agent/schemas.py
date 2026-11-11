@@ -123,6 +123,7 @@ class PlaceCard(BaseModel):
     tel: str | None = None
     business_hours: str | None = None
     rating: FiniteFloat | None = Field(default=None, ge=0, le=5)
+    image_url: str | None = None
 
 
 class PlaceCardsPayload(BaseModel):

@@ -140,6 +140,7 @@ it("在历史消息中以卡片展示周边商家资料", () => {
                       tel: "0571-88881234",
                       business_hours: "09:00-22:00",
                       rating: 4.6,
+                      image_url: "https://example.com/store.jpg",
                     },
                   ],
                 },
@@ -167,6 +168,10 @@ it("在历史消息中以卡片展示周边商家资料", () => {
   expect(screen.getByRole("region", { name: "附近的奶茶店" })).toBeInTheDocument();
   expect(screen.getByText("一点点（文一西路店）")).toBeInTheDocument();
   expect(screen.getByText("★ 4.6")).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "一点点（文一西路店）商家图片" })).toHaveAttribute(
+    "src",
+    "https://example.com/store.jpg",
+  );
   expect(screen.getByRole("link", { name: "0571-88881234" })).toHaveAttribute(
     "href",
     "tel:0571-88881234",

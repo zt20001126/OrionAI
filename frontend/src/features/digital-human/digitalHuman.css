@@ -1355,12 +1355,29 @@
 }
 
 .digital-human-place-card {
-  display: grid;
+  display: flex;
+  align-items: stretch;
   gap: var(--space-2);
   padding: var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background: var(--color-surface);
+}
+
+.digital-human-place-card__image {
+  width: 132px;
+  min-width: 132px;
+  min-height: 96px;
+  border-radius: var(--radius-control);
+  object-fit: cover;
+}
+
+.digital-human-place-card__content {
+  display: grid;
+  align-content: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
 }
 
 .digital-human-place-card header,
@@ -1394,4 +1411,15 @@
 
 .digital-human-place-card__details a {
   color: var(--color-brand);
+}
+
+@media (max-width: 560px) {
+  .digital-human-place-card {
+    flex-direction: column;
+  }
+
+  .digital-human-place-card__image {
+    width: 100%;
+    max-height: 180px;
+  }
 }

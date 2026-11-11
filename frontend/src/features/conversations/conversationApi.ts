@@ -124,6 +124,7 @@ export interface PlaceCard {
   tel: string | null;
   business_hours: string | null;
   rating: number | null;
+  image_url: string | null;
 }
 
 export interface PlaceCardsPayload {
