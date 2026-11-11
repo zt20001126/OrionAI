@@ -36,7 +36,12 @@ async def search_nearby_places(keyword: str, radius_meters: int, config: Runnabl
             {"success": False, "message": "用户尚未授权使用浏览器位置。"}, ensure_ascii=False
         )
 
-    location = configurable["user_location"]
+    location = configurable.get("user_location")
+    if not isinstance(location, dict) or location.get("status") != "granted":
+        return json.dumps(
+            {"success": False, "message": "本轮未取得浏览器位置，请重新授权定位。"},
+            ensure_ascii=False,
+        )
     longitude = location["longitude"]
     latitude = location["latitude"]
     accuracy = location["accuracy_meters"]
