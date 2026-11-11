@@ -80,7 +80,7 @@ DIGITAL_HUMAN_CAPABILITIES = (
     DigitalHumanCapability(
         "当前位置查询",
         "经用户授权后读取浏览器设备经纬度；未授权设备定位时仅可按公网 IP 粗略估计省份和城市",
-        frozenset({"get_user_location", "ask_user_questions"}),
+        frozenset({"get_user_location", "search_nearby_places", "ask_user_questions"}),
         "用户请求附近商家、周边地点或精确当前位置时，必须先单独调用 ask_user_questions，"
         "说明用途并征求浏览器定位许可。授权题必须使用 question ID "
         "digital_human_location_consent，并提供“允许获取当前位置”、“仅按 IP 粗略估计城市”"
@@ -88,6 +88,9 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "get_user_location。只有用户选择允许获取当前位置后，前端才会请求浏览器定位；"
         "工具返回 browser_geolocation 坐标时才能作为精确设备位置使用；"
         "坐标为 WGS-84，精度以 accuracy_meters 为准，不得声称精确到街道或门牌。"
+        "浏览器定位成功后，若用户未提供搜索关键词或搜索半径，使用 ask_user_questions 题卡"
+        "一次询问这两项；用户未指定半径时建议默认 3000 米。条件齐全后调用"
+        "search_nearby_places，只依据工具返回的 POI 名称、地址和距离回答。"
         "如果工具返回定位拒绝、失败或无坐标，附近搜索必须询问用户区县、商圈或地址，"
         "不得拿 IP 定位或服务器所在地代替附近圆心。用户拒绝时尊重选择，不再请求定位。"
         "用户选择仅按 IP 粗略估计城市后，可以告知估计出的省市，但附近搜索仍须请用户提供"

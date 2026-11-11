@@ -34,6 +34,7 @@ from app.modules.digital_human.agent.tools.generate_video import generate_video
 from app.modules.digital_human.agent.tools.index_quote import get_index_quote
 from app.modules.digital_human.agent.tools.literature import search_literature
 from app.modules.digital_human.agent.tools.location import get_user_location
+from app.modules.digital_human.agent.tools.nearby_places import search_nearby_places
 from app.modules.digital_human.agent.tools.news import get_news
 from app.modules.digital_human.agent.tools.products import get_product_detail, search_products
 from app.modules.digital_human.agent.tools.reminder import (
@@ -112,6 +113,7 @@ def create_digital_human_graph(
         get_current_date,
         get_current_weather,
         get_user_location,
+        search_nearby_places,
         generate_image,
         generate_video,
         get_stock_quote,

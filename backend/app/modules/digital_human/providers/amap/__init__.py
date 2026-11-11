@@ -5,5 +5,12 @@ from app.modules.digital_human.providers.amap.client import (
     AmapIpLocationClient,
     AmapProviderError,
 )
+from app.modules.digital_human.providers.amap.poi_client import AmapPoi, AmapPoiSearchClient
 
-__all__ = ["AmapIpLocation", "AmapIpLocationClient", "AmapProviderError"]
+__all__ = [
+    "AmapIpLocation",
+    "AmapIpLocationClient",
+    "AmapPoi",
+    "AmapPoiSearchClient",
+    "AmapProviderError",
+]
