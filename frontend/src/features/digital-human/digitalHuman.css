@@ -32,6 +32,18 @@
   --digital-human-send-hover-end: #7779f5;
   --digital-human-send-disabled-background: #e9edf5;
   --digital-human-send-disabled-text: #9aa8be;
+  --digital-human-place-card-background: rgb(255 255 255 / 58%);
+  --digital-human-place-card-border-hover: rgb(190 171 255 / 86%);
+  --digital-human-place-card-shadow: 0 8px 24px rgb(104 93 175 / 10%);
+  --digital-human-place-card-shadow-hover: 0 12px 28px rgb(104 82 190 / 19%);
+  --digital-human-place-card-radius: 20px;
+  --digital-human-place-action-background: linear-gradient(
+    115deg,
+    var(--digital-human-send-hover-start),
+    var(--digital-human-playback-active)
+  );
+  --digital-human-place-action-shadow: 0 6px 16px rgb(104 75 214 / 28%);
+  --digital-human-place-action-shadow-hover: 0 9px 20px rgb(104 75 214 / 36%);
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -511,6 +523,16 @@
   --icon-start: #a1b9ef;
   --icon-end: #9993e8;
 }
+.digital-human-welcome__item:nth-child(13) {
+  --card-index: 12;
+  --icon-start: #a487ed;
+  --icon-end: #e699dd;
+}
+.digital-human-welcome__item:nth-child(14) {
+  --card-index: 13;
+  --icon-start: #8ebaf2;
+  --icon-end: #a295ed;
+}
 
 .digital-human-welcome__item:focus-visible,
 .digital-human-welcome__skip:focus-visible {
@@ -653,6 +675,10 @@
 
 .digital-human-message--assistant {
   align-self: flex-start;
+}
+
+.digital-human-message--places {
+  width: min(100%, 760px);
 }
 
 .digital-human-message--user {
@@ -1343,128 +1369,251 @@
 }
 
 .digital-human-place-cards {
+  width: 100%;
+  min-width: 0;
   margin-top: var(--space-3);
-}
-
-.digital-human-place-cards__header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
-}
-
-.digital-human-place-cards__header h3 {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--font-size-md);
-}
-
-.digital-human-place-cards__header > span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
+  container-name: digital-human-place-cards;
+  container-type: inline-size;
 }
 
 .digital-human-place-cards__list {
   display: grid;
+  gap: var(--space-3);
 }
 
 .digital-human-place-card {
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 84px minmax(0, 1fr) 150px;
+  align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--digital-human-ai-message-border);
+  border-radius: var(--digital-human-place-card-radius);
+  color: var(--digital-human-ai-message-text);
+  background: var(--digital-human-place-card-background);
+  box-shadow: var(--digital-human-place-card-shadow);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  transition:
+    transform 230ms ease,
+    border-color 230ms ease,
+    box-shadow 230ms ease;
 }
 
-.digital-human-place-card + .digital-human-place-card {
-  border-top: 1px solid var(--color-border);
+.digital-human-place-card__image,
+.digital-human-place-card__image-fallback {
+  width: 84px;
+  height: 84px;
+  border: 1px solid var(--digital-human-ai-message-border);
+  border-radius: var(--radius-card);
 }
 
 .digital-human-place-card__image {
-  width: 64px;
-  height: 64px;
-  flex: 0 0 64px;
-  border-radius: var(--radius-control);
+  display: block;
   object-fit: cover;
+}
+
+.digital-human-place-card__image-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--digital-human-playback-active);
+  background: var(--digital-human-voice-background);
 }
 
 .digital-human-place-card__content {
   display: grid;
-  gap: var(--space-1);
-  min-width: 0;
-  flex: 1;
-}
-
-.digital-human-place-card__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-content: center;
   gap: var(--space-2);
+  min-width: 0;
 }
 
 .digital-human-place-card__name {
-  min-width: 0;
-  color: var(--color-text);
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--digital-human-ai-message-text);
   font-size: var(--font-size-lg);
-  font-weight: 500;
+  font-weight: 600;
+  line-height: var(--line-height-tight);
   overflow-wrap: anywhere;
-}
-
-.digital-human-place-card__rating {
-  display: inline-block;
-  flex: none;
-  color: var(--color-brand-active);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-}
-
-.digital-human-place-card__rating::first-letter {
-  color: var(--color-membership-crown-active);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .digital-human-place-card__address {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
   margin: 0;
-  color: var(--color-text-secondary);
+  color: var(--digital-human-composer-placeholder);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
+}
+
+.digital-human-place-card__address .platform-icon {
+  margin-top: 1px;
+  color: var(--digital-human-composer-placeholder);
+}
+
+.digital-human-place-card__address > span {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .digital-human-place-card__details {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-3);
-  color: var(--color-text-secondary);
+  gap: var(--space-2) var(--space-3);
+  color: var(--digital-human-composer-placeholder);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
 }
 
+.digital-human-place-card__details > span,
+.digital-human-place-card__details > a {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.digital-human-place-card__details .platform-icon {
+  color: var(--digital-human-composer-placeholder);
+}
+
 .digital-human-place-card__details a {
-  color: var(--color-brand);
-}
-
-.digital-human-place-card__map-link {
-  width: fit-content;
-  color: var(--color-brand);
-  font-size: var(--font-size-sm);
-  text-decoration: none;
-}
-
-.digital-human-place-card__map-link:hover {
-  color: var(--color-brand-hover);
+  color: var(--color-brand-active);
   text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
 }
 
-@media (max-width: 560px) {
+.digital-human-place-card__actions {
+  display: flex;
+  min-width: 0;
+  align-self: stretch;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--digital-human-ai-message-border);
+}
+
+.digital-human-place-card__rating {
+  color: var(--digital-human-playback-active);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.digital-human-place-card__rating > span {
+  color: var(--color-membership-crown-active);
+}
+
+.digital-human-place-card__map-button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid rgb(255 255 255 / 68%);
+  border-radius: var(--radius-pill);
+  color: var(--color-surface);
+  background: var(--digital-human-place-action-background);
+  box-shadow: var(--digital-human-place-action-shadow);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  width: 100%;
+  transition:
+    transform 220ms ease,
+    box-shadow 220ms ease,
+    filter 220ms ease;
+}
+
+.digital-human-place-card__map-button:hover {
+  color: var(--color-surface);
+  filter: brightness(0.94);
+  box-shadow: var(--digital-human-place-action-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.digital-human-place-card__map-button:focus-visible {
+  outline: 2px solid var(--digital-human-playback-active);
+  outline-offset: 3px;
+}
+
+@media (hover: hover) {
+  .digital-human-place-card:hover {
+    border-color: var(--digital-human-place-card-border-hover);
+    box-shadow: var(--digital-human-place-card-shadow-hover);
+    transform: translateY(-2px);
+  }
+}
+
+@container digital-human-place-cards (max-width: 620px) {
   .digital-human-place-card {
-    gap: var(--space-2);
+    grid-template-columns: 72px minmax(0, 1fr);
   }
 
-  .digital-human-place-card__image {
+  .digital-human-place-card__image,
+  .digital-human-place-card__image-fallback {
+    width: 72px;
+    height: 72px;
+  }
+
+  .digital-human-place-card__actions {
+    grid-column: 2;
+    flex-direction: row;
+    align-items: center;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .digital-human-place-card__map-button {
+    width: auto;
+  }
+}
+
+@container digital-human-place-cards (max-width: 420px) {
+  .digital-human-place-card {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-3);
+  }
+
+  .digital-human-place-card__image,
+  .digital-human-place-card__image-fallback {
     width: 56px;
     height: 56px;
-    flex-basis: 56px;
+  }
+
+  .digital-human-place-card__actions {
+    grid-column: 1 / -1;
+  }
+
+  .digital-human-place-card__map-button {
+    min-height: 42px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .digital-human-place-card,
+  .digital-human-place-card__map-button {
+    transition: none;
+  }
+
+  .digital-human-place-card:hover,
+  .digital-human-place-card__map-button:hover {
+    transform: none;
   }
 }

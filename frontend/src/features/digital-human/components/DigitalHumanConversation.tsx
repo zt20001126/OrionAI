@@ -16,11 +16,22 @@ import type {
 } from "../../conversations/conversationApi";
 import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/QuestionAnswerCards";
 import { QuestionWizard } from "../../conversations/QuestionWizard";
+import { PlatformIcon } from "../../platform/PlatformIcon";
 
-/** 渲染可用的商家图片；输入：图片 URL 与商家名；输出：带替代文本的缩略图；调用方：PlaceCards。 */
+/** 显示商家图片，缺失或加载失败时呈现店铺图标；输入：图片 URL 与商家名；输出：带可访问名称的图片区域；调用方：PlaceCards。 */
 function PlaceCardImage({ imageUrl, name }: { imageUrl: string | null; name: string }) {
   const [hasError, setHasError] = useState(false);
-  if (!imageUrl || hasError) return null;
+  if (!imageUrl || hasError) {
+    return (
+      <span
+        aria-label={`${name}商家图片`}
+        className="digital-human-place-card__image-fallback"
+        role="img"
+      >
+        <PlatformIcon name="store" size={30} />
+      </span>
+    );
+  }
   return (
     <img
       alt={`${name}商家图片`}
@@ -32,14 +43,18 @@ function PlaceCardImage({ imageUrl, name }: { imageUrl: string | null; name: str
   );
 }
 
-/** 以轻量分隔列表展示周边商家；输入：周边搜索结果；输出：可拨号并可跳转高德搜索的商家条目；调用方：数字人历史消息与流式消息。 */
+/** 按米数格式化周边商家距离；输入：高德返回的米数；输出：米或公里文本；调用方：PlaceCards。 */
+function formatPlaceDistance(distanceMeters: number): string {
+  if (distanceMeters >= 1000) {
+    return `约 ${Number((distanceMeters / 1000).toFixed(1))} 公里`;
+  }
+  return `约 ${Math.round(distanceMeters)} 米`;
+}
+
+/** 以毛玻璃三栏卡片展示周边商家；输入：周边搜索结果；输出：图片、资料、评分与地图操作；调用方：数字人历史消息与流式消息。 */
 function PlaceCards({ data }: { data: PlaceCardsPayload }) {
   return (
     <section aria-label={data.title} className="digital-human-place-cards">
-      <header className="digital-human-place-cards__header">
-        <h3>{data.title}</h3>
-        <span>{data.total} 家</span>
-      </header>
       <div className="digital-human-place-cards__list">
         {data.places.map((place) => {
           const mapKeyword = encodeURIComponent(`${place.name} ${place.address}`);
@@ -47,30 +62,50 @@ function PlaceCards({ data }: { data: PlaceCardsPayload }) {
             <article className="digital-human-place-card" key={place.id}>
               <PlaceCardImage imageUrl={place.image_url} name={place.name} />
               <div className="digital-human-place-card__content">
-                <header className="digital-human-place-card__heading">
-                  <strong className="digital-human-place-card__name">{place.name}</strong>
-                  {place.rating !== null && (
-                    <span className="digital-human-place-card__rating">
-                      ★ {place.rating.toFixed(1)}
+                <strong className="digital-human-place-card__name">{place.name}</strong>
+                <p className="digital-human-place-card__address">
+                  <PlatformIcon name="location" size={17} />
+                  <span>{place.address}</span>
+                </p>
+                <div className="digital-human-place-card__details">
+                  <span>{formatPlaceDistance(place.distance)}</span>
+                  {place.tel ? (
+                    <a href={`tel:${place.tel}`}>
+                      <PlatformIcon name="phone" size={17} />
+                      <span>{place.tel}</span>
+                    </a>
+                  ) : (
+                    <span>暂无电话</span>
+                  )}
+                  {place.business_hours && (
+                    <span>
+                      <PlatformIcon name="store" size={17} />
+                      <span>营业 {place.business_hours}</span>
                     </span>
                   )}
-                </header>
-                <p className="digital-human-place-card__address">{place.address}</p>
-                <div className="digital-human-place-card__details">
-                  <span>约 {place.distance} 米</span>
-                  {place.tel && <a href={`tel:${place.tel}`}>{place.tel}</a>}
-                  {place.business_hours && <span>营业 {place.business_hours}</span>}
                 </div>
+              </div>
+              <aside className="digital-human-place-card__actions">
+                {place.rating !== null && (
+                  <span
+                    aria-label={`评分 ${place.rating.toFixed(1)}`}
+                    className="digital-human-place-card__rating"
+                    role="img"
+                  >
+                    <span aria-hidden="true">★</span> {place.rating.toFixed(1)}
+                  </span>
+                )}
                 <a
                   aria-label={`在高德地图中查看${place.name}`}
-                  className="digital-human-place-card__map-link"
+                  className="digital-human-place-card__map-button"
                   href={`https://uri.amap.com/search?keyword=${mapKeyword}&view=map`}
                   rel="noreferrer"
                   target="_blank"
                 >
-                  地图位置
+                  <PlatformIcon name="location" size={18} />
+                  <span>查看位置</span>
                 </a>
-              </div>
+              </aside>
             </article>
           );
         })}
@@ -398,7 +433,7 @@ export function DigitalHumanConversation({
           return null;
         return (
           <article
-            className={`digital-human-message digital-human-message--${message.role}${questionPart ? " digital-human-message--question" : ""}${questionAnswersPart ? " digital-human-message--question-answers" : ""}`}
+            className={`digital-human-message digital-human-message--${message.role}${questionPart ? " digital-human-message--question" : ""}${questionAnswersPart ? " digital-human-message--question-answers" : ""}${placeCards ? " digital-human-message--places" : ""}`}
             key={message.id}
           >
             {text && !questionAnswersPart && (
@@ -453,7 +488,7 @@ export function DigitalHumanConversation({
       {(streamedAssistantText || visibleStreamedChart || streamedPlaceCards) && (
         <article
           aria-label={t("助手回答")}
-          className="digital-human-message digital-human-message--assistant digital-human-message--streaming"
+          className={`digital-human-message digital-human-message--assistant digital-human-message--streaming${streamedPlaceCards ? " digital-human-message--places" : ""}`}
         >
           <div className="digital-human-markdown">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamedAssistantText}</ReactMarkdown>

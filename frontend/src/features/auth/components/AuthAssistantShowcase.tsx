@@ -91,6 +91,20 @@ const assistantFeatures: AssistantFeature[] = [
     icon: "package",
   },
   {
+    id: "nearby-milktea",
+    title: "查询附近的奶茶店",
+    description: "帮我查找附近的奶茶店",
+    example: "帮我查询附近的奶茶店",
+    icon: "location",
+  },
+  {
+    id: "stock-kline-002086",
+    title: "查询002086的K线图",
+    description: "帮我查询股票002086的K线图",
+    example: "帮我查询股票002086的K线图",
+    icon: "chart",
+  },
+  {
     id: "chat",
     title: "互动聊天",
     description: "随时开启自然对话",

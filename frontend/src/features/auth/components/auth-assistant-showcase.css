@@ -527,7 +527,8 @@
   isolation: isolate;
   min-height: 100vh;
   min-height: 100dvh;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: auto;
   padding: clamp(24px, 4vh, 42px) clamp(20px, 5vw, 76px);
   background: var(--auth-page-lavender-neutral);
 }
@@ -811,6 +812,8 @@
 .auth-assistant-feature:nth-child(10) { --feature-index: 9; --feature-icon-start: #a1b9ef; --feature-icon-end: #9993e8; }
 .auth-assistant-feature:nth-child(11) { --feature-index: 10; --feature-icon-start: #efb4cf; --feature-icon-end: #b79ce9; }
 .auth-assistant-feature:nth-child(12) { --feature-index: 11; --feature-icon-start: #a1b9ef; --feature-icon-end: #9993e8; }
+.auth-assistant-feature:nth-child(13) { --feature-index: 12; --feature-icon-start: #a487ed; --feature-icon-end: #e699dd; }
+.auth-assistant-feature:nth-child(14) { --feature-index: 13; --feature-icon-start: #8ebaf2; --feature-icon-end: #a295ed; }
 
 .auth-assistant-feature__chevron {
   display: grid;

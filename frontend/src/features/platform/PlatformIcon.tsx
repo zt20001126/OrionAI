@@ -36,7 +36,11 @@ export type PlatformIconName =
   | "lock"
   | "copy"
   | "speaker"
-  | "speakerMuted";
+  | "speakerMuted"
+  | "location"
+  | "phone"
+  | "store"
+  | "chart";
 
 interface PlatformIconProps {
   name: PlatformIconName;
@@ -258,6 +262,30 @@ export function PlatformIcon({ name, size = 20 }: PlatformIconProps) {
         <>
           <path d="M4 10v4h3l5 4V6l-5 4H4Z" />
           <path d="m16 9 5 6m0-6-5 6" />
+        </>
+      )}
+      {name === "location" && (
+        <>
+          <path d="M19 10c0 5.2-7 10.5-7 10.5S5 15.2 5 10a7 7 0 1 1 14 0Z" />
+          <circle cx="12" cy="10" r="2.4" />
+        </>
+      )}
+      {name === "phone" && (
+        <path d="m7.2 3.8 2.1-.3 2 4.3-2 1.8a15.2 15.2 0 0 0 5.1 5.1l1.8-2 4.3 2-.3 2.1a2.2 2.2 0 0 1-2.4 1.9A15.9 15.9 0 0 1 5.3 6.2a2.2 2.2 0 0 1 1.9-2.4Z" />
+      )}
+      {name === "store" && (
+        <>
+          <path d="M5 10v9h14v-9M4 10l1.2-5h13.6L20 10" />
+          <path d="M4 10a2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0 2 2 0 0 0 4 0M9 19v-5h6v5" />
+        </>
+      )}
+      {name === "chart" && (
+        <>
+          <path d="M3.5 18.5 8.2 13l3.5 2.5 7-8" />
+          <path d="M15.5 7.5h3.2v3.2" />
+          <circle cx="3.5" cy="18.5" r="1" />
+          <circle cx="8.2" cy="13" r="1" />
+          <circle cx="11.7" cy="15.5" r="1" />
         </>
       )}
     </svg>
