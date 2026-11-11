@@ -1343,83 +1343,128 @@
 }
 
 .digital-human-place-cards {
-  display: grid;
-  gap: var(--space-3);
   margin-top: var(--space-3);
 }
 
-.digital-human-place-cards h3 {
+.digital-human-place-cards__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.digital-human-place-cards__header h3 {
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-md);
 }
 
+.digital-human-place-cards__header > span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.digital-human-place-cards__list {
+  display: grid;
+}
+
 .digital-human-place-card {
   display: flex;
-  align-items: stretch;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.digital-human-place-card + .digital-human-place-card {
+  border-top: 1px solid var(--color-border);
 }
 
 .digital-human-place-card__image {
-  width: 132px;
-  min-width: 132px;
-  min-height: 96px;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
   border-radius: var(--radius-control);
   object-fit: cover;
 }
 
 .digital-human-place-card__content {
   display: grid;
-  align-content: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
   flex: 1;
 }
 
-.digital-human-place-card header,
+.digital-human-place-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.digital-human-place-card__name {
+  min-width: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.digital-human-place-card__rating {
+  display: inline-block;
+  flex: none;
+  color: var(--color-brand-active);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.digital-human-place-card__rating::first-letter {
+  color: var(--color-membership-crown-active);
+}
+
+.digital-human-place-card__address {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-normal);
+  overflow-wrap: anywhere;
+}
+
 .digital-human-place-card__details {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-2) var(--space-4);
-}
-
-.digital-human-place-card header {
-  justify-content: space-between;
-  color: var(--color-text);
-}
-
-.digital-human-place-card__rating {
-  color: var(--color-brand-active);
-  white-space: nowrap;
-}
-
-.digital-human-place-card__details {
+  gap: var(--space-1) var(--space-3);
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-normal);
-}
-
-.digital-human-place-card__details > * + * {
-  padding-left: var(--space-3);
-  border-left: 1px solid var(--color-border);
 }
 
 .digital-human-place-card__details a {
   color: var(--color-brand);
 }
 
+.digital-human-place-card__map-link {
+  width: fit-content;
+  color: var(--color-brand);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+}
+
+.digital-human-place-card__map-link:hover {
+  color: var(--color-brand-hover);
+  text-decoration: underline;
+}
+
 @media (max-width: 560px) {
   .digital-human-place-card {
-    flex-direction: column;
+    gap: var(--space-2);
   }
 
   .digital-human-place-card__image {
-    width: 100%;
-    max-height: 180px;
+    width: 56px;
+    height: 56px;
+    flex-basis: 56px;
   }
 }
