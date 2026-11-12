@@ -84,6 +84,7 @@ from app.modules.digital_human.constants import (
     DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
 )
 from app.modules.digital_human.providers.amap.client import AmapProviderError
+from app.modules.digital_human.providers.amap.static_map import AmapStaticMapClient
 from app.modules.digital_human.providers.amap.walking import AmapWalkingRouteClient
 from app.modules.image_generation.constants import IMAGE_RESULT_URL_PREFIX
 from app.modules.skills import repository as skills_repository
@@ -157,6 +158,50 @@ class ConversationService:
         if conversation.skill_code != "digital_human":
             raise ConversationConflictError("当前会话不支持路线规划。")
         return conversation
+
+    async def get_route_static_map(
+        self,
+        user: User,
+        conversation_id: int,
+        message_id: int,
+    ) -> tuple[bytes, str]:
+        """读取本人路线消息并按需生成地图图片。
+
+        输入：当前用户、所属会话 ID 和路线消息 ID；输出：图片字节与 MIME 类型；
+        调用方：路线图片 API。只允许读取当前用户数字人会话中的路线消息。
+        """
+        conversation = self._get_conversation_safely(user.id, conversation_id)
+        if conversation.skill_code != "digital_human":
+            raise ConversationNotFoundError
+
+        try:
+            message = repository.get_message_by_id(
+                self._session,
+                conversation.id,
+                message_id,
+            )
+        except SQLAlchemyError:
+            self._session.rollback()
+            raise ConversationUnavailableError from None
+        if message is None:
+            raise ConversationNotFoundError
+
+        content = MessageContent.model_validate(message.content)
+        route_part = next(
+            (part for part in content.parts if isinstance(part, RouteResultContentPart)),
+            None,
+        )
+        if route_part is None:
+            raise ConversationNotFoundError
+
+        try:
+            return await AmapStaticMapClient().render_route(
+                route_part.data.origin.location,
+                route_part.data.destination.location,
+                [step.polyline for step in route_part.data.steps],
+            )
+        except AmapProviderError:
+            raise ConversationUnavailableError from None
 
     async def stream_walking_route(
         self, conversation: Conversation, payload: WalkingRouteRequest

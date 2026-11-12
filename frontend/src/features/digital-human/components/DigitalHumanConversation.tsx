@@ -136,8 +136,40 @@ function PlaceCards({
   );
 }
 
-/** 展示真实步行路线；输入高德返回的路线，输出导航步骤和官方地图链接。 */
-function WalkingRouteCard({ route }: { route: RouteResult }) {
+/** 按会话和消息标识加载路线图片；输出地图或不可用提示；调用方：路线卡片。 */
+function WalkingRouteMap({
+  conversationId,
+  messageId,
+}: {
+  conversationId: string;
+  messageId: string;
+}) {
+  const [isUnavailable, setIsUnavailable] = useState(false);
+  return (
+    <figure className={`digital-human-route-map${isUnavailable ? " is-unavailable" : ""}`}>
+      {!isUnavailable && (
+        <img
+          alt="步行路线地图"
+          loading="lazy"
+          onError={() => setIsUnavailable(true)}
+          src={`/api/conversations/${conversationId}/messages/${messageId}/static-map`}
+        />
+      )}
+      {isUnavailable && <figcaption role="status">路线地图暂时无法显示。</figcaption>}
+    </figure>
+  );
+}
+
+/** 展示步行路线、地图和导航链接；输入路线及消息标识；调用方：数字人会话消息列表。 */
+function WalkingRouteCard({
+  route,
+  conversationId,
+  messageId,
+}: {
+  route: RouteResult;
+  conversationId: string;
+  messageId: string;
+}) {
   const params = new URLSearchParams({
     from: `${route.origin.location},${route.origin.name}`,
     to: `${route.destination.location},${route.destination.name}`,
@@ -161,6 +193,7 @@ function WalkingRouteCard({ route }: { route: RouteResult }) {
         </strong>{" "}
         · 约 {Math.max(1, Math.round(route.duration_s / 60))} 分钟
       </p>
+      <WalkingRouteMap conversationId={conversationId} messageId={messageId} />
       <ol>
         <li>从{route.origin.name}出发</li>
         {route.steps.map((step, index) => (
@@ -175,6 +208,7 @@ function WalkingRouteCard({ route }: { route: RouteResult }) {
           target="_blank"
           rel="noreferrer"
         >
+          <PlatformIcon name="location" size={20} />
           查看位置
         </a>
         <a
@@ -183,6 +217,7 @@ function WalkingRouteCard({ route }: { route: RouteResult }) {
           target="_blank"
           rel="noreferrer"
         >
+          <PlatformIcon name="send" size={20} />
           开始导航
         </a>
       </div>
@@ -537,7 +572,13 @@ export function DigitalHumanConversation({
                 planning={isPlanningRoute}
               />
             )}
-            {routeResult?.type === "route_result" && <WalkingRouteCard route={routeResult.data} />}
+            {routeResult?.type === "route_result" && (
+              <WalkingRouteCard
+                conversationId={message.conversation_id}
+                messageId={message.id}
+                route={routeResult.data}
+              />
+            )}
             {questionAnswersPart && <QuestionAnswerCard items={questionAnswersPart.items} />}
             {questionPart && isPendingQuestion && (
               <QuestionWizard
