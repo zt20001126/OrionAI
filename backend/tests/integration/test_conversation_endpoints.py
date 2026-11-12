@@ -956,13 +956,14 @@ def test_conversation_is_hidden_from_other_users(
 
 def test_walking_route_stream_persists_and_restores_result(conversation_client, monkeypatch):
     """路线事件与历史消息使用相同数据，且浏览器坐标先经高德转换。"""
-    from app.modules.digital_human.providers.amap.walking import AmapWalkingRouteClient
+    from app.modules.digital_human.providers.amap.route import AmapRouteClient
 
     async def convert(_self, coordinate):
         assert coordinate == "120.15,30.28"
         return "120.155000,30.285000"
 
-    async def plan(_self, origin, destination, destination_id):
+    async def plan(_self, origin, destination, destination_id, *, mode):
+        assert mode == "walking"
         assert (origin, destination, destination_id) == (
             "120.155000,30.285000",
             "120.16,30.29",
@@ -977,8 +978,8 @@ def test_walking_route_stream_persists_and_restores_result(conversation_client, 
             "steps": [{"instruction": "向东走", "distance_m": 300, "polyline": None}],
         }
 
-    monkeypatch.setattr(AmapWalkingRouteClient, "convert_gps", convert)
-    monkeypatch.setattr(AmapWalkingRouteClient, "plan", plan)
+    monkeypatch.setattr(AmapRouteClient, "convert_gps", convert)
+    monkeypatch.setattr(AmapRouteClient, "plan", plan)
     client, _, _, _, _ = conversation_client
     conversation_id = client.post(
         "/api/conversations", json={"skill_code": "digital_human"}
@@ -1018,3 +1019,51 @@ def test_walking_route_stream_persists_and_restores_result(conversation_client, 
     )
     assert _decode_sse_events(retry.content)[1]["data"]["message"]["id"] == messages[0]["id"]
     assert len(client.get(f"/api/conversations/{conversation_id}/messages").json()["items"]) == 1
+
+
+@pytest.mark.parametrize("mode", ["cycling", "driving"])
+def test_merchant_route_stream_uses_selected_mode(conversation_client, monkeypatch, mode):
+    """商家路线 API 将题卡选择传到对应的路线规划方式。"""
+    from app.modules.digital_human.providers.amap.route import AmapRouteClient
+
+    async def convert(_self, _coordinate):
+        return "120.155000,30.285000"
+
+    async def plan(_self, origin, destination, destination_id, *, mode):
+        assert (origin, destination, destination_id) == (
+            "120.155000,30.285000",
+            "120.16,30.29",
+            "poi1",
+        )
+        return {
+            "mode": mode,
+            "origin": {"name": "我的位置", "location": origin},
+            "destination": {"name": "目的地", "location": destination},
+            "distance_m": 2500,
+            "duration_s": 900,
+            "steps": [{"instruction": "沿路线前行", "distance_m": 2500, "polyline": None}],
+        }
+
+    monkeypatch.setattr(AmapRouteClient, "convert_gps", convert)
+    monkeypatch.setattr(AmapRouteClient, "plan", plan)
+    client, _, _, _, _ = conversation_client
+    conversation_id = client.post(
+        "/api/conversations", json={"skill_code": "digital_human"}
+    ).json()["id"]
+    response = client.post(
+        f"/api/conversations/{conversation_id}/walking-route/stream",
+        json={
+            "longitude": 120.15,
+            "latitude": 30.28,
+            "mode": mode,
+            "destination": "120.16,30.29",
+            "destination_id": "poi1",
+            "destination_name": "商店",
+            "request_id": "c42657b0-7a9e-4be2-9aa8-3142e5a5b994",
+        },
+    )
+
+    events = _decode_sse_events(response.content)
+    assert events[1]["data"]["type"] == "route_result"
+    assert events[1]["data"]["data"]["mode"] == mode
+    assert events[1]["data"]["data"]["destination"]["name"] == "商店"

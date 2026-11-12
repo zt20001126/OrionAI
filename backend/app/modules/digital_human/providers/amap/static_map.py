@@ -7,7 +7,7 @@ import httpx
 
 from app.core.config import Settings, get_settings
 from app.modules.digital_human.providers.amap.client import AmapProviderError
-from app.modules.digital_human.providers.amap.walking import normalize_coordinate
+from app.modules.digital_human.providers.amap.route import normalize_coordinate
 
 STATIC_MAP_URL = "https://restapi.amap.com/v3/staticmap"
 STATIC_MAP_TIMEOUT_SECONDS = 8.0
@@ -111,9 +111,7 @@ def _static_map_params(
         "size": STATIC_MAP_SIZE,
         "scale": "2",
         "paths": f"8,0x2563EB,1,,:{';'.join(route_points)}",
-        "markers": (
-            f"mid,0x16A34A,起:{origin}|mid,0xDC2626,终:{destination}"
-        ),
+        "markers": (f"mid,0x16A34A,起:{origin}|mid,0xDC2626,终:{destination}"),
     }
 
 
@@ -160,8 +158,7 @@ def _simplify_route_points(points: Sequence[str], tolerance_meters: float) -> li
     mean_latitude = sum(latitude for _, latitude in coordinates) / len(coordinates)
     longitude_scale = 111_320 * math.cos(math.radians(mean_latitude))
     projected_points = [
-        (longitude * longitude_scale, latitude * 111_320)
-        for longitude, latitude in coordinates
+        (longitude * longitude_scale, latitude * 111_320) for longitude, latitude in coordinates
     ]
 
     retained_indices = {0, len(points) - 1}
@@ -182,9 +179,7 @@ def _simplify_route_points(points: Sequence[str], tolerance_meters: float) -> li
 
         if furthest_index >= 0:
             retained_indices.add(furthest_index)
-            pending_segments.extend(
-                ((start_index, furthest_index), (furthest_index, end_index))
-            )
+            pending_segments.extend(((start_index, furthest_index), (furthest_index, end_index)))
 
     return [points[index] for index in sorted(retained_indices)]
 

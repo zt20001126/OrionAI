@@ -1,10 +1,10 @@
-"""验证高德 V5 步行规划的请求与错误转换。"""
+"""验证高德 V5 步行、骑行和驾车规划的请求与错误转换。"""
 
 import httpx
 import pytest
 
 from app.core.config import Settings
-from app.modules.digital_human.providers.amap import walking
+from app.modules.digital_human.providers.amap import route
 from app.modules.digital_human.providers.amap.client import AmapProviderError
 
 
@@ -12,18 +12,34 @@ def mock_transport(monkeypatch: pytest.MonkeyPatch, handler) -> None:
     """以内存响应代替高德请求；调用方：路线客户端测试。"""
     client = httpx.AsyncClient
     monkeypatch.setattr(
-        walking.httpx,
+        route.httpx,
         "AsyncClient",
         lambda **kwargs: client(transport=httpx.MockTransport(handler), **kwargs),
     )
 
 
 @pytest.mark.anyio
-async def test_walking_route_request_and_response(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "mode, endpoint, include_destination_id",
+    [
+        ("walking", "/v5/direction/walking", True),
+        ("cycling", "/v5/direction/bicycling", False),
+        ("driving", "/v5/direction/driving", True),
+    ],
+)
+async def test_route_request_and_response(
+    monkeypatch: pytest.MonkeyPatch,
+    mode: route.RouteMode,
+    endpoint: str,
+    include_destination_id: bool,
+) -> None:
     def respond(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v5/direction/walking"
+        assert request.url.path == endpoint
         assert request.url.params["origin"] == "120.150000,30.280000"
-        assert request.url.params["destination_id"] == "poi-1"
+        if include_destination_id:
+            assert request.url.params["destination_id"] == "poi-1"
+        else:
+            assert "destination_id" not in request.url.params
         assert request.url.params["show_fields"] == "cost,navi,polyline"
         return httpx.Response(
             200,
@@ -49,8 +65,9 @@ async def test_walking_route_request_and_response(monkeypatch: pytest.MonkeyPatc
         )
 
     mock_transport(monkeypatch, respond)
-    client = walking.AmapWalkingRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
-    result = await client.plan("120.15,30.28", "120.158,30.284", "poi-1")
+    client = route.AmapRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
+    result = await client.plan("120.15,30.28", "120.158,30.284", "poi-1", mode=mode)
+    assert result["mode"] == mode
     assert result["distance_m"] == 1050
     assert result["duration_s"] == 780
     assert result["steps"][0]["distance_m"] == 300
@@ -69,7 +86,7 @@ async def test_walking_route_invalid_response(
     monkeypatch: pytest.MonkeyPatch, payload: dict
 ) -> None:
     mock_transport(monkeypatch, lambda request: httpx.Response(200, json=payload))
-    client = walking.AmapWalkingRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
+    client = route.AmapRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
     with pytest.raises(AmapProviderError):
         await client.plan("120,30", "121,31")
 
@@ -80,7 +97,7 @@ async def test_walking_route_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
         raise httpx.ReadTimeout("timeout", request=request)
 
     mock_transport(monkeypatch, timeout)
-    client = walking.AmapWalkingRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
+    client = route.AmapRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
     with pytest.raises(AmapProviderError, match="超时"):
         await client.plan("120,30", "121,31")
 
@@ -88,7 +105,7 @@ async def test_walking_route_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.parametrize("coordinate", ["", "181,0", "0,91", "nan,0", "1,2,3"])
 def test_invalid_coordinate(coordinate: str) -> None:
     with pytest.raises(AmapProviderError):
-        walking.normalize_coordinate(coordinate)
+        route.normalize_coordinate(coordinate)
 
 
 @pytest.mark.anyio
@@ -104,5 +121,5 @@ async def test_convert_browser_gps_to_gcj02(monkeypatch: pytest.MonkeyPatch) -> 
         )
 
     mock_transport(monkeypatch, respond)
-    client = walking.AmapWalkingRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
+    client = route.AmapRouteClient(Settings(_env_file=None, amap_api_key="test-key"))
     assert await client.convert_gps("120.15,30.28") == "120.154000,30.282000"

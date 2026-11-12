@@ -128,8 +128,10 @@ export interface PlaceCard {
   location?: string | null;
 }
 
+export type RouteMode = "walking" | "cycling" | "driving";
+
 export interface RouteResult {
-  mode: "walking";
+  mode: RouteMode;
   origin: { name: string; location: string };
   destination: { name: string; location: string };
   distance_m: number;
@@ -513,11 +515,12 @@ export function getConversationErrorMessage(error: unknown): string {
   return error.message;
 }
 
-/** 请求已选商家的步行路线；输入授权位置和商家信息，输出已保存的消息；调用方：数字人页面。 */
-export async function planWalkingRoute(
+/** 请求已选商家的路线；输入授权位置、路线方式和商家信息，输出已保存的消息；调用方：数字人页面。 */
+export async function planPlaceRoute(
   conversationId: string,
   place: PlaceCard,
   location: Extract<UserLocationContext, { status: "granted" }>,
+  mode: RouteMode,
   requestId: string,
 ): Promise<ConversationMessage> {
   const response = await fetch(`/api/conversations/${conversationId}/walking-route/stream`, {
@@ -527,6 +530,7 @@ export async function planWalkingRoute(
     body: JSON.stringify({
       latitude: location.latitude,
       longitude: location.longitude,
+      mode,
       destination: place.location,
       destination_id: place.id,
       request_id: requestId,

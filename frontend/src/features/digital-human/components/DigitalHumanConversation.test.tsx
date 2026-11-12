@@ -48,10 +48,13 @@ function renderConversation(
       streamedAssistantText={streamedKlineChart ? "近几日走势向上。" : ""}
       streamedKlineChart={streamedKlineChart}
       streamedPlaceCards={null}
+      routeModePrompt={null}
       onQuestionAnswerSelect={vi.fn()}
       onQuestionNext={vi.fn()}
       onQuestionPrevious={vi.fn()}
       onQuestionSubmit={vi.fn()}
+      onRouteModeAnswerSelect={vi.fn()}
+      onRouteModeSubmit={vi.fn()}
       isSubmitting={false}
       isLoading={false}
     />,
@@ -87,10 +90,13 @@ it("在历史消息中显示私有视频并提示播放错误", () => {
       streamedAssistantText=""
       streamedKlineChart={null}
       streamedPlaceCards={null}
+      routeModePrompt={null}
       onQuestionAnswerSelect={vi.fn()}
       onQuestionNext={vi.fn()}
       onQuestionPrevious={vi.fn()}
       onQuestionSubmit={vi.fn()}
+      onRouteModeAnswerSelect={vi.fn()}
+      onRouteModeSubmit={vi.fn()}
       isSubmitting={false}
       isLoading={false}
     />,
@@ -156,10 +162,13 @@ it("在历史消息中以卡片展示周边商家资料", () => {
       streamedAssistantText=""
       streamedKlineChart={null}
       streamedPlaceCards={null}
+      routeModePrompt={null}
       onQuestionAnswerSelect={vi.fn()}
       onQuestionNext={vi.fn()}
       onQuestionPrevious={vi.fn()}
       onQuestionSubmit={vi.fn()}
+      onRouteModeAnswerSelect={vi.fn()}
+      onRouteModeSubmit={vi.fn()}
       isSubmitting={false}
       isLoading={false}
     />,
@@ -273,7 +282,11 @@ it("历史消息中的K线保留并绘制MA曲线", () => {
   expect(document.querySelector(".digital-human-kline__moving-average--20")).toBeInTheDocument();
 });
 
-it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
+it.each([
+  ["walking", "步行", "walk"],
+  ["cycling", "骑行", "ride"],
+  ["driving", "驾车", "car"],
+] as const)("展示商家路线并为 %s 生成对应导航链接", (mode, label, navigationMode) => {
   const onPlanRoute = vi.fn();
   const place = {
     id: "poi-1",
@@ -306,7 +319,7 @@ it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
           {
             type: "route_result",
             data: {
-              mode: "walking",
+              mode,
               origin: { name: "我的位置", location: "120.15,30.28" },
               destination: { name: "商店", location: "120.16,30.29" },
               distance_m: 1050,
@@ -328,10 +341,13 @@ it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
       streamedAssistantText=""
       streamedKlineChart={null}
       streamedPlaceCards={null}
+      routeModePrompt={null}
       onQuestionAnswerSelect={vi.fn()}
       onQuestionNext={vi.fn()}
       onQuestionPrevious={vi.fn()}
       onQuestionSubmit={vi.fn()}
+      onRouteModeAnswerSelect={vi.fn()}
+      onRouteModeSubmit={vi.fn()}
       onPlanRoute={onPlanRoute}
       isSubmitting={false}
       isLoading={false}
@@ -339,11 +355,13 @@ it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
   );
   fireEvent.click(screen.getByRole("button", { name: "路线规划" }));
   expect(onPlanRoute).toHaveBeenCalledWith(place);
+  expect(screen.getByRole("region", { name: `${label}路线` })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: `${label}路线` })).toBeInTheDocument();
   expect(screen.getByText("向东走")).toBeInTheDocument();
   expect(screen.getByText("1.05 公里")).toBeInTheDocument();
   const link = new URL(screen.getByRole("link", { name: "开始导航" }).getAttribute("href")!);
   expect(link.pathname).toBe("/navigation");
   expect(link.searchParams.get("from")).toBe("120.15,30.28,我的位置");
   expect(link.searchParams.get("to")).toBe("120.16,30.29,商店");
-  expect(link.searchParams.get("mode")).toBe("walk");
+  expect(link.searchParams.get("mode")).toBe(navigationMode);
 });

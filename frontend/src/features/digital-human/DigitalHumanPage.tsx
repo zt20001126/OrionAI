@@ -7,7 +7,7 @@ import {
   DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
   createConversation,
   listAllMessages,
-  planWalkingRoute,
+  planPlaceRoute,
   streamDigitalHumanReply,
   type DigitalHumanAudioEvent,
 } from "../conversations/conversationApi";
@@ -18,6 +18,7 @@ import type {
   PlaceCardsPayload,
   PlaceCard,
   QuestionContentPart,
+  RouteMode,
 } from "../conversations/conversationApi";
 import { requestBrowserLocation } from "../conversations/browserLocation";
 import { platformPaths, type PlatformRoute } from "../platform/platformData";
@@ -65,6 +66,29 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 const VOICE_ENABLED_STORAGE_KEY = "orionai:digital-human:voice-enabled";
+const ROUTE_MODE_BY_ANSWER: Record<string, RouteMode> = {
+  步行: "walking",
+  骑行: "cycling",
+  驾车: "driving",
+};
+
+/** 建立商家路线方式题卡；输入商家名；输出可由共用题卡组件展示的问题；调用方：数字人路线入口。 */
+function createRouteModeQuestion(placeName: string): QuestionContentPart["questions"] {
+  return [
+    {
+      id: "merchant_route_mode",
+      title: `选择前往${placeName}的路线方式`,
+      type: "SingleChoice",
+      options: [
+        { label: "步行", description: "适合短距离出行" },
+        { label: "骑行", description: "查看骑行路线和预计时间" },
+        { label: "驾车", description: "查看驾车路线和预计时间" },
+        { label: "暂不规划", description: "关闭路线选择" },
+      ],
+      allow_custom_input: false,
+    },
+  ];
+}
 
 /** 从本地偏好同步初始化播报状态；存储不可用时默认开启。 */
 function readVoiceEnabledPreference(): boolean {
@@ -122,10 +146,19 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPlanningRoute, setIsPlanningRoute] = useState(false);
+  const [routeModePrompt, setRouteModePrompt] = useState<{
+    conversationId: string;
+    messageId: string;
+    place: PlaceCard;
+    selectedAnswer: string;
+  } | null>(null);
   const routeLockRef = useRef(false);
-  const routeRequestRef = useRef<{ conversationId: string; placeId: string; key: string } | null>(
-    null,
-  );
+  const routeRequestRef = useRef<{
+    conversationId: string;
+    placeId: string;
+    mode: RouteMode;
+    key: string;
+  } | null>(null);
   const audioTurnRef = useRef<string | null>(null);
   const nextSegmentRef = useRef(1);
   const requestStartedRef = useRef(0);
@@ -145,6 +178,8 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     [conversationId, loadedMessages],
   );
   const pendingQuestion = useMemo(() => getPendingQuestion(messages), [messages]);
+  const activeRouteModePrompt =
+    routeModePrompt?.conversationId === conversationId ? routeModePrompt : null;
   const selectedAnswers =
     answerSelection?.conversationId === conversationId &&
     answerSelection.messageId === pendingQuestion?.messageId
@@ -261,16 +296,32 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     return response;
   }
 
-  /** 获取浏览器精确位置并规划已选商家路线；结果写入当前会话后刷新消息。 */
-  async function handlePlanRoute(place: PlaceCard) {
-    if (!conversationId || routeLockRef.current) return;
+  /** 打开所选商家的路线方式题卡；路线仍绑定当前商家的 POI 坐标。 */
+  function handlePlanRoute(place: PlaceCard) {
+    if (!conversationId || routeLockRef.current || pendingQuestion) return;
     if (!place.location) {
       showToast("error", "商家缺少坐标，请重新搜索。");
       return;
     }
+    setRouteModePrompt({
+      conversationId,
+      messageId: createRequestKey(),
+      place,
+      selectedAnswer: "",
+    });
+  }
+
+  /** 获取授权位置并按题卡选择规划路线；结果写入当前会话后刷新消息。 */
+  async function handleRouteModeSubmit() {
+    if (!activeRouteModePrompt || routeLockRef.current) return;
+    const mode = ROUTE_MODE_BY_ANSWER[activeRouteModePrompt.selectedAnswer];
+    setRouteModePrompt(null);
+    if (!mode) return;
+
     routeLockRef.current = true;
     setIsPlanningRoute(true);
-    const target = conversationId;
+    const target = activeRouteModePrompt.conversationId;
+    const place = activeRouteModePrompt.place;
     try {
       const location = await requestBrowserLocation();
       if (location.status !== "granted")
@@ -281,11 +332,13 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
         );
       const existing = routeRequestRef.current;
       const key =
-        existing?.conversationId === target && existing.placeId === place.id
+        existing?.conversationId === target &&
+        existing.placeId === place.id &&
+        existing.mode === mode
           ? existing.key
           : createRequestKey();
-      routeRequestRef.current = { conversationId: target, placeId: place.id, key };
-      await planWalkingRoute(target, place, location, key);
+      routeRequestRef.current = { conversationId: target, placeId: place.id, mode, key };
+      await planPlaceRoute(target, place, location, mode, key);
       routeRequestRef.current = null;
       if (activeConversationRef.current === target) await refreshMessages(target);
     } catch (error) {
@@ -520,7 +573,8 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
     void recorder.startRecording();
   }
 
-  const isBusy = isSubmitting || isPlanningRoute || recorder.status !== "idle";
+  const isBusy =
+    isSubmitting || isPlanningRoute || activeRouteModePrompt !== null || recorder.status !== "idle";
 
   return (
     <section aria-label={t("Orion 助手")} className="digital-human-page">
@@ -547,6 +601,26 @@ export function DigitalHumanPage({ conversationId, onNavigate }: DigitalHumanPag
             <DigitalHumanConversation
               onPlanRoute={(place) => void handlePlanRoute(place)}
               isPlanningRoute={isPlanningRoute || isSubmitting || pendingQuestion !== null}
+              isSelectingRouteMode={activeRouteModePrompt !== null}
+              routeModePrompt={
+                activeRouteModePrompt
+                  ? {
+                      messageId: activeRouteModePrompt.messageId,
+                      questions: createRouteModeQuestion(activeRouteModePrompt.place.name),
+                      selectedAnswers: activeRouteModePrompt.selectedAnswer
+                        ? { merchant_route_mode: activeRouteModePrompt.selectedAnswer }
+                        : {},
+                    }
+                  : null
+              }
+              onRouteModeAnswerSelect={(answer) => {
+                setRouteModePrompt((current) =>
+                  current?.conversationId === conversationId
+                    ? { ...current, selectedAnswer: answer }
+                    : current,
+                );
+              }}
+              onRouteModeSubmit={() => void handleRouteModeSubmit()}
               currentQuestionIndex={currentQuestionIndex}
               isSubmitting={isSubmitting}
               isLoading={isMessagesLoading}

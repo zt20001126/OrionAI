@@ -1,7 +1,7 @@
-"""调用高德步行路线服务，返回可用于展示的真实路线。"""
+"""调用高德步行、骑行或驾车路线服务，返回统一路线结构。"""
 
 import math
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
@@ -9,7 +9,13 @@ from app.core.config import Settings, get_settings
 from app.modules.digital_human.providers.amap.client import AmapProviderError
 from app.modules.digital_human.providers.amap.poi_client import AMAP_POI_TIMEOUT_SECONDS
 
-WALKING_URL = "https://restapi.amap.com/v5/direction/walking"
+RouteMode = Literal["walking", "cycling", "driving"]
+
+ROUTE_URLS: dict[RouteMode, str] = {
+    "walking": "https://restapi.amap.com/v5/direction/walking",
+    "cycling": "https://restapi.amap.com/v5/direction/bicycling",
+    "driving": "https://restapi.amap.com/v5/direction/driving",
+}
 CONVERT_URL = "https://restapi.amap.com/v3/assistant/coordinate/convert"
 
 
@@ -29,8 +35,8 @@ def normalize_coordinate(value: str) -> str:
     return f"{longitude:.6f},{latitude:.6f}"
 
 
-class AmapWalkingRouteClient:
-    """复用高德密钥和项目 HTTP 超时调用步行规划 V5，坐标必须为 GCJ-02。"""
+class AmapRouteClient:
+    """复用高德密钥调用 V5 路线规划，坐标必须为 GCJ-02。"""
 
     def __init__(self, settings: Settings | None = None) -> None:
         """读取高德服务配置；调用方：路线规划工具和会话服务。"""
@@ -73,11 +79,18 @@ class AmapWalkingRouteClient:
         return normalize_coordinate(location)
 
     async def plan(
-        self, origin: str, destination: str, destination_id: str | None = None
+        self,
+        origin: str,
+        destination: str,
+        destination_id: str | None = None,
+        *,
+        mode: RouteMode = "walking",
     ) -> dict[str, Any]:
-        """规划 GCJ-02 坐标间的步行路线；失败时抛出安全错误；调用方：数字人路线工具。"""
+        """按路线方式规划 GCJ-02 坐标间路线；调用方：数字人路线工具和商家路线 API。"""
         origin = normalize_coordinate(origin)
         destination = normalize_coordinate(destination)
+        if mode not in ROUTE_URLS:
+            raise AmapProviderError("不支持此路线方式。")
         api_key = self._settings.amap_api_key.get_secret_value().strip()
         if not api_key:
             raise AmapProviderError("路线规划服务尚未配置，请联系管理员。")
@@ -88,11 +101,11 @@ class AmapWalkingRouteClient:
             "show_fields": "cost,navi,polyline",
             "output": "json",
         }
-        if destination_id:
+        if destination_id and mode != "cycling":
             params["destination_id"] = destination_id
         try:
             async with httpx.AsyncClient(timeout=AMAP_POI_TIMEOUT_SECONDS) as client:
-                response = await client.get(WALKING_URL, params=params)
+                response = await client.get(ROUTE_URLS[mode], params=params)
                 response.raise_for_status()
                 payload = response.json()
         except httpx.TimeoutException:
@@ -110,7 +123,7 @@ class AmapWalkingRouteClient:
         route = payload.get("route")
         paths = route.get("paths") if isinstance(route, dict) else None
         if not isinstance(paths, list) or not paths:
-            raise AmapProviderError("未找到可用的步行路线。")
+            raise AmapProviderError("未找到可用路线。")
         try:
             path = paths[0]
             steps = [
@@ -122,7 +135,7 @@ class AmapWalkingRouteClient:
                 for step in path["steps"]
             ]
             return {
-                "mode": "walking",
+                "mode": mode,
                 "origin": {"name": "我的位置", "location": origin},
                 "destination": {"name": "目的地", "location": destination},
                 "distance_m": int(path["distance"]),

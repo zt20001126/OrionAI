@@ -15,6 +15,7 @@ import type {
   PlaceCardsPayload,
   PlaceCard,
   RouteResult,
+  RouteMode,
 } from "../../conversations/conversationApi";
 import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/QuestionAnswerCards";
 import { QuestionWizard } from "../../conversations/QuestionWizard";
@@ -58,10 +59,12 @@ function PlaceCards({
   data,
   onPlanRoute,
   planning,
+  selectingRouteMode,
 }: {
   data: PlaceCardsPayload;
   onPlanRoute?: (place: PlaceCard) => void;
   planning?: boolean;
+  selectingRouteMode?: boolean;
 }) {
   return (
     <section aria-label={data.title} className="digital-human-place-cards">
@@ -109,12 +112,12 @@ function PlaceCards({
                   <button
                     type="button"
                     className="digital-human-route-button"
-                    disabled={planning || !place.location}
+                    disabled={planning || selectingRouteMode || !place.location}
                     onClick={() => onPlanRoute?.(place)}
                     title={!place.location ? "此历史商家缺少坐标，请重新搜索" : undefined}
                   >
                     <PlatformIcon name="send" size={18} />
-                    {planning ? "正在规划路线" : "路线规划"}
+                    {planning ? "正在规划路线" : selectingRouteMode ? "选择路线方式中" : "路线规划"}
                   </button>
                   <a
                     aria-label={`在高德地图中查看${place.name}`}
@@ -149,7 +152,7 @@ function WalkingRouteMap({
     <figure className={`digital-human-route-map${isUnavailable ? " is-unavailable" : ""}`}>
       {!isUnavailable && (
         <img
-          alt="步行路线地图"
+          alt="路线地图"
           loading="lazy"
           onError={() => setIsUnavailable(true)}
           src={`/api/conversations/${conversationId}/messages/${messageId}/static-map`}
@@ -160,8 +163,20 @@ function WalkingRouteMap({
   );
 }
 
-/** 展示步行路线、地图和导航链接；输入路线及消息标识；调用方：数字人会话消息列表。 */
-function WalkingRouteCard({
+const ROUTE_MODE_LABELS: Record<RouteMode, string> = {
+  walking: "步行",
+  cycling: "骑行",
+  driving: "驾车",
+};
+
+const AMAP_NAVIGATION_MODES: Record<RouteMode, string> = {
+  walking: "walk",
+  cycling: "ride",
+  driving: "car",
+};
+
+/** 展示路线方式、地图和导航链接；输入路线及消息标识；调用方：数字人会话消息列表。 */
+function RouteCard({
   route,
   conversationId,
   messageId,
@@ -173,7 +188,7 @@ function WalkingRouteCard({
   const params = new URLSearchParams({
     from: `${route.origin.location},${route.origin.name}`,
     to: `${route.destination.location},${route.destination.name}`,
-    mode: "walk",
+    mode: AMAP_NAVIGATION_MODES[route.mode],
     src: "OrionAI",
     callnative: "0",
   });
@@ -183,8 +198,11 @@ function WalkingRouteCard({
     view: "map",
   });
   return (
-    <section className="digital-human-walking-route" aria-label="步行路线">
-      <h3>步行路线</h3>
+    <section
+      className="digital-human-walking-route"
+      aria-label={`${ROUTE_MODE_LABELS[route.mode]}路线`}
+    >
+      <h3>{ROUTE_MODE_LABELS[route.mode]}路线</h3>
       <p>
         <strong>
           {route.distance_m >= 1000
@@ -242,6 +260,14 @@ interface DigitalHumanConversationProps {
   isLoading: boolean;
   onPlanRoute?: (place: PlaceCard) => void;
   isPlanningRoute?: boolean;
+  isSelectingRouteMode?: boolean;
+  routeModePrompt: {
+    messageId: string;
+    questions: QuestionContentPart["questions"];
+    selectedAnswers: Record<string, string>;
+  } | null;
+  onRouteModeAnswerSelect: (answer: string) => void;
+  onRouteModeSubmit: () => void;
 }
 
 function getText(message: ConversationMessage): string {
@@ -491,6 +517,10 @@ export function DigitalHumanConversation({
   isLoading,
   onPlanRoute,
   isPlanningRoute,
+  isSelectingRouteMode,
+  routeModePrompt,
+  onRouteModeAnswerSelect,
+  onRouteModeSubmit,
 }: DigitalHumanConversationProps) {
   const messageListRef = useRef<HTMLDivElement>(null);
   const showPendingMessage =
@@ -511,7 +541,14 @@ export function DigitalHumanConversation({
   useLayoutEffect(() => {
     const messageList = messageListRef.current;
     if (messageList) messageList.scrollTop = messageList.scrollHeight;
-  }, [isLoading, messages, pendingMessage, streamedAssistantText, visibleStreamedChart]);
+  }, [
+    isLoading,
+    messages,
+    pendingMessage,
+    routeModePrompt,
+    streamedAssistantText,
+    visibleStreamedChart,
+  ]);
 
   return (
     <div
@@ -570,10 +607,11 @@ export function DigitalHumanConversation({
                 data={placeCards.data}
                 onPlanRoute={onPlanRoute}
                 planning={isPlanningRoute}
+                selectingRouteMode={isSelectingRouteMode}
               />
             )}
             {routeResult?.type === "route_result" && (
-              <WalkingRouteCard
+              <RouteCard
                 conversationId={message.conversation_id}
                 messageId={message.id}
                 route={routeResult.data}
@@ -629,8 +667,27 @@ export function DigitalHumanConversation({
               data={streamedPlaceCards}
               onPlanRoute={onPlanRoute}
               planning={isPlanningRoute}
+              selectingRouteMode={isSelectingRouteMode}
             />
           )}
+        </article>
+      )}
+      {routeModePrompt && (
+        <article
+          aria-label={t("路线方式选择")}
+          className="digital-human-message digital-human-message--assistant digital-human-message--question"
+        >
+          <QuestionWizard
+            currentIndex={0}
+            isSubmitting={false}
+            messageId={routeModePrompt.messageId}
+            onNext={() => undefined}
+            onPrevious={() => undefined}
+            onSelect={(_questionId, answer) => onRouteModeAnswerSelect(answer)}
+            onSubmit={onRouteModeSubmit}
+            questions={routeModePrompt.questions}
+            selectedAnswers={routeModePrompt.selectedAnswers}
+          />
         </article>
       )}
       {isLoading && (
