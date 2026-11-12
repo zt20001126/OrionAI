@@ -77,7 +77,14 @@ class BailianAsrProvider:
             response.raise_for_status()
             result = response.json()
         except (httpx.HTTPError, ValueError) as error:
-            logger.warning("digital_human_asr_provider_failed error_type=%s", type(error).__name__)
+            status_code = (
+                error.response.status_code if isinstance(error, httpx.HTTPStatusError) else None
+            )
+            logger.warning(
+                "digital_human_asr_provider_failed error_type=%s status_code=%s",
+                type(error).__name__,
+                status_code,
+            )
             raise raise_provider_error(error) from None
 
         output = result.get("output") if isinstance(result, dict) else None
