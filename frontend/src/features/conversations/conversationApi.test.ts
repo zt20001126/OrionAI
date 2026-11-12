@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { streamConversationMessage } from "./conversationApi";
+import { planPlaceRoute, streamConversationMessage } from "./conversationApi";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -32,6 +32,55 @@ describe("streamConversationMessage", () => {
         headers: { "Content-Type": "application/json", "Idempotency-Key": "request-uuid" },
       }),
     );
+  });
+});
+
+it("把所选商家路线方式提交给路线 API", async () => {
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(
+        encoder.encode(
+          'data: {"event_type":"message","data":{"type":"route_result","message":{"id":"route-1"}}}\n\n',
+        ),
+      );
+      controller.enqueue(
+        encoder.encode('data: {"event_type":"end","data":{"status":"completed"}}\n\n'),
+      );
+      controller.close();
+    },
+  });
+  const fetchMock = vi.fn().mockResolvedValue(new Response(body));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await planPlaceRoute(
+    "12",
+    {
+      id: "poi-1",
+      name: "西湖咖啡店",
+      address: "文一西路 1 号",
+      distance: 300,
+      tel: null,
+      business_hours: null,
+      rating: null,
+      image_url: null,
+      location: "120.16,30.29",
+    },
+    { status: "granted", latitude: 30.28, longitude: 120.15, accuracy_meters: 10 },
+    "cycling",
+    "request-id",
+  );
+
+  expect(fetchMock).toHaveBeenCalledWith(
+    "/api/conversations/12/walking-route/stream",
+    expect.objectContaining({
+      body: expect.stringContaining('"mode":"cycling"'),
+    }),
+  );
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toMatchObject({
+    destination: "120.16,30.29",
+    destination_id: "poi-1",
+    mode: "cycling",
   });
 });
 

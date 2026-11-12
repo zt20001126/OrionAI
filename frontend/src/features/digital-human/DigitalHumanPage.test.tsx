@@ -1,7 +1,14 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DigitalHumanPage } from "./DigitalHumanPage";
-import { streamDigitalHumanReply } from "../conversations/conversationApi";
+import {
+  listAllMessages,
+  planPlaceRoute,
+  streamDigitalHumanReply,
+  type ConversationMessage,
+  type PlaceCard,
+} from "../conversations/conversationApi";
+import { requestBrowserLocation } from "../conversations/browserLocation";
 
 const { showToast, enqueueAudio, stopAudio } = vi.hoisted(() => ({
   showToast: vi.fn(),
@@ -12,7 +19,16 @@ vi.mock("../../components/ToastProvider", () => ({ useToast: () => ({ showToast 
 vi.mock("../conversations/conversationApi", () => ({
   createConversation: vi.fn(),
   listAllMessages: vi.fn().mockResolvedValue({ skill_code: "digital_human", items: [] }),
+  planPlaceRoute: vi.fn(),
   streamDigitalHumanReply: vi.fn(),
+}));
+vi.mock("../conversations/browserLocation", () => ({
+  requestBrowserLocation: vi.fn().mockResolvedValue({
+    status: "granted",
+    latitude: 30.28,
+    longitude: 120.15,
+    accuracy_meters: 10,
+  }),
 }));
 vi.mock("./components/DigitalHumanAvatarHost", () => ({ DigitalHumanAvatarHost: () => null }));
 vi.mock("./components/DigitalHumanInteractionHint", () => ({
@@ -165,5 +181,78 @@ describe("数字人能力引导", () => {
     expect(screen.queryByText("跳过引导")).not.toBeInTheDocument();
     rerender(<DigitalHumanPage conversationId={null} onNavigate={vi.fn()} />);
     expect(screen.getByText("跳过引导")).toBeInTheDocument();
+  });
+});
+
+describe("商家路线方式选择", () => {
+  it("点击商家路线规划后先询问方式，再用该商家坐标请求骑行路线", async () => {
+    const place: PlaceCard = {
+      id: "poi-1",
+      name: "西湖咖啡店",
+      address: "杭州市西湖区文一西路 1 号",
+      distance: 300,
+      tel: null,
+      business_hours: null,
+      rating: null,
+      image_url: null,
+      location: "120.16,30.29",
+    };
+    const placeMessage: ConversationMessage = {
+      id: "places-1",
+      conversation_id: "conversation-1",
+      role: "assistant",
+      created_at: "2026-11-12T00:00:00Z",
+      content: {
+        parts: [{ type: "place_cards", data: { title: "附近商家", total: 1, places: [place] } }],
+      },
+    };
+    vi.mocked(listAllMessages).mockResolvedValue({
+      skill_code: "digital_human",
+      items: [placeMessage],
+      limit: 100,
+      offset: 0,
+    });
+    vi.mocked(planPlaceRoute).mockResolvedValueOnce({
+      ...placeMessage,
+      id: "route-1",
+      content: {
+        parts: [
+          {
+            type: "route_result",
+            data: {
+              mode: "cycling",
+              origin: { name: "我的位置", location: "120.15,30.28" },
+              destination: { name: place.name, location: place.location! },
+              distance_m: 1200,
+              duration_s: 600,
+              steps: [],
+            },
+          },
+        ],
+      },
+    });
+
+    render(<DigitalHumanPage conversationId="conversation-1" onNavigate={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "路线规划" }));
+
+    expect(screen.getByRole("article", { name: "路线方式选择" })).toBeInTheDocument();
+    expect(requestBrowserLocation).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("radio", { name: /骑行/ }));
+    fireEvent.click(screen.getByRole("button", { name: "提交答案" }));
+
+    await waitFor(() =>
+      expect(planPlaceRoute).toHaveBeenCalledWith(
+        "conversation-1",
+        place,
+        {
+          status: "granted",
+          latitude: 30.28,
+          longitude: 120.15,
+          accuracy_meters: 10,
+        },
+        "cycling",
+        expect.any(String),
+      ),
+    );
   });
 });

@@ -197,7 +197,7 @@ class RoutePoint(BaseModel):
 
 
 class RouteStep(BaseModel):
-    """高德返回的步行导航指示和距离。"""
+    """高德返回的分段导航指示和距离。"""
 
     instruction: str
     distance_m: int = Field(ge=0)
@@ -207,7 +207,7 @@ class RouteStep(BaseModel):
 class RouteResult(BaseModel):
     """路线卡片和会话历史共用的数据结构。"""
 
-    mode: Literal["walking"]
+    mode: Literal["walking", "cycling", "driving"]
     origin: RoutePoint
     destination: RoutePoint
     distance_m: int = Field(ge=0)
@@ -215,12 +215,15 @@ class RouteResult(BaseModel):
     steps: list[RouteStep]
 
 
-class WalkingRouteRequest(BaseModel):
-    """用户授权的浏览器位置与选定商家的高德坐标。"""
+class PlaceRouteRequest(BaseModel):
+    """用户授权的浏览器位置、路线方式与选定商家的高德坐标。"""
 
     model_config = ConfigDict(extra="forbid")
     latitude: FiniteFloat = Field(ge=-90, le=90)
     longitude: FiniteFloat = Field(ge=-180, le=180)
+    mode: Literal["walking", "cycling", "driving"] = Field(
+        default="walking", description="路线方式；旧请求省略时继续按步行规划。"
+    )
     destination: str = Field(min_length=3, max_length=64)
     destination_name: str = Field(min_length=1, max_length=200)
     destination_id: str | None = Field(default=None, max_length=100)

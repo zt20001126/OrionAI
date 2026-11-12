@@ -60,6 +60,7 @@ from app.modules.conversations.schemas.schemas import (
     MessageListResponse,
     MessageResponse,
     PlaceCardsContentPart,
+    PlaceRouteRequest,
     QuestionAnswersContentPart,
     QuestionAnswersRequest,
     QuestionContentPart,
@@ -68,7 +69,6 @@ from app.modules.conversations.schemas.schemas import (
     SubmittedQuestionAnswer,
     TextContentPart,
     UserLocationContext,
-    WalkingRouteRequest,
 )
 from app.modules.conversations.service.title import (
     ConversationTitleGenerator,
@@ -84,8 +84,8 @@ from app.modules.digital_human.constants import (
     DIGITAL_HUMAN_LOCATION_CONSENT_QUESTION_ID,
 )
 from app.modules.digital_human.providers.amap.client import AmapProviderError
+from app.modules.digital_human.providers.amap.route import AmapRouteClient
 from app.modules.digital_human.providers.amap.static_map import AmapStaticMapClient
-from app.modules.digital_human.providers.amap.walking import AmapWalkingRouteClient
 from app.modules.image_generation.constants import IMAGE_RESULT_URL_PREFIX
 from app.modules.skills import repository as skills_repository
 from app.shared.streaming import EventType, StreamEvent
@@ -152,7 +152,7 @@ class ConversationService:
             self._session.rollback()
             raise ConversationUnavailableError from None
 
-    def prepare_walking_route(self, user: User, conversation_id: int) -> Conversation:
+    def prepare_place_route(self, user: User, conversation_id: int) -> Conversation:
         """校验路线请求的会话归属和技能；调用方：路线 API。"""
         conversation = self._get_conversation_safely(user.id, conversation_id)
         if conversation.skill_code != "digital_human":
@@ -203,14 +203,19 @@ class ConversationService:
         except AmapProviderError:
             raise ConversationUnavailableError from None
 
-    async def stream_walking_route(
-        self, conversation: Conversation, payload: WalkingRouteRequest
+    async def stream_place_route(
+        self, conversation: Conversation, payload: PlaceRouteRequest
     ) -> AsyncIterator[StreamEvent]:
-        """转换授权位置并规划路线，保存成功结果后发送结构化事件；调用方：路线 API。"""
-        client = AmapWalkingRouteClient()
+        """转换授权位置并按所选方式规划商家路线，保存后发送结构化事件；调用方：路线 API。"""
+        client = AmapRouteClient()
         try:
             origin = await client.convert_gps(f"{payload.longitude},{payload.latitude}")
-            route = await client.plan(origin, payload.destination, payload.destination_id)
+            route = await client.plan(
+                origin,
+                payload.destination,
+                payload.destination_id,
+                mode=payload.mode,
+            )
             route["destination"]["name"] = payload.destination_name
             result = RouteResult.model_validate(route)
             conversation = self._get_conversation(

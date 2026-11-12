@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.modules.digital_human.providers.amap.client import AmapProviderError
-from app.modules.digital_human.providers.amap.walking import AmapWalkingRouteClient
+from app.modules.digital_human.providers.amap.route import AmapRouteClient
 
 
 class WalkingRouteInput(BaseModel):
@@ -23,7 +23,7 @@ async def plan_walking_route(
 ) -> str:
     """规划已知高德坐标之间的步行路线；坐标未知时不得猜测。"""
     try:
-        route = await AmapWalkingRouteClient().plan(origin, destination, destination_id)
+        route = await AmapRouteClient().plan(origin, destination, destination_id)
     except AmapProviderError as error:
         return json.dumps({"success": False, "message": str(error)}, ensure_ascii=False)
     return json.dumps({"success": True, "route": route}, ensure_ascii=False)
