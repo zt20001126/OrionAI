@@ -1,7 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
-import type { ConversationMessage, KlineChartPayload } from "../../conversations/conversationApi";
+import type {
+  ConversationMessage,
+  KlineChartPayload,
+  RouteResult,
+} from "../../conversations/conversationApi";
 import { DigitalHumanConversation } from "./DigitalHumanConversation";
 
 afterEach(cleanup);
@@ -273,7 +277,17 @@ it("历史消息中的K线保留并绘制MA曲线", () => {
   expect(document.querySelector(".digital-human-kline__moving-average--20")).toBeInTheDocument();
 });
 
-it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
+const routeModes: {
+  mode: RouteResult["mode"];
+  label: string;
+  navigationMode: string;
+}[] = [
+  { mode: "walking", label: "步行", navigationMode: "walk" },
+  { mode: "cycling", label: "骑行", navigationMode: "ride" },
+  { mode: "driving", label: "驾车", navigationMode: "car" },
+];
+
+it.each(routeModes)("展示$label路线及对应导航链接", ({ mode, label, navigationMode }) => {
   const onPlanRoute = vi.fn();
   const place = {
     id: "poi-1",
@@ -306,7 +320,7 @@ it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
           {
             type: "route_result",
             data: {
-              mode: "walking",
+              mode,
               origin: { name: "我的位置", location: "120.15,30.28" },
               destination: { name: "商店", location: "120.16,30.29" },
               distance_m: 1050,
@@ -339,11 +353,12 @@ it("展示路线规划按钮并渲染历史路线与官方导航链接", () => {
   );
   fireEvent.click(screen.getByRole("button", { name: "路线规划" }));
   expect(onPlanRoute).toHaveBeenCalledWith(place);
+  expect(screen.getByRole("heading", { name: `${label}路线` })).toBeInTheDocument();
   expect(screen.getByText("向东走")).toBeInTheDocument();
   expect(screen.getByText("1.05 公里")).toBeInTheDocument();
   const link = new URL(screen.getByRole("link", { name: "开始导航" }).getAttribute("href")!);
   expect(link.pathname).toBe("/navigation");
   expect(link.searchParams.get("from")).toBe("120.15,30.28,我的位置");
   expect(link.searchParams.get("to")).toBe("120.16,30.29,商店");
-  expect(link.searchParams.get("mode")).toBe("walk");
+  expect(link.searchParams.get("mode")).toBe(navigationMode);
 });

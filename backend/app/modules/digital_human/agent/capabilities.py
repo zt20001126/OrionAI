@@ -16,12 +16,23 @@ class DigitalHumanCapability:
 DIGITAL_HUMAN_CAPABILITIES = (
     DigitalHumanCapability("日常交流", "聊天、回答问题、写作和整理想法"),
     DigitalHumanCapability(
-        "步行路线规划",
-        "根据已知高德坐标规划步行路线",
-        frozenset({"plan_walking_route"}),
-        "只有取得明确的高德 GCJ-02 起终点坐标时调用 plan_walking_route；"
-        "不得猜测坐标或将浏览器 WGS-84 坐标直接当作高德坐标。"
-        "根据工具结果回答，失败时如实说明。",
+        "步行、骑行和驾车路线规划",
+        "根据用户提供的地址或经授权的当前位置规划步行、骑行或驾车路线",
+        frozenset({"plan_route", "ask_user_questions"}),
+        "用户提出路线规划时，先确认起点、终点和方式。用户已明确说步行、骑行或驾车时，"
+        "直接使用对应方式；未说明方式时，必须先单独调用 ask_user_questions 提问，选项为"
+        "“步行”“骑行”“驾车”“暂不规划”，等待回答后再调用 plan_route。"
+        "plan_route.mode 必须使用 walking、cycling 或 driving。"
+        "选择“暂不规划”时停止，不调用路线接口。"
+        "不得猜测起点或终点；缺失时通过 Text 题卡询问。地址或地标由路线工具解析；"
+        "地址解析不唯一或失败时，询问用户补充城市、区县或街道。"
+        "只有用户明确要求使用当前位置作为起点时才使用浏览器定位；需先单独调用 ask_user_questions，"
+        "使用固定 question ID digital_human_location_consent 并说明用途。只有用户选择"
+        "“允许获取当前位置”后前端才会请求定位；拒绝、选择 IP 粗略城市或定位不可用时，"
+        "不得将其作为路线坐标，需询问用户提供起点地址。"
+        "路线工具会在服务端把授权的 WGS-84 转为 GCJ-02；"
+        "不要调用 get_user_location 读取坐标后再传入路线工具。"
+        "只根据工具返回的路线结果回答，失败时如实说明。",
     ),
     DigitalHumanCapability(
         "创建提醒",
@@ -94,8 +105,10 @@ DIGITAL_HUMAN_CAPABILITIES = (
         "用户请求附近商家、周边地点或精确当前位置时，必须单独调用 ask_user_questions，"
         "说明用途并征求浏览器定位许可。授权题必须使用 question ID "
         "digital_human_location_consent，并提供“允许获取当前位置”、“仅按 IP 粗略估计城市”"
-        "和“暂不提供位置”选项；第四个选项用于简短说明用途。等待用户回答后再调用 "
-        "get_user_location。只有用户选择允许获取当前位置后，前端才会请求浏览器定位；"
+        "和“暂不提供位置”选项；第四个选项用于简短说明用途。等待用户回答后，"
+        "普通位置查询和附近搜索调用 get_user_location；"
+        "路线规划由 plan_route 在服务端读取本轮授权坐标，不调用位置工具输出坐标。"
+        "只有用户选择允许获取当前位置后，前端才会请求浏览器定位；"
         "工具返回 browser_geolocation 坐标时才能作为精确设备位置使用；"
         "坐标为 WGS-84，精度以 accuracy_meters 为准，不得声称精确到街道或门牌。"
         "附近搜索在授权提交的同一轮调用 search_nearby_places，使用此前收集的关键词和半径，"

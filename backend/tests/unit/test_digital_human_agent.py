@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import PrivateAttr
@@ -17,6 +17,7 @@ from app.modules.digital_human.agent.tools import (
     current_date,
     index_quote,
     location,
+    route_planning,
     stock_kline,
     stock_quote,
 )
@@ -341,6 +342,214 @@ async def test_stock_question_continues_to_registered_tool(
     assert any(
         message.type == "tool" and message.name == "get_stock_quote" and "600519" in message.content
         for message in state.values["messages"]
+    )
+
+
+@pytest.mark.anyio
+async def test_route_mode_question_resumes_and_calls_selected_route_api(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    question_call = _route_mode_question_call()
+    route_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "plan_route",
+                "args": {
+                    "mode": "cycling",
+                    "origin": "杭州市西湖区灵隐路",
+                    "destination": "杭州西湖",
+                },
+                "id": "route-plan",
+                "type": "tool_call",
+            }
+        ],
+    )
+
+    async def geocode(_self: object, address: str, city: str | None = None):
+        del city
+        location = "120.150000,30.280000" if "灵隐" in address else "120.160000,30.290000"
+        return route_planning.AmapGeocodedLocation(name=address, location=location)
+
+    async def plan(
+        _self: object,
+        mode: str,
+        origin: str,
+        destination: str,
+        origin_name: str,
+        destination_name: str,
+    ) -> dict[str, Any]:
+        return {
+            "mode": mode,
+            "origin": {"name": origin_name, "location": origin},
+            "destination": {"name": destination_name, "location": destination},
+            "distance_m": 1200,
+            "duration_s": 600,
+            "steps": [{"instruction": "沿道路骑行", "distance_m": 1200, "polyline": None}],
+        }
+
+    monkeypatch.setattr(route_planning.AmapGeocodingClient, "geocode", geocode)
+    monkeypatch.setattr(route_planning.AmapRoutePlanningClient, "plan", plan)
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel(
+            [question_call, route_call, AIMessage(content="已规划骑行路线。")]
+        ),
+        checkpointer=MemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "digital-human-route-mode"}}
+
+    question = await runtime.ainvoke(
+        "帮我从杭州市西湖区灵隐路到杭州西湖规划路线。", runnable_config=config
+    )
+    response = await runtime.ainvoke(
+        "用户已提交以下选择：\n- 路线方式：骑行", runnable_config=config
+    )
+
+    assert question.status == "waiting"
+    assert question.questions is not None
+    assert [option.label for option in question.questions.questions[0].options] == [
+        "步行",
+        "骑行",
+        "驾车",
+        "暂不规划",
+    ]
+    assert response.answer == "已规划骑行路线。"
+    assert response.route_result is not None
+    assert response.route_result["mode"] == "cycling"
+
+
+@pytest.mark.anyio
+async def test_explicit_route_mode_calls_route_without_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    planned_modes: list[str] = []
+
+    async def geocode(_self: object, address: str, city: str | None = None):
+        del city
+        return route_planning.AmapGeocodedLocation(name=address, location="120.15,30.28")
+
+    async def plan(
+        _self: object,
+        mode: str,
+        origin: str,
+        destination: str,
+        origin_name: str,
+        destination_name: str,
+    ) -> dict[str, Any]:
+        planned_modes.append(mode)
+        return {
+            "mode": mode,
+            "origin": {"name": origin_name, "location": origin},
+            "destination": {"name": destination_name, "location": destination},
+            "distance_m": 1000,
+            "duration_s": 300,
+            "steps": [{"instruction": "沿道路行驶", "distance_m": 1000, "polyline": None}],
+        }
+
+    monkeypatch.setattr(route_planning.AmapGeocodingClient, "geocode", geocode)
+    monkeypatch.setattr(route_planning.AmapRoutePlanningClient, "plan", plan)
+    route_call = AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "plan_route",
+                "args": {"mode": "driving", "origin": "杭州西湖", "destination": "灵隐寺"},
+                "id": "direct-route-plan",
+                "type": "tool_call",
+            }
+        ],
+    )
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel([route_call, AIMessage(content="已规划驾车路线。")]),
+        checkpointer=MemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "digital-human-explicit-route-mode"}}
+
+    response = await runtime.ainvoke("请从杭州西湖驾车到灵隐寺。", runnable_config=config)
+    state = await runtime.compiled_graph.aget_state(config)
+
+    assert response.route_result is not None
+    assert response.route_result["mode"] == "driving"
+    assert planned_modes == ["driving"]
+    assert not any(
+        isinstance(message, ToolMessage) and message.name == "ask_user_questions"
+        for message in state.values["messages"]
+    )
+
+
+@pytest.mark.anyio
+async def test_cancelled_route_mode_does_not_call_route_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    planned_modes: list[str] = []
+
+    async def plan(
+        _self: object,
+        mode: str,
+        origin: str,
+        destination: str,
+        origin_name: str,
+        destination_name: str,
+    ) -> dict[str, Any]:
+        planned_modes.append(mode)
+        raise AssertionError("取消路线后不应调用路线 Provider")
+
+    monkeypatch.setattr(route_planning.AmapRoutePlanningClient, "plan", plan)
+    route_question = _route_mode_question_call()
+    runtime = DigitalHumanRuntime(
+        chat_model=ScriptedChatModel(
+            [route_question, AIMessage(content="好的，已取消本次路线规划。")]
+        ),
+        checkpointer=MemorySaver(),
+    )
+    config = {"configurable": {"thread_id": "digital-human-cancel-route"}}
+
+    question = await runtime.ainvoke("帮我规划一条路线。", runnable_config=config)
+    response = await runtime.ainvoke(
+        "用户已提交以下选择：\n- 路线方式：暂不规划", runnable_config=config
+    )
+    state = await runtime.compiled_graph.aget_state(config)
+
+    assert question.status == "waiting"
+    assert response.status == "completed"
+    assert response.route_result is None
+    assert planned_modes == []
+    assert not any(
+        isinstance(message, ToolMessage) and message.name == "plan_route"
+        for message in state.values["messages"]
+    )
+
+
+def _route_mode_question_call() -> AIMessage:
+    """构造路线方式题卡调用。
+
+    输出：包含三类方式和取消选项的 Tool Call；调用方：数字人路线 Agent 测试。
+    """
+    return AIMessage(
+        content="",
+        tool_calls=[
+            {
+                "name": "ask_user_questions",
+                "args": {
+                    "questions": [
+                        {
+                            "id": "route_mode",
+                            "title": "请选择路线方式",
+                            "type": "SingleChoice",
+                            "options": [
+                                {"label": "步行", "description": "规划步行路线"},
+                                {"label": "骑行", "description": "规划骑行路线"},
+                                {"label": "驾车", "description": "规划驾车路线"},
+                                {"label": "暂不规划", "description": "取消本次路线规划"},
+                            ],
+                            "allow_custom_input": False,
+                        }
+                    ]
+                },
+                "id": "route-mode-question",
+                "type": "tool_call",
+            }
+        ],
     )
 
 
