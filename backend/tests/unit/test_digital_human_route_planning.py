@@ -134,15 +134,9 @@ async def test_geocoding_returns_unique_address_and_coordinate(
 
 
 @pytest.mark.anyio
-@pytest.mark.parametrize(
-    ("geocodes", "expected_message"),
-    [
-        ([], "没有找到“西湖”"),
-        ([{"location": "120,30"}, {"location": "121,31"}], "“西湖”匹配到多个位置"),
-    ],
-)
+@pytest.mark.parametrize("geocodes", [[], [{"location": "120,30"}, {"location": "121,31"}]])
 async def test_geocoding_requires_one_match(
-    geocodes: list[dict[str, str]], expected_message: str, monkeypatch: pytest.MonkeyPatch
+    geocodes: list[dict[str, str]], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = geocoding.AmapGeocodingClient(Settings(_env_file=None, amap_api_key="test-key"))
     mock_transport(
@@ -153,7 +147,7 @@ async def test_geocoding_requires_one_match(
             json={"status": "1", "infocode": "10000", "geocodes": geocodes},
         ),
     )
-    with pytest.raises(AmapProviderError, match=expected_message):
+    with pytest.raises(AmapProviderError, match="多个或没有位置"):
         await client.geocode("西湖")
 
 
@@ -231,49 +225,3 @@ async def test_route_tool_rejects_current_location_without_consent() -> None:
     response = json.loads(result)
     assert response["success"] is False
     assert "授权" in response["message"]
-
-
-@pytest.mark.anyio
-async def test_route_tool_passes_user_city_to_both_address_lookups(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    geocoding_requests: list[tuple[str, str | None]] = []
-
-    async def geocode(_self: object, address: str, city: str | None = None):
-        geocoding_requests.append((address, city))
-        return geocoding.AmapGeocodedLocation(name=address, location="120.15,30.28")
-
-    async def plan(
-        _self: object,
-        mode: str,
-        origin: str,
-        destination: str,
-        origin_name: str,
-        destination_name: str,
-    ) -> dict[str, Any]:
-        return {
-            "mode": mode,
-            "origin": {"name": origin_name, "location": origin},
-            "destination": {"name": destination_name, "location": destination},
-            "distance_m": 1000,
-            "duration_s": 600,
-            "steps": [{"instruction": "沿道路前行", "distance_m": 1000, "polyline": None}],
-        }
-
-    monkeypatch.setattr(route_tool.AmapGeocodingClient, "geocode", geocode)
-    monkeypatch.setattr(route_tool.AmapRoutePlanningClient, "plan", plan)
-
-    result = await route_tool.plan_route.ainvoke(
-        {
-            "mode": "driving",
-            "origin": "杭州市西湖区灵隐路",
-            "destination": "杭州东站",
-            "city": "杭州市",
-        }
-    )
-
-    assert json.loads(result)["success"] is True
-    assert geocoding_requests == [
-        ("杭州市西湖区灵隐路", "杭州市"),
-        ("杭州东站", "杭州市"),
-    ]

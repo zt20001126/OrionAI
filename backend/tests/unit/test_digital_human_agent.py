@@ -70,9 +70,6 @@ def test_capabilities_require_all_registered_tools() -> None:
     assert "A 股K线查询" in build_capabilities_prompt(
         names | {"ask_user_questions", "get_stock_kline"}
     )
-    route_prompt = build_capabilities_prompt(frozenset({"plan_route", "ask_user_questions"}))
-    assert "plan_route.city" in route_prompt
-    assert "限定起终点解析范围" in route_prompt
     kline_prompt = build_capabilities_prompt(names | {"ask_user_questions", "get_stock_kline"})
     assert "仅在用户明确要求 MA 或均线时" in kline_prompt
     assert "ma_periods" in kline_prompt

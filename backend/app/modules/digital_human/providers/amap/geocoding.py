@@ -57,17 +57,11 @@ class AmapGeocodingClient:
             or payload.get("status") != "1"
             or payload.get("infocode") != "10000"
         ):
-            raise AmapProviderError("高德地址解析失败，请核对城市范围和地址格式后重试。")
+            raise AmapProviderError("高德地址解析失败，请补充城市、区县或街道信息。")
 
         geocodes = payload.get("geocodes")
-        if not isinstance(geocodes, list) or not geocodes:
-            raise AmapProviderError(
-                f"没有找到“{normalized_address}”的位置，请补充区县、路口、建筑物或出入口。"
-            )
-        if len(geocodes) != 1:
-            raise AmapProviderError(
-                f"“{normalized_address}”匹配到多个位置，请补充路口、门牌、建筑物或出入口。"
-            )
+        if not isinstance(geocodes, list) or len(geocodes) != 1:
+            raise AmapProviderError("地址匹配到多个或没有位置，请补充城市、区县或街道信息。")
 
         result = geocodes[0]
         if not isinstance(result, dict):
