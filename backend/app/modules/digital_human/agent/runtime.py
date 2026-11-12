@@ -215,7 +215,7 @@ def _route_from_current_turn(messages: list[Any]) -> dict[str, Any] | None:
         -1,
     )
     for message in reversed(messages[latest_user_index + 1 :]):
-        if isinstance(message, ToolMessage) and message.name == "plan_route":
+        if isinstance(message, ToolMessage) and message.name == "plan_walking_route":
             try:
                 result = json.loads(message.content)
             except (ValueError, TypeError):

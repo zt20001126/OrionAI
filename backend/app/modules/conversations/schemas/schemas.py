@@ -197,7 +197,7 @@ class RoutePoint(BaseModel):
 
 
 class RouteStep(BaseModel):
-    """高德返回的分段导航指示和距离。"""
+    """高德返回的步行导航指示和距离。"""
 
     instruction: str
     distance_m: int = Field(ge=0)
@@ -207,7 +207,7 @@ class RouteStep(BaseModel):
 class RouteResult(BaseModel):
     """路线卡片和会话历史共用的数据结构。"""
 
-    mode: Literal["walking", "cycling", "driving"]
+    mode: Literal["walking"]
     origin: RoutePoint
     destination: RoutePoint
     distance_m: int = Field(ge=0)

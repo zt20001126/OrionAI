@@ -534,51 +534,6 @@ def test_streaming_kline_sends_chart_message_and_persists_same_payload(
     assert saved["content"]["parts"][-1] == chart_event
 
 
-def test_digital_human_streaming_route_result_persists_all_supported_modes(
-    conversation_client: tuple[
-        TestClient,
-        dict[str, User],
-        ScriptedAgent,
-        FixedTitleGenerator,
-        sessionmaker[Session],
-    ],
-) -> None:
-    client, _users, agent, _title_generator, _session_factory = conversation_client
-    route = {
-        "mode": "driving",
-        "origin": {"name": "杭州市西湖区灵隐路", "location": "120.15,30.28"},
-        "destination": {"name": "杭州西湖", "location": "120.16,30.29"},
-        "distance_m": 3200,
-        "duration_s": 900,
-        "steps": [{"instruction": "沿道路行驶", "distance_m": 3200, "polyline": None}],
-    }
-    agent.responses[0] = AgentResponse(
-        agent="digital_human",
-        status="completed",
-        answer="已规划驾车路线。",
-        route_result=route,
-    )
-    conversation_id = client.post(
-        "/api/conversations", json={"skill_code": "digital_human"}
-    ).json()["id"]
-
-    response = client.post(
-        f"/api/conversations/{conversation_id}/messages/stream",
-        json={"message": "规划驾车路线"},
-    )
-
-    assert response.status_code == 200
-    events = _decode_sse_events(response.content)
-    route_event = next(
-        event["data"] for event in events if event["data"].get("type") == "route_result"
-    )
-    assert route_event["data"] == route
-    saved = client.get(f"/api/conversations/{conversation_id}/messages").json()["items"][-1]
-    saved_route_event = saved["content"]["parts"][-1]
-    assert saved_route_event["type"] == route_event["type"]
-    assert saved_route_event["data"] == route_event["data"]
-
-
 def test_stream_idempotency_replays_completed_turn_without_running_agent_twice(
     conversation_client: tuple[
         TestClient,
