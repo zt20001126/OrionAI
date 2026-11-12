@@ -129,7 +129,7 @@ export interface PlaceCard {
 }
 
 export interface RouteResult {
-  mode: "walking" | "cycling" | "driving";
+  mode: "walking";
   origin: { name: string; location: string };
   destination: { name: string; location: string };
   distance_m: number;

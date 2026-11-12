@@ -20,17 +20,6 @@ import { CompletedQuestionCard, QuestionAnswerCard } from "../../conversations/Q
 import { QuestionWizard } from "../../conversations/QuestionWizard";
 import { PlatformIcon } from "../../platform/PlatformIcon";
 
-const ROUTE_MODE_LABELS: Record<RouteResult["mode"], string> = {
-  walking: "步行",
-  cycling: "骑行",
-  driving: "驾车",
-};
-const AMAP_NAVIGATION_MODES: Record<RouteResult["mode"], string> = {
-  walking: "walk",
-  cycling: "ride",
-  driving: "car",
-};
-
 /** 显示商家图片，缺失或加载失败时呈现店铺图标；输入：图片 URL 与商家名；输出：带可访问名称的图片区域；调用方：PlaceCards。 */
 function PlaceCardImage({ imageUrl, name }: { imageUrl: string | null; name: string }) {
   const [hasError, setHasError] = useState(false);
@@ -148,13 +137,19 @@ function PlaceCards({
 }
 
 /** 按会话和消息标识加载路线图片；输出地图或不可用提示；调用方：路线卡片。 */
-function RouteMap({ conversationId, messageId }: { conversationId: string; messageId: string }) {
+function WalkingRouteMap({
+  conversationId,
+  messageId,
+}: {
+  conversationId: string;
+  messageId: string;
+}) {
   const [isUnavailable, setIsUnavailable] = useState(false);
   return (
     <figure className={`digital-human-route-map${isUnavailable ? " is-unavailable" : ""}`}>
       {!isUnavailable && (
         <img
-          alt="路线地图"
+          alt="步行路线地图"
           loading="lazy"
           onError={() => setIsUnavailable(true)}
           src={`/api/conversations/${conversationId}/messages/${messageId}/static-map`}
@@ -165,8 +160,8 @@ function RouteMap({ conversationId, messageId }: { conversationId: string; messa
   );
 }
 
-/** 展示路线方式、地图和导航链接；输入路线及消息标识；调用方：数字人会话消息列表。 */
-function RouteCard({
+/** 展示步行路线、地图和导航链接；输入路线及消息标识；调用方：数字人会话消息列表。 */
+function WalkingRouteCard({
   route,
   conversationId,
   messageId,
@@ -175,11 +170,10 @@ function RouteCard({
   conversationId: string;
   messageId: string;
 }) {
-  const modeLabel = ROUTE_MODE_LABELS[route.mode];
   const params = new URLSearchParams({
     from: `${route.origin.location},${route.origin.name}`,
     to: `${route.destination.location},${route.destination.name}`,
-    mode: AMAP_NAVIGATION_MODES[route.mode],
+    mode: "walk",
     src: "OrionAI",
     callnative: "0",
   });
@@ -189,8 +183,8 @@ function RouteCard({
     view: "map",
   });
   return (
-    <section className="digital-human-route" aria-label={`${modeLabel}路线`}>
-      <h3>{modeLabel}路线</h3>
+    <section className="digital-human-walking-route" aria-label="步行路线">
+      <h3>步行路线</h3>
       <p>
         <strong>
           {route.distance_m >= 1000
@@ -199,7 +193,7 @@ function RouteCard({
         </strong>{" "}
         · 约 {Math.max(1, Math.round(route.duration_s / 60))} 分钟
       </p>
-      <RouteMap conversationId={conversationId} messageId={messageId} />
+      <WalkingRouteMap conversationId={conversationId} messageId={messageId} />
       <ol>
         <li>从{route.origin.name}出发</li>
         {route.steps.map((step, index) => (
@@ -579,7 +573,7 @@ export function DigitalHumanConversation({
               />
             )}
             {routeResult?.type === "route_result" && (
-              <RouteCard
+              <WalkingRouteCard
                 conversationId={message.conversation_id}
                 messageId={message.id}
                 route={routeResult.data}

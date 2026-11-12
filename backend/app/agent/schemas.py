@@ -253,7 +253,7 @@ class AgentResponse(BaseModel):
     place_cards: PlaceCardsPayload | None = Field(
         default=None, description="可选的附近商家卡片数据。"
     )
-    route_result: dict[str, Any] | None = Field(default=None, description="可选的路线规划结果。")
+    route_result: dict[str, Any] | None = Field(default=None, description="可选的步行路线结果。")
 
     @model_validator(mode="after")
     def validate_result_state(self) -> "AgentResponse":

@@ -1647,7 +1647,7 @@
   outline: var(--focus-ring);
   outline-offset: 2px;
 }
-.digital-human-route {
+.digital-human-walking-route {
   padding: var(--space-5);
   border: 1px solid rgb(255 255 255 / 76%);
   border-radius: var(--radius-panel);
@@ -1662,18 +1662,18 @@
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
-.digital-human-route h3 {
+.digital-human-walking-route h3 {
   margin: 0 0 var(--space-2);
   color: var(--digital-human-ai-message-text);
   font-size: var(--font-size-xl);
   font-weight: 700;
 }
-.digital-human-route > p {
+.digital-human-walking-route > p {
   margin: 0 0 var(--space-4);
   color: var(--digital-human-ai-message-text);
   font-size: var(--font-size-lg);
 }
-.digital-human-route > p strong {
+.digital-human-walking-route > p strong {
   font-weight: 700;
 }
 .digital-human-route-map {
@@ -1709,7 +1709,7 @@
   color: var(--digital-human-composer-placeholder);
   font-size: var(--font-size-sm);
 }
-.digital-human-route ol {
+.digital-human-walking-route ol {
   position: relative;
   margin: 0 0 var(--space-5);
   padding: 0 0 0 48px;
@@ -1717,7 +1717,7 @@
   list-style: none;
   line-height: var(--line-height-relaxed);
 }
-.digital-human-route ol::before {
+.digital-human-walking-route ol::before {
   position: absolute;
   top: 12px;
   bottom: 12px;
@@ -1727,13 +1727,13 @@
   opacity: 0.4;
   content: "";
 }
-.digital-human-route ol li {
+.digital-human-walking-route ol li {
   position: relative;
   min-height: 38px;
   padding: 3px 0 8px 22px;
   counter-increment: route-step;
 }
-.digital-human-route ol li::before {
+.digital-human-walking-route ol li::before {
   position: absolute;
   top: 11px;
   left: -46px;
@@ -1744,7 +1744,7 @@
   background: rgb(255 255 255 / 92%);
   content: "";
 }
-.digital-human-route ol li::after {
+.digital-human-walking-route ol li::after {
   position: absolute;
   top: 2px;
   left: -19px;
@@ -1752,39 +1752,39 @@
   font-weight: 600;
   content: counter(route-step) ".";
 }
-.digital-human-route ol {
+.digital-human-walking-route ol {
   font-size: var(--font-size-lg);
 }
-.digital-human-route .digital-human-route-actions {
+.digital-human-walking-route .digital-human-route-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
 }
-.digital-human-route .digital-human-route-button,
-.digital-human-route .digital-human-place-card__map-button {
+.digital-human-walking-route .digital-human-route-button,
+.digital-human-walking-route .digital-human-place-card__map-button {
   width: auto;
   min-height: 56px;
   font-size: var(--font-size-lg);
 }
-.digital-human-route .digital-human-route-button {
+.digital-human-walking-route .digital-human-route-button {
   border-color: var(--digital-human-playback-active);
   background: rgb(255 255 255 / 18%);
 }
-.digital-human-route .digital-human-route-button:hover {
+.digital-human-walking-route .digital-human-route-button:hover {
   background: rgb(255 255 255 / 42%);
 }
 
 @media (max-width: 480px) {
-  .digital-human-route {
+  .digital-human-walking-route {
     padding: var(--space-4);
   }
 
-  .digital-human-route .digital-human-route-actions {
+  .digital-human-walking-route .digital-human-route-actions {
     gap: var(--space-2);
   }
 
-  .digital-human-route .digital-human-route-button,
-  .digital-human-route .digital-human-place-card__map-button {
+  .digital-human-walking-route .digital-human-route-button,
+  .digital-human-walking-route .digital-human-place-card__map-button {
     min-height: 48px;
     padding-right: var(--space-2);
     padding-left: var(--space-2);
