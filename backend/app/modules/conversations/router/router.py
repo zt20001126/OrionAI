@@ -3,7 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 
 from app.modules.auth.dependencies import validate_origin
 from app.modules.conversations.dependencies.dependencies import (
@@ -50,6 +50,35 @@ def stream_walking_route(
     """验证会话并流式返回步行路线；业务和存储由会话服务负责。"""
     conversation = service.prepare_walking_route(user, conversation_id)
     return create_sse_response(service.stream_walking_route(conversation, payload))
+
+
+@router.get(
+    "/{conversation_id}/messages/{message_id}/static-map",
+    dependencies=[Depends(require_membership_access)],
+)
+async def get_route_static_map(
+    conversation_id: int,
+    message_id: int,
+    user: CurrentUser,
+    service: ConversationServiceDependency,
+) -> Response:
+    """按需返回本人路线消息的静态地图。
+
+    输入：会话和消息 ID 及认证用户；输出：图片字节响应；调用方：数字人路线卡片。
+    """
+    image, content_type = await service.get_route_static_map(
+        user,
+        conversation_id,
+        message_id,
+    )
+    return Response(
+        content=image,
+        media_type=content_type,
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.post(
